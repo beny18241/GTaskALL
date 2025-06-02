@@ -14,7 +14,13 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', '@react-oauth/google', 'gapi-script'],
-    exclude: ['@react-oauth/google']
+    include: ['react', 'react-dom'],
+    exclude: ['@react-oauth/google', 'gapi-script']
+  },
+  build: {
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true
+    }
   }
 }) 
