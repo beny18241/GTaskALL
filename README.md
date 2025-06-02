@@ -1,6 +1,6 @@
 # GTaskALL
 
-A modern Kanban board application built with React and TypeScript.
+A modern Kanban board application built with React and TypeScript, integrated with Google Tasks.
 
 ## Features
 
@@ -11,6 +11,8 @@ A modern Kanban board application built with React and TypeScript.
 - 📊 Multiple sorting and grouping options
 - 🎨 Custom column colors
 - 📱 Responsive design
+- 🔐 Google Tasks integration
+- 📝 Task status management (To Do, In Progress, Done)
 
 ## Getting Started
 
@@ -18,6 +20,7 @@ A modern Kanban board application built with React and TypeScript.
 
 - Node.js (v14 or higher)
 - npm or yarn
+- Google Cloud Platform account with Tasks API enabled
 
 ### Installation
 
@@ -34,18 +37,36 @@ npm install
 yarn install
 ```
 
-3. Start the development server:
+3. Configure Google Tasks API:
+   - Create a project in Google Cloud Console
+   - Enable the Google Tasks API
+   - Create OAuth 2.0 credentials
+   - Add your client ID to the application
+
+4. Start the development server:
 ```bash
 npm run dev
 # or
 yarn dev
 ```
 
-4. Open [http://localhost:5173](http://localhost:5173) in your browser.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Testing the Application
 
-1. **Adding Tasks**
+1. **Google Tasks Integration**
+   - Click "Sign in with Google" to authenticate
+   - Select a task list to manage
+   - Tasks will be synchronized with your Google Tasks
+
+2. **Managing Tasks**
+   - Drag and drop tasks between columns:
+     - To Do: New tasks and tasks that need attention
+     - In Progress: Tasks currently being worked on
+     - Done: Completed tasks
+   - Task status is automatically synced with Google Tasks
+
+3. **Adding Tasks**
    - Click the "Add Task" button
    - Enter task details:
      - Task description
@@ -53,17 +74,17 @@ yarn dev
      - Priority (Low/Medium/High)
      - Category (Work/Personal/Shopping/Other)
 
-2. **Managing Columns**
+4. **Managing Columns**
    - Click "Add Column" to create a new column
    - Enter column title and choose a color
    - Remove columns using the × button (except when only one column remains)
 
-3. **Organizing Tasks**
+5. **Organizing Tasks**
    - Drag and drop tasks between columns
    - Use the "Sort by" dropdown to change task order
    - Use the "Group by" dropdown to organize tasks by priority or category
 
-4. **Task Details**
+6. **Task Details**
    - Each task shows:
      - Due date with calendar icon
      - Priority with lightning icon
@@ -76,6 +97,8 @@ yarn dev
 - TypeScript
 - CSS3
 - HTML5 Drag and Drop API
+- Google Tasks API
+- OAuth 2.0
 
 ## License
 
