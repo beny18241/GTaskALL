@@ -20,13 +20,19 @@
   },
   "homepage": "https://github.com/beny18241/GTaskALL#readme",
   "dependencies": {
+    "@react-oauth/google": "^0.12.2",
+    "@types/gapi": "^0.0.47",
+    "@types/gapi.auth2": "^0.0.61",
+    "@types/gapi.calendar": "^3.0.11",
+    "gapi-script": "^1.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@babel/plugin-transform-react-jsx": "^7.27.1",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
-    "@vitejs/plugin-react": "^4.2.0",
+    "@vitejs/plugin-react": "^4.5.0",
     "typescript": "^5.0.0",
     "vite": "^5.0.0"
   }
