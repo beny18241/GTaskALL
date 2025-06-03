@@ -32,6 +32,7 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
         // Check for existing session
         const auth2 = gapi.auth2.getAuthInstance();
         const isSignedIn = auth2.isSignedIn.get();
+        
         if (isSignedIn) {
           setIsSignedIn(true);
           await fetchTaskLists();

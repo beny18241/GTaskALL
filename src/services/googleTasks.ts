@@ -1,7 +1,7 @@
 import { gapi } from 'gapi-script';
 
-const CLIENT_ID = '251184335563-bdf3sv4vc1sr4v2itciiepd7fllvshec.apps.googleusercontent.com';
-const API_KEY = '';
+const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '251184335563-bdf3sv4vc1sr4v2itciiepd7fllvshec.apps.googleusercontent.com';
+const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || '';
 const DISCOVERY_DOCS = ['https://tasks.googleapis.com/$discovery/rest?version=v1'];
 const SCOPES = 'https://www.googleapis.com/auth/tasks';
 
@@ -63,7 +63,7 @@ class GoogleTasksService {
         apiKey: API_KEY,
         clientId: CLIENT_ID,
         discoveryDocs: DISCOVERY_DOCS,
-        scope: SCOPES,
+        scope: SCOPES
       });
       console.log('GAPI client initialized');
     } catch (error) {
@@ -112,20 +112,9 @@ class GoogleTasksService {
           console.log('Sign-in state changed:', isSignedIn);
           if (!isSignedIn) {
             localStorage.removeItem('googleTasksToken');
+            localStorage.removeItem('tokenExpiration');
           }
         });
-
-        // Check for stored token and restore session if possible
-        const storedToken = localStorage.getItem('googleTasksToken');
-        if (storedToken) {
-          try {
-            await auth2.signIn();
-            console.log('Session restored successfully');
-          } catch (err) {
-            console.error('Failed to restore session:', err);
-            localStorage.removeItem('googleTasksToken');
-          }
-        }
 
         this.isInitialized = true;
         console.log('Google Tasks API fully initialized');
@@ -152,8 +141,12 @@ class GoogleTasksService {
       }
 
       const googleUser = await auth2.signIn();
-      const token = googleUser.getAuthResponse().access_token;
-      localStorage.setItem('googleTasksToken', token);
+      const authResponse = googleUser.getAuthResponse();
+      
+      // Store token and expiration
+      localStorage.setItem('googleTasksToken', authResponse.access_token);
+      localStorage.setItem('tokenExpiration', (Date.now() + authResponse.expires_in * 1000).toString());
+      
       console.log('Access token obtained and stored successfully');
       return googleUser;
     } catch (error) {
@@ -175,6 +168,7 @@ class GoogleTasksService {
 
       await auth2.signOut();
       localStorage.removeItem('googleTasksToken');
+      localStorage.removeItem('tokenExpiration');
       console.log('Signed out successfully');
     } catch (error) {
       console.error('Error signing out:', error);
@@ -188,6 +182,11 @@ class GoogleTasksService {
     }
 
     try {
+      const auth2 = gapi.auth2.getAuthInstance();
+      if (!auth2.isSignedIn.get()) {
+        throw new Error('User not signed in');
+      }
+
       const response = await gapi.client.tasks.tasklists.list();
       console.log('Task lists fetched successfully:', response.result.items);
       return response.result.items || [];
@@ -203,6 +202,11 @@ class GoogleTasksService {
     }
 
     try {
+      const auth2 = gapi.auth2.getAuthInstance();
+      if (!auth2.isSignedIn.get()) {
+        throw new Error('User not signed in');
+      }
+
       const response = await gapi.client.tasks.tasks.list({
         tasklist: taskListId,
       });
