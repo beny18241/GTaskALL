@@ -1,10 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
+import { gapi } from 'gapi-script';
 import { googleTasksService, GoogleTask, GoogleTaskList } from '../services/googleTasks';
 import KanbanBoard from './KanbanBoard';
+import './GoogleTasksIntegration.css';
 
 interface GoogleTasksIntegrationProps {
   sortBy: 'dueDate' | 'priority' | 'createdAt';
+}
+
+interface ConnectedAccount {
+  id: string;
+  email: string;
+  name: string;
+  picture?: string;
+  taskLists: GoogleTaskList[];
 }
 
 const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy }) => {
@@ -17,6 +27,7 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
   const [isInitialized, setIsInitialized] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [groupBy, setGroupBy] = useState<'status' | 'priority' | 'none'>('status');
+  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const maxRetries = 3;
 
   useEffect(() => {
@@ -65,26 +76,39 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
       console.log('Login successful, initializing tasks...');
       
       // Sign in to Google Tasks API
-      await googleTasksService.signIn();
+      const googleUser = await googleTasksService.signIn();
+      const profile = googleUser.getBasicProfile();
       
-      // Fetch task lists
+      // Create new account object
+      const newAccount: ConnectedAccount = {
+        id: profile.getId(),
+        email: profile.getEmail(),
+        name: profile.getName(),
+        picture: profile.getImageUrl(),
+        taskLists: []
+      };
+      
+      // Fetch task lists for the new account
       const taskLists = await googleTasksService.getTaskLists();
-      console.log('Task lists loaded:', taskLists);
+      newAccount.taskLists = taskLists;
       
-      if (taskLists.length === 0) {
-        setError('No task lists found. Please create a task list in Google Tasks first.');
-        setLoading(false);
-        return;
+      // Add the new account to connected accounts
+      setConnectedAccounts(prev => {
+        // Check if account already exists
+        if (prev.some(acc => acc.id === newAccount.id)) {
+          return prev;
+        }
+        return [...prev, newAccount];
+      });
+      
+      // Update task lists and tasks
+      setTaskLists(prev => [...prev, ...taskLists]);
+      if (taskLists.length > 0) {
+        const tasks = await googleTasksService.getTasks(taskLists[0].id);
+        setTasks(prev => [...prev, ...tasks]);
+        setSelectedTaskList(taskLists[0].id);
       }
-
-      // Fetch tasks from the first task list
-      const tasks = await googleTasksService.getTasks(taskLists[0].id);
-      console.log('Tasks loaded:', tasks);
       
-      const sortedTasks = sortTasks(tasks, sortBy);
-      setTasks(sortedTasks);
-      setTaskLists(taskLists);
-      setSelectedTaskList(taskLists[0].id);
       setIsSignedIn(true);
       setLoading(false);
     } catch (err) {
@@ -113,15 +137,31 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
     }
   };
 
-  const handleSignOut = async () => {
+  const handleSignOut = async (accountId: string) => {
     try {
       setLoading(true);
       setError(null);
       await googleTasksService.signOut();
-      setIsSignedIn(false);
-      setTaskLists([]);
-      setTasks([]);
-      setSelectedTaskList('');
+      
+      // Remove the account from connected accounts
+      setConnectedAccounts(prev => prev.filter(acc => acc.id !== accountId));
+      
+      // Update task lists and tasks
+      const remainingTaskLists = connectedAccounts
+        .filter(acc => acc.id !== accountId)
+        .flatMap(acc => acc.taskLists);
+      
+      setTaskLists(remainingTaskLists);
+      if (remainingTaskLists.length > 0) {
+        const tasks = await googleTasksService.getTasks(remainingTaskLists[0].id);
+        setTasks(tasks);
+        setSelectedTaskList(remainingTaskLists[0].id);
+      } else {
+        setTasks([]);
+        setSelectedTaskList('');
+        setIsSignedIn(false);
+      }
+      
       setLoading(false);
     } catch (err) {
       console.error('Failed to sign out:', err);
@@ -247,18 +287,48 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
       ) : (
         <div className="google-tasks-content">
           <div className="header-actions">
-            <div className="task-list-selector">
-              <select 
-                value={selectedTaskList} 
-                onChange={(e) => setSelectedTaskList(e.target.value)}
-                disabled={loading}
-              >
-                {taskLists.map((list) => (
-                  <option key={list.id} value={list.id}>
-                    {list.title}
-                  </option>
+            <div className="accounts-info">
+              <h3>Connected Accounts</h3>
+              <div className="accounts-list">
+                {connectedAccounts.map(account => (
+                  <div key={account.id} className="account-item">
+                    <div className="account-info">
+                      <img src={account.picture} alt={account.name} className="account-avatar" />
+                      <div className="account-details">
+                        <span className="account-name">{account.name}</span>
+                        <span className="account-email">{account.email}</span>
+                        <div className="account-task-lists">
+                          {account.taskLists.map(list => (
+                            <div key={list.id} className="task-list-item">
+                              <span className="task-list-name">{list.title}</span>
+                              <span className="task-list-count">
+                                ({tasks.filter(task => selectedTaskList === list.id).length} tasks)
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => handleSignOut(account.id)}
+                      disabled={loading}
+                      className="google-sign-out-btn"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
                 ))}
-              </select>
+              </div>
+              <button 
+                onClick={() => {
+                  setError(null);
+                  handleLoginSuccess({});
+                }}
+                disabled={loading}
+                className="add-account-btn"
+              >
+                Add Another Account
+              </button>
             </div>
             <div className="view-controls">
               <select
@@ -271,13 +341,6 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
                 <option value="none">No Grouping</option>
               </select>
             </div>
-            <button 
-              onClick={handleSignOut}
-              disabled={loading}
-              className="google-sign-out-btn"
-            >
-              Sign Out
-            </button>
           </div>
 
           <KanbanBoard

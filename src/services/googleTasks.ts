@@ -140,7 +140,10 @@ class GoogleTasksService {
         throw new Error('Auth2 not initialized');
       }
 
-      const googleUser = await auth2.signIn();
+      // Prompt for account selection
+      const googleUser = await auth2.signIn({
+        prompt: 'select_account'
+      });
       const authResponse = googleUser.getAuthResponse();
       
       // Store token and expiration
