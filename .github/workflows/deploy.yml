@@ -6,10 +6,8 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
+  build-and-uat:
     runs-on: self-hosted
-    environment: production
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -42,6 +40,28 @@ jobs:
           ssh beny@192.168.1.244 "cd /home/beny/gtask-uat && nohup npm run preview -- --host 0.0.0.0 --port 3001 > uat-server.log 2>&1 &"
           
           echo "UAT deployment complete! Please verify at http://192.168.1.244:3001"
+
+  deploy-to-production:
+    needs: build-and-uat
+    runs-on: self-hosted
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_GOOGLE_API_KEY: ${{ secrets.VITE_GOOGLE_API_KEY }}
 
       - name: Deploy to Production
         run: |
