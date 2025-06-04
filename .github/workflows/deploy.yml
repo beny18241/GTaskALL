@@ -8,6 +8,7 @@ on:
 jobs:
   build-and-uat:
     runs-on: self-hosted
+    environment: uat
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -74,20 +75,10 @@ jobs:
           
           echo "UAT deployment complete! Please verify at http://192.168.1.244:3001"
 
-  wait-for-approval:
+  deploy-to-production:
     needs: build-and-uat
     runs-on: self-hosted
-    steps:
-      - name: Wait for manual approval
-        uses: trstringer/manual-approval@v1
-        with:
-          secret: ${{ github.token }}
-          approvers: beny
-          minimum-approvals: 1
-
-  deploy-to-production:
-    needs: wait-for-approval
-    runs-on: self-hosted
+    environment: production
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
