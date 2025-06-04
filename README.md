@@ -113,3 +113,4 @@ MIT
 # Server deployment test 2 - Wed Jun  4 13:51:56 CEST 2025
 # Server start test - Wed Jun  4 13:54:55 CEST 2025
 # Server deployment and start test - Wed Jun  4 13:58:44 CEST 2025
+# SSH deployment test - Wed Jun  4 14:02:23 CEST 2025
