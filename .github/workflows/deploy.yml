@@ -33,14 +33,9 @@ jobs:
       - name: Deploy to server
         run: |
           echo "Creating deployment directory..."
-          sudo mkdir -p /home/beny/gtask
-          sudo chown -R $USER:$USER /home/beny/gtask
+          mkdir -p /home/beny/gtask
           
           echo "Copying files..."
           cp -rv dist/* /home/beny/gtask/
-          
-          echo "Setting permissions..."
-          sudo chown -R www-data:www-data /home/beny/gtask
-          sudo chmod -R 755 /home/beny/gtask
           
           echo "Deployment complete!" 
