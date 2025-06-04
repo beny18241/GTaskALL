@@ -32,5 +32,5 @@ jobs:
 
       - name: Copy files to server
         run: |
-          mkdir -p ${{ vars.PRODUCTION_PATH }}
-          cp -r dist/* ${{ vars.PRODUCTION_PATH }}/ 
+          mkdir -p "${{ vars.PRODUCTION_PATH }}"
+          cp -r dist/* "${{ vars.PRODUCTION_PATH }}/" 
