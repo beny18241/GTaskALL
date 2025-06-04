@@ -116,3 +116,4 @@ MIT
 # SSH deployment test - Wed Jun  4 14:02:23 CEST 2025
 # Hardcoded IP test - Wed Jun  4 14:03:34 CEST 2025
 # Deployment test - Wed Jun  4 14:03:59 CEST 2025
+# Full dist deployment test - Wed Jun  4 14:06:08 CEST 2025
