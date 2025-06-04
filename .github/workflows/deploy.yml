@@ -30,14 +30,34 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_GOOGLE_API_KEY: ${{ secrets.VITE_GOOGLE_API_KEY }}
 
-      - name: Copy to remote server
+      - name: Deploy to UAT
         run: |
-          echo "Copying files to remote server..."
+          echo "Deploying to UAT environment..."
+          ssh beny@192.168.1.244 "rm -rf /home/beny/gtask-uat/*"
+          ssh beny@192.168.1.244 "mkdir -p /home/beny/gtask-uat"
+          scp -r dist beny@192.168.1.244:/home/beny/gtask-uat/
+          
+          echo "Starting UAT server..."
+          ssh beny@192.168.1.244 "cd /home/beny/gtask-uat && nohup npm run preview -- --host 0.0.0.0 --port 3001 > uat-server.log 2>&1 &"
+          
+          echo "UAT deployment complete! Please verify at http://192.168.1.244:3001"
+
+      - name: Wait for UAT approval
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ github.token }}
+          approvers: beny
+          minimum-approvals: 1
+
+      - name: Deploy to Production
+        if: success()
+        run: |
+          echo "Copying files to production server..."
           ssh beny@192.168.1.244 "rm -rf /home/beny/gtask/*"
           ssh beny@192.168.1.244 "mkdir -p /home/beny/gtask"
           scp -r dist beny@192.168.1.244:/home/beny/gtask/
           
-          echo "Starting server on remote..."
+          echo "Starting production server..."
           ssh beny@192.168.1.244 "cd /home/beny/gtask && nohup npm run preview -- --host 0.0.0.0 --port 3000 > server.log 2>&1 &"
           
-          echo "Deployment complete!" 
+          echo "Production deployment complete!" 
