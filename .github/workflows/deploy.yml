@@ -30,7 +30,17 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_GOOGLE_API_KEY: ${{ secrets.VITE_GOOGLE_API_KEY }}
 
-      - name: Copy files to server
+      - name: Deploy to server
         run: |
-          mkdir -p "/home/beny/gtask"
-          cp -r dist/* "/home/beny/gtask/" 
+          echo "Creating deployment directory..."
+          sudo mkdir -p /home/beny/gtask
+          sudo chown -R $USER:$USER /home/beny/gtask
+          
+          echo "Copying files..."
+          cp -rv dist/* /home/beny/gtask/
+          
+          echo "Setting permissions..."
+          sudo chown -R www-data:www-data /home/beny/gtask
+          sudo chmod -R 755 /home/beny/gtask
+          
+          echo "Deployment complete!" 
