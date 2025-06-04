@@ -4,17 +4,11 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      deploy_to_production:
-        description: 'Deploy to production after UAT'
-        required: true
-        type: boolean
-        default: false
 
 jobs:
   build-and-uat:
     runs-on: self-hosted
+    environment: UAT
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -83,8 +77,8 @@ jobs:
 
   deploy-to-production:
     needs: build-and-uat
-    if: ${{ github.event.inputs.deploy_to_production == 'true' }}
     runs-on: self-hosted
+    environment: Production
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
