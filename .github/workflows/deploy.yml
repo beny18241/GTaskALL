@@ -8,6 +8,7 @@ on:
 jobs:
   build-and-deploy:
     runs-on: self-hosted
+    environment: production
 
     steps:
       - name: Checkout code
@@ -42,15 +43,7 @@ jobs:
           
           echo "UAT deployment complete! Please verify at http://192.168.1.244:3001"
 
-      - name: Wait for UAT approval
-        uses: trstringer/manual-approval@v1
-        with:
-          secret: ${{ github.token }}
-          approvers: beny
-          minimum-approvals: 1
-
       - name: Deploy to Production
-        if: success()
         run: |
           echo "Copying files to production server..."
           ssh beny@192.168.1.244 "rm -rf /home/beny/gtask/*"
