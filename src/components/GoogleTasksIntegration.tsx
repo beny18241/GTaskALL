@@ -1,206 +1,53 @@
-import React, { useEffect, useState } from 'react';
-import { GoogleLogin } from '@react-oauth/google';
-import { gapi } from 'gapi-script';
+import React, { useState, useEffect } from 'react';
 import { googleTasksService, GoogleTask, GoogleTaskList } from '../services/googleTasks';
-import KanbanBoard from './KanbanBoard';
-import './GoogleTasksIntegration.css';
-import { format } from 'date-fns';
+// If you want to display formatted dates, uncomment the next line and install @types/date-fns
+// import { format } from 'date-fns';
 
-interface GoogleTasksIntegrationProps {
-  sortBy: 'dueDate' | 'priority' | 'createdAt';
-}
-
-interface ConnectedAccount {
-  id: string;
-  email: string;
-  name: string;
-  picture?: string;
-  taskLists: GoogleTaskList[];
-  color: string;
-}
-
-const DEFAULT_ACCOUNT_COLORS = [
-  '#E3F2FD', // Light blue
-  '#F3E5F5', // Light purple
-  '#E8F5E9'  // Light green
-];
-
-const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy }) => {
+const GoogleTasksIntegration: React.FC = () => {
   const [isSignedIn, setIsSignedIn] = useState(false);
-  const [selectedTaskList, setSelectedTaskList] = useState<string>('');
-  const [tasks, setTasks] = useState<GoogleTask[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const [groupBy, setGroupBy] = useState<'status' | 'priority' | 'none'>('status');
-  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [taskLists, setTaskLists] = useState<GoogleTaskList[]>([]);
+  const [selectedList, setSelectedList] = useState<string>('');
+  const [tasks, setTasks] = useState<GoogleTask[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskNotes, setNewTaskNotes] = useState('');
   const [newTaskDue, setNewTaskDue] = useState('');
   const [isUAT] = useState(window.location.hostname.includes('uat') || window.location.hostname.includes('localhost'));
-  const maxRetries = 3;
 
   useEffect(() => {
-    let mounted = true;
-
-    const initGoogleTasks = async () => {
+    const init = async () => {
       try {
-        console.log('Initializing Google Tasks...');
         await googleTasksService.initialize();
-        
-        if (!mounted) return;
-        
         if (isUAT) {
           setIsSignedIn(true);
           await loadTaskLists();
         } else {
           setIsSignedIn(googleTasksService.isUserSignedIn());
         }
-        
-        setIsInitialized(true);
-        setLoading(false);
-        setError(null);
-        console.log('Google Tasks initialized successfully');
-      } catch (err) {
-        console.error('Failed to initialize Google Tasks:', err);
-        if (mounted) {
-          setError('Failed to initialize Google Tasks. Please try refreshing the page.');
-          setLoading(false);
-        }
+      } catch (error) {
+        setError('Failed to initialize Google Tasks');
       }
     };
-
-    initGoogleTasks();
-
-    return () => {
-      mounted = false;
-    };
+    init();
   }, [isUAT]);
 
   useEffect(() => {
-    if (selectedTaskList) {
-      loadTasks(selectedTaskList);
+    if (selectedList) {
+      loadTasks(selectedList);
     }
-  }, [selectedTaskList]);
+  }, [selectedList]);
 
-  const handleLoginSuccess = async () => {
+  const loadTaskLists = async () => {
     try {
       setLoading(true);
-      setError(null);
-      console.log('Login successful, initializing tasks...');
-      
-      // Sign in to Google Tasks API
-      const googleUser = await googleTasksService.signIn();
-      const profile = googleUser.getBasicProfile();
-      
-      // Check if account already exists
-      if (connectedAccounts.some(acc => acc.id === profile.getId())) {
-        setError('This account is already connected.');
-        setLoading(false);
-        return;
-      }
-      
-      // Create new account object with default color
-      const newAccount: ConnectedAccount = {
-        id: profile.getId(),
-        email: profile.getEmail(),
-        name: profile.getName(),
-        picture: profile.getImageUrl(),
-        taskLists: [],
-        color: DEFAULT_ACCOUNT_COLORS[connectedAccounts.length % DEFAULT_ACCOUNT_COLORS.length]
-      };
-      
-      // Fetch task lists for the new account
       const lists = await googleTasksService.getTaskLists();
-      newAccount.taskLists = lists;
-      
-      // Add the new account to connected accounts
-      setConnectedAccounts(prev => [...prev, newAccount]);
-      
-      // Update tasks
-      if (lists.length > 0) {
-        setSelectedTaskList(lists[0].id);
-        const tasks = await googleTasksService.getTasks(lists[0].id);
-        setTasks(tasks);
-      }
-      
-      setIsSignedIn(true);
-      setLoading(false);
-    } catch (err) {
-      console.error('Error during login process:', err);
-      setError('Failed to load tasks. Please try again.');
-      setLoading(false);
-    }
-  };
-
-  const handleLoginError = () => {
-    setError('Login failed. Please try again.');
-  };
-
-  const handleRetry = () => {
-    if (retryCount < maxRetries) {
-      setRetryCount(prev => prev + 1);
-      setLoading(true);
-      setError(null);
-      googleTasksService.initialize().catch(err => {
-        console.error('Retry failed:', err);
-        setError('Failed to initialize. Please try refreshing the page.');
-        setLoading(false);
-      });
-    } else {
-      setError('Maximum retry attempts reached. Please refresh the page.');
-    }
-  };
-
-  const handleSignOut = async (accountId: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      await googleTasksService.signOut();
-      
-      // Remove the account from connected accounts
-      setConnectedAccounts(prev => prev.filter(acc => acc.id !== accountId));
-      
-      // Update tasks
-      const remainingTaskLists = connectedAccounts
-        .filter(acc => acc.id !== accountId)
-        .flatMap(acc => acc.taskLists);
-      
-      if (remainingTaskLists.length > 0) {
-        const tasks = await googleTasksService.getTasks(remainingTaskLists[0].id);
-        setTasks(tasks);
-        setSelectedTaskList(remainingTaskLists[0].id);
-      } else {
-        setTasks([]);
-        setSelectedTaskList('');
-        setIsSignedIn(false);
-      }
-      
-      setLoading(false);
-    } catch (err) {
-      console.error('Failed to sign out:', err);
-      setError('Failed to sign out. Please try again.');
-      setLoading(false);
-    }
-  };
-
-  const fetchTaskLists = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const lists = await googleTasksService.getTaskLists();
-      console.log('Fetched task lists:', lists);
       setTaskLists(lists);
       if (lists.length > 0) {
-        setSelectedTaskList(lists[0].id);
-        const tasks = await googleTasksService.getTasks(lists[0].id);
-        setTasks(tasks);
+        setSelectedList(lists[0].id);
       }
-    } catch (err) {
-      console.error('Failed to fetch task lists:', err);
-      setError('Failed to fetch task lists. Please try again.');
+    } catch (error) {
+      setError('Failed to load task lists');
     } finally {
       setLoading(false);
     }
@@ -212,67 +59,43 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
       const tasks = await googleTasksService.getTasks(listId);
       setTasks(tasks);
     } catch (error) {
-      console.error('Error loading tasks:', error);
       setError('Failed to load tasks');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleTaskUpdate = async (taskId: string, updates: Partial<GoogleTask>) => {
+  const handleSignIn = async () => {
     try {
-      console.log('Updating task:', taskId, 'with updates:', updates);
-      
-      // Update the task in Google Tasks
-      await googleTasksService.updateTask(selectedTaskList, taskId, updates);
-      console.log('Task updated successfully');
-      
-      // Fetch fresh task list
-      const updatedTasks = await googleTasksService.getTasks(selectedTaskList);
-      console.log('Fetched updated tasks:', updatedTasks);
-      
-      // Sort and update the tasks state
-      const sortedTasks = sortTasks(updatedTasks, sortBy);
-      setTasks(sortedTasks);
-      
-      console.log('Task list updated successfully');
-    } catch (err) {
-      console.error('Failed to update task:', err);
-      setError('Failed to update task. Please try again.');
-      // Refresh the task list even if there was an error
-      try {
-        const updatedTasks = await googleTasksService.getTasks(selectedTaskList);
-        setTasks(sortTasks(updatedTasks, sortBy));
-      } catch (refreshErr) {
-        console.error('Failed to refresh task list:', refreshErr);
-      }
+      setLoading(true);
+      await googleTasksService.signIn();
+      setIsSignedIn(true);
+      await loadTaskLists();
+    } catch (error) {
+      setError('Failed to sign in');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const sortTasks = (tasksToSort: GoogleTask[], sortBy: 'dueDate' | 'priority' | 'createdAt') => {
-    return [...tasksToSort].sort((a, b) => {
-      switch (sortBy) {
-        case 'dueDate':
-          if (!a.due) return 1;
-          if (!b.due) return -1;
-          return new Date(a.due).getTime() - new Date(b.due).getTime();
-        case 'priority':
-          if (a.status === 'needsAction' && b.status !== 'needsAction') return -1;
-          if (a.status !== 'needsAction' && b.status === 'needsAction') return 1;
-          return 0;
-        case 'createdAt':
-        default:
-          if (!a.position) return 1;
-          if (!b.position) return -1;
-          return a.position.localeCompare(b.position);
-      }
-    });
+  const handleSignOut = async () => {
+    try {
+      setLoading(true);
+      await googleTasksService.signOut();
+      setIsSignedIn(false);
+      setTaskLists([]);
+      setTasks([]);
+      setSelectedList('');
+    } catch (error) {
+      setError('Failed to sign out');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
-
     try {
       setLoading(true);
       const newTask: GoogleTask = {
@@ -281,15 +104,25 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
         status: 'needsAction',
         due: newTaskDue || undefined
       };
-
-      await googleTasksService.createTask(selectedTaskList, newTask);
+      await googleTasksService.createTask(selectedList, newTask);
       setNewTaskTitle('');
       setNewTaskNotes('');
       setNewTaskDue('');
-      await loadTasks(selectedTaskList);
+      await loadTasks(selectedList);
     } catch (error) {
-      console.error('Error creating task:', error);
       setError('Failed to create task');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateTask = async (taskId: string, updates: Partial<GoogleTask>) => {
+    try {
+      setLoading(true);
+      await googleTasksService.updateTask(selectedList, taskId, updates);
+      await loadTasks(selectedList);
+    } catch (error) {
+      setError('Failed to update task');
     } finally {
       setLoading(false);
     }
@@ -298,135 +131,113 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
   const handleDeleteTask = async (taskId: string) => {
     try {
       setLoading(true);
-      await googleTasksService.deleteTask(selectedTaskList, taskId);
-      await loadTasks(selectedTaskList);
+      await googleTasksService.deleteTask(selectedList, taskId);
+      await loadTasks(selectedList);
     } catch (error) {
-      console.error('Error deleting task:', error);
       setError('Failed to delete task');
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="google-tasks-integration">
-        <div className="loading-message">
-          {isInitialized ? 'Loading tasks...' : 'Initializing Google Tasks...'}
-        </div>
-      </div>
-    );
+  if (error) {
+    return <div className="error-message">{error}</div>;
   }
 
-  if (error) {
+  if (!isSignedIn && !isUAT) {
     return (
-      <div className="google-tasks-integration">
-        <div className="error-message">
-          {error}
-          {retryCount < maxRetries && (
-            <button onClick={handleRetry} className="retry-button">
-              Retry
-            </button>
-          )}
-        </div>
+      <div className="sign-in-container">
+        <button onClick={handleSignIn} disabled={loading}>
+          {loading ? 'Signing in...' : 'Sign in with Google'}
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="google-tasks-integration">
-      {!isSignedIn && !isUAT && (
-        <div className="login-section">
-          <h2>Welcome to GTaskALL</h2>
-          <p>Sign in with your Google account to access your tasks</p>
-          <div className="google-sign-in-container">
-            <GoogleLogin
-              onSuccess={handleLoginSuccess}
-              onError={handleLoginError}
-              useOneTap
-              theme="filled_blue"
-              text="signin_with"
-              shape="rectangular"
-              width="250"
-              logo_alignment="center"
-            />
-          </div>
-        </div>
-      )}
-      {isSignedIn && (
-        <div className="google-tasks-content">
-          <div className="header-actions">
-            <div className="accounts-info">
-              <h3>Connected Accounts</h3>
-              <div className="accounts-list">
-                {connectedAccounts.map(account => (
-                  <div key={account.id} className="account-item">
-                    <div className="account-info">
-                      <img src={account.picture} alt={account.name} className="account-avatar" />
-                      <div className="account-details">
-                        <span className="account-name">{account.name}</span>
-                        <span className="account-email">{account.email}</span>
-                        <div className="account-task-lists">
-                          {account.taskLists.map(list => {
-                            const taskCount = tasks.filter(task => task.parent === list.id).length;
-                            return (
-                              <div key={list.id} className="task-list-item">
-                                <span className="task-list-name">{list.title}</span>
-                                <span className="task-list-count">
-                                  ({taskCount} tasks)
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => handleSignOut(account.id)}
-                      disabled={loading}
-                      className="google-sign-out-btn"
-                    >
-                      Sign Out
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <button 
-                onClick={() => {
-                  setError(null);
-                  handleLoginSuccess();
-                }}
-                disabled={loading}
-                className="add-account-btn"
-              >
-                Add Another Account
-              </button>
-            </div>
-            <div className="view-controls">
-              <select
-                value={groupBy}
-                onChange={(e) => setGroupBy(e.target.value as 'status' | 'priority' | 'none')}
-                className="group-by-select"
-              >
-                <option value="status">Group by Status</option>
-                <option value="priority">Group by Priority</option>
-                <option value="none">No Grouping</option>
-              </select>
-            </div>
-          </div>
+    <div className="google-tasks-container">
+      <div className="task-lists">
+        <h2>Task Lists</h2>
+        <select
+          value={selectedList}
+          onChange={(e) => setSelectedList(e.target.value)}
+          disabled={loading}
+        >
+          {taskLists.map((list) => (
+            <option key={list.id} value={list.id}>
+              {list.title}
+            </option>
+          ))}
+        </select>
+      </div>
 
-          <KanbanBoard
-            tasks={sortTasks(tasks, sortBy)}
-            onTaskUpdate={handleTaskUpdate}
+      <div className="tasks-section">
+        <h2>Tasks</h2>
+        <form onSubmit={handleCreateTask} className="task-form">
+          <input
+            type="text"
+            value={newTaskTitle}
+            onChange={(e) => setNewTaskTitle(e.target.value)}
+            placeholder="New task title"
+            disabled={loading}
           />
-        </div>
-      )}
-      {!isUAT && (
-        <div className="sign-out-container">
-          <button onClick={handleSignOut} disabled={loading} className="sign-out-button">
-            Sign Out
+          <textarea
+            value={newTaskNotes}
+            onChange={(e) => setNewTaskNotes(e.target.value)}
+            placeholder="Task notes (optional)"
+            disabled={loading}
+          />
+          <input
+            type="datetime-local"
+            value={newTaskDue}
+            onChange={(e) => setNewTaskDue(e.target.value)}
+            disabled={loading}
+          />
+          <button type="submit" disabled={loading || !newTaskTitle.trim()}>
+            Add Task
           </button>
+        </form>
+
+        <div className="tasks-list">
+          {tasks.map((task) => (
+            <div key={task.id} className="task-item">
+              <div className="task-header">
+                <input
+                  type="checkbox"
+                  checked={task.status === 'completed'}
+                  onChange={(e) =>
+                    handleUpdateTask(task.id!, {
+                      status: e.target.checked ? 'completed' : 'needsAction'
+                    })
+                  }
+                  disabled={loading}
+                />
+                <h3>{task.title}</h3>
+                <button
+                  onClick={() => handleDeleteTask(task.id!)}
+                  disabled={loading}
+                  className="delete-button"
+                >
+                  Delete
+                </button>
+              </div>
+              {task.notes && <p className="task-notes">{task.notes}</p>}
+              {/* Uncomment below if you want to show due dates
+              {task.due && (
+                <p className="task-due">
+                  Due: {format(new Date(task.due), 'MMM d, yyyy h:mm a')}
+                </p>
+              )}
+              */}
+            </div>
+          ))}
         </div>
+      </div>
+
+      {!isUAT && (
+        <button onClick={handleSignOut} disabled={loading} className="sign-out-button">
+          Sign Out
+        </button>
       )}
     </div>
   );
