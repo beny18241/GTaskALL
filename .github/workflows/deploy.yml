@@ -30,16 +30,19 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_GOOGLE_API_KEY: ${{ secrets.VITE_GOOGLE_API_KEY }}
 
-      - name: Deploy to server
+      - name: Setup SSH
         run: |
-          echo "Creating deployment directory..."
-          mkdir -p /home/beny/gtask
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Copy to remote server
+        run: |
+          echo "Copying files to remote server..."
+          scp -r dist/* beny@${{ secrets.SERVER_IP }}:/home/beny/gtask/
           
-          echo "Copying files..."
-          cp -rv dist/* /home/beny/gtask/
-          
-          echo "Starting server..."
-          cd /home/beny/gtask
-          nohup npm run preview -- --host 0.0.0.0 --port 3000 > server.log 2>&1 &
+          echo "Starting server on remote..."
+          ssh beny@${{ secrets.SERVER_IP }} "cd /home/beny/gtask && nohup npm run preview -- --host 0.0.0.0 --port 3000 > server.log 2>&1 &"
           
           echo "Deployment complete!" 
