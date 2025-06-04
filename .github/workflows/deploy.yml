@@ -42,10 +42,10 @@ jobs:
           rm -rf /home/beny/gtask-uat/*
           mkdir -p /home/beny/gtask-uat
           
-          # Copy files
-          cp package.json /home/beny/gtask-uat/
-          cp package-lock.json /home/beny/gtask-uat/
-          cp -r dist /home/beny/gtask-uat/
+          # Copy files from the workspace directory
+          cp $GITHUB_WORKSPACE/package.json /home/beny/gtask-uat/
+          cp $GITHUB_WORKSPACE/package-lock.json /home/beny/gtask-uat/
+          cp -r $GITHUB_WORKSPACE/dist /home/beny/gtask-uat/
           
           # Install dependencies
           cd /home/beny/gtask-uat
@@ -109,10 +109,10 @@ jobs:
           rm -rf /home/beny/gtask/*
           mkdir -p /home/beny/gtask
           
-          # Copy files
-          cp package.json /home/beny/gtask/
-          cp package-lock.json /home/beny/gtask/
-          cp -r dist /home/beny/gtask/
+          # Copy files from the workspace directory
+          cp $GITHUB_WORKSPACE/package.json /home/beny/gtask/
+          cp $GITHUB_WORKSPACE/package-lock.json /home/beny/gtask/
+          cp -r $GITHUB_WORKSPACE/dist /home/beny/gtask/
           
           # Install dependencies
           cd /home/beny/gtask
