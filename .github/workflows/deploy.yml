@@ -29,44 +29,48 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_GOOGLE_API_KEY: ${{ secrets.VITE_GOOGLE_API_KEY }}
 
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H 192.168.1.244 >> ~/.ssh/known_hosts
-
       - name: Deploy to UAT
         run: |
           echo "Deploying to UAT environment..."
-          ssh beny@192.168.1.244 "rm -rf /home/beny/gtask-uat/*"
-          ssh beny@192.168.1.244 "mkdir -p /home/beny/gtask-uat"
+          # Create a temporary script to handle the deployment
+          cat > deploy.sh << 'EOF'
+          #!/bin/bash
+          set -e
           
-          # Copy necessary files for running the preview server
-          scp package.json beny@192.168.1.244:/home/beny/gtask-uat/
-          scp package-lock.json beny@192.168.1.244:/home/beny/gtask-uat/
-          scp -r dist beny@192.168.1.244:/home/beny/gtask-uat/
+          # Clean and create directory
+          rm -rf /home/beny/gtask-uat/*
+          mkdir -p /home/beny/gtask-uat
           
-          echo "Installing dependencies on UAT server..."
-          ssh beny@192.168.1.244 "cd /home/beny/gtask-uat && npm ci"
+          # Copy files
+          cp package.json /home/beny/gtask-uat/
+          cp package-lock.json /home/beny/gtask-uat/
+          cp -r dist /home/beny/gtask-uat/
           
-          echo "Starting UAT server..."
-          # Kill any existing process on port 3001
-          ssh beny@192.168.1.244 "lsof -ti:3001 | xargs kill -9 2>/dev/null || true"
+          # Install dependencies
+          cd /home/beny/gtask-uat
+          npm ci
           
-          # Start the server and verify it's running
-          ssh beny@192.168.1.244 "cd /home/beny/gtask-uat && nohup npm run preview -- --host 0.0.0.0 --port 3001 > /dev/null 2>&1 &"
+          # Kill any existing process
+          lsof -ti:3001 | xargs kill -9 2>/dev/null || true
           
-          # Wait a bit for the server to start
+          # Start server
+          nohup npm run preview -- --host 0.0.0.0 --port 3001 > /dev/null 2>&1 &
+          
+          # Wait for server to start
           sleep 5
           
-          # Verify the server is running
-          if curl -s http://192.168.1.244:3001 > /dev/null; then
+          # Check if server is running
+          if curl -s http://localhost:3001 > /dev/null; then
             echo "UAT server is running successfully!"
           else
             echo "UAT server failed to start!"
             exit 1
           fi
+          EOF
+          
+          # Make script executable and run it
+          chmod +x deploy.sh
+          ./deploy.sh
           
           echo "UAT deployment complete! Please verify at http://192.168.1.244:3001"
 
@@ -102,43 +106,47 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_GOOGLE_API_KEY: ${{ secrets.VITE_GOOGLE_API_KEY }}
 
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H 192.168.1.244 >> ~/.ssh/known_hosts
-
       - name: Deploy to Production
         run: |
           echo "Copying files to production server..."
-          ssh beny@192.168.1.244 "rm -rf /home/beny/gtask/*"
-          ssh beny@192.168.1.244 "mkdir -p /home/beny/gtask"
+          # Create a temporary script to handle the deployment
+          cat > deploy.sh << 'EOF'
+          #!/bin/bash
+          set -e
           
-          # Copy necessary files for running the preview server
-          scp package.json beny@192.168.1.244:/home/beny/gtask/
-          scp package-lock.json beny@192.168.1.244:/home/beny/gtask/
-          scp -r dist beny@192.168.1.244:/home/beny/gtask/
+          # Clean and create directory
+          rm -rf /home/beny/gtask/*
+          mkdir -p /home/beny/gtask
           
-          echo "Installing dependencies on production server..."
-          ssh beny@192.168.1.244 "cd /home/beny/gtask && npm ci"
+          # Copy files
+          cp package.json /home/beny/gtask/
+          cp package-lock.json /home/beny/gtask/
+          cp -r dist /home/beny/gtask/
           
-          echo "Starting production server..."
-          # Kill any existing process on port 3000
-          ssh beny@192.168.1.244 "lsof -ti:3000 | xargs kill -9 2>/dev/null || true"
+          # Install dependencies
+          cd /home/beny/gtask
+          npm ci
           
-          # Start the server and verify it's running
-          ssh beny@192.168.1.244 "cd /home/beny/gtask && nohup npm run preview -- --host 0.0.0.0 --port 3000 > /dev/null 2>&1 &"
+          # Kill any existing process
+          lsof -ti:3000 | xargs kill -9 2>/dev/null || true
           
-          # Wait a bit for the server to start
+          # Start server
+          nohup npm run preview -- --host 0.0.0.0 --port 3000 > /dev/null 2>&1 &
+          
+          # Wait for server to start
           sleep 5
           
-          # Verify the server is running
-          if curl -s http://192.168.1.244:3000 > /dev/null; then
+          # Check if server is running
+          if curl -s http://localhost:3000 > /dev/null; then
             echo "Production server is running successfully!"
           else
             echo "Production server failed to start!"
             exit 1
           fi
+          EOF
+          
+          # Make script executable and run it
+          chmod +x deploy.sh
+          ./deploy.sh
           
           echo "Production deployment complete!" 
