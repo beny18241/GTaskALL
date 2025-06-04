@@ -30,6 +30,13 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_GOOGLE_API_KEY: ${{ secrets.VITE_GOOGLE_API_KEY }}
 
+      - name: Check deployment path
+        run: |
+          if [ -z "${{ vars.PRODUCTION_PATH }}" ]; then
+            echo "::error::PRODUCTION_PATH variable is not set. Please set it in repository variables."
+            exit 1
+          fi
+
       - name: Copy files to server
         run: |
           mkdir -p "${{ vars.PRODUCTION_PATH }}"
