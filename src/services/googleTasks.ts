@@ -121,9 +121,11 @@ class GoogleTasksService {
   private isInitialized = false;
   private initializationPromise: Promise<void> | null = null;
   private isUAT = window.location.hostname.includes('uat') || window.location.hostname.includes('localhost');
+  private isSignedIn = false;
 
   private async loadGapi(): Promise<void> {
     if (this.isUAT) {
+      this.isSignedIn = true;
       return Promise.resolve();
     }
     return new Promise((resolve, reject) => {
@@ -225,6 +227,7 @@ class GoogleTasksService {
     }
 
     if (this.isUAT) {
+      this.isSignedIn = true;
       return {
         getBasicProfile: () => ({
           getId: () => MOCK_USER.id,
@@ -265,6 +268,7 @@ class GoogleTasksService {
 
   async signOut() {
     if (this.isUAT) {
+      this.isSignedIn = false;
       return Promise.resolve();
     }
 
@@ -422,6 +426,13 @@ class GoogleTasksService {
       console.error('Error deleting task:', error);
       throw error;
     }
+  }
+
+  isUserSignedIn(): boolean {
+    if (this.isUAT) {
+      return this.isSignedIn;
+    }
+    return gapi.auth2?.getAuthInstance()?.isSignedIn?.get() || false;
   }
 }
 

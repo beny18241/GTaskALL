@@ -4,6 +4,7 @@ import { gapi } from 'gapi-script';
 import { googleTasksService, GoogleTask, GoogleTaskList } from '../services/googleTasks';
 import KanbanBoard from './KanbanBoard';
 import './GoogleTasksIntegration.css';
+import { format } from 'date-fns';
 
 interface GoogleTasksIntegrationProps {
   sortBy: 'dueDate' | 'priority' | 'createdAt';
@@ -34,6 +35,11 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
   const [retryCount, setRetryCount] = useState(0);
   const [groupBy, setGroupBy] = useState<'status' | 'priority' | 'none'>('status');
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
+  const [taskLists, setTaskLists] = useState<GoogleTaskList[]>([]);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskNotes, setNewTaskNotes] = useState('');
+  const [newTaskDue, setNewTaskDue] = useState('');
+  const [isUAT] = useState(window.location.hostname.includes('uat') || window.location.hostname.includes('localhost'));
   const maxRetries = 3;
 
   useEffect(() => {
@@ -46,13 +52,11 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
         
         if (!mounted) return;
         
-        // Check for existing session
-        const auth2 = gapi.auth2.getAuthInstance();
-        const isSignedIn = auth2.isSignedIn.get();
-        
-        if (isSignedIn) {
+        if (isUAT) {
           setIsSignedIn(true);
-          await fetchTaskLists();
+          await loadTaskLists();
+        } else {
+          setIsSignedIn(googleTasksService.isUserSignedIn());
         }
         
         setIsInitialized(true);
@@ -73,7 +77,13 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [isUAT]);
+
+  useEffect(() => {
+    if (selectedTaskList) {
+      loadTasks(selectedTaskList);
+    }
+  }, [selectedTaskList]);
 
   const handleLoginSuccess = async () => {
     try {
@@ -182,6 +192,7 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
       setError(null);
       const lists = await googleTasksService.getTaskLists();
       console.log('Fetched task lists:', lists);
+      setTaskLists(lists);
       if (lists.length > 0) {
         setSelectedTaskList(lists[0].id);
         const tasks = await googleTasksService.getTasks(lists[0].id);
@@ -190,6 +201,19 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
     } catch (err) {
       console.error('Failed to fetch task lists:', err);
       setError('Failed to fetch task lists. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTasks = async (listId: string) => {
+    try {
+      setLoading(true);
+      const tasks = await googleTasksService.getTasks(listId);
+      setTasks(tasks);
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+      setError('Failed to load tasks');
     } finally {
       setLoading(false);
     }
@@ -245,6 +269,45 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
     });
   };
 
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim()) return;
+
+    try {
+      setLoading(true);
+      const newTask: GoogleTask = {
+        title: newTaskTitle,
+        notes: newTaskNotes,
+        status: 'needsAction',
+        due: newTaskDue || undefined
+      };
+
+      await googleTasksService.createTask(selectedTaskList, newTask);
+      setNewTaskTitle('');
+      setNewTaskNotes('');
+      setNewTaskDue('');
+      await loadTasks(selectedTaskList);
+    } catch (error) {
+      console.error('Error creating task:', error);
+      setError('Failed to create task');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      setLoading(true);
+      await googleTasksService.deleteTask(selectedTaskList, taskId);
+      await loadTasks(selectedTaskList);
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      setError('Failed to delete task');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="google-tasks-integration">
@@ -272,7 +335,7 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
 
   return (
     <div className="google-tasks-integration">
-      {!isSignedIn ? (
+      {!isSignedIn && !isUAT && (
         <div className="login-section">
           <h2>Welcome to GTaskALL</h2>
           <p>Sign in with your Google account to access your tasks</p>
@@ -289,7 +352,8 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
             />
           </div>
         </div>
-      ) : (
+      )}
+      {isSignedIn && (
         <div className="google-tasks-content">
           <div className="header-actions">
             <div className="accounts-info">
@@ -355,6 +419,13 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
             tasks={sortTasks(tasks, sortBy)}
             onTaskUpdate={handleTaskUpdate}
           />
+        </div>
+      )}
+      {!isUAT && (
+        <div className="sign-out-container">
+          <button onClick={handleSignOut} disabled={loading} className="sign-out-button">
+            Sign Out
+          </button>
         </div>
       )}
     </div>
