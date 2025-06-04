@@ -44,14 +44,24 @@ jobs:
           ssh beny@192.168.1.244 "cd /home/beny/gtask-uat && npm ci"
           
           echo "Starting UAT server..."
-          ssh beny@192.168.1.244 "cd /home/beny/gtask-uat && nohup npm run preview -- --host 0.0.0.0 --port 3001 > uat-server.log 2>&1 &"
+          ssh beny@192.168.1.244 "cd /home/beny/gtask-uat && nohup npm run preview -- --host 0.0.0.0 --port 3001 > /dev/null 2>&1 &"
           
           echo "UAT deployment complete! Please verify at http://192.168.1.244:3001"
 
-  deploy-to-production:
+  wait-for-approval:
     needs: build-and-uat
     runs-on: self-hosted
-    environment: production
+    steps:
+      - name: Wait for manual approval
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ github.token }}
+          approvers: beny
+          minimum-approvals: 1
+
+  deploy-to-production:
+    needs: wait-for-approval
+    runs-on: self-hosted
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -85,6 +95,6 @@ jobs:
           ssh beny@192.168.1.244 "cd /home/beny/gtask && npm ci"
           
           echo "Starting production server..."
-          ssh beny@192.168.1.244 "cd /home/beny/gtask && nohup npm run preview -- --host 0.0.0.0 --port 3000 > server.log 2>&1 &"
+          ssh beny@192.168.1.244 "cd /home/beny/gtask && nohup npm run preview -- --host 0.0.0.0 --port 3000 > /dev/null 2>&1 &"
           
           echo "Production deployment complete!" 
