@@ -26,7 +26,6 @@ const DEFAULT_ACCOUNT_COLORS = [
 
 const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy }) => {
   const [isSignedIn, setIsSignedIn] = useState(false);
-  const [taskLists, setTaskLists] = useState<GoogleTaskList[]>([]);
   const [selectedTaskList, setSelectedTaskList] = useState<string>('');
   const [tasks, setTasks] = useState<GoogleTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,12 +109,11 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
       // Add the new account to connected accounts
       setConnectedAccounts(prev => [...prev, newAccount]);
       
-      // Update task lists and tasks
-      setTaskLists(prev => [...prev, ...lists]);
+      // Update tasks
       if (lists.length > 0) {
-        const tasks = await googleTasksService.getTasks(lists[0].id);
-        setTasks(prev => [...prev, ...tasks]);
         setSelectedTaskList(lists[0].id);
+        const tasks = await googleTasksService.getTasks(lists[0].id);
+        setTasks(tasks);
       }
       
       setIsSignedIn(true);
@@ -155,12 +153,11 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
       // Remove the account from connected accounts
       setConnectedAccounts(prev => prev.filter(acc => acc.id !== accountId));
       
-      // Update task lists and tasks
+      // Update tasks
       const remainingTaskLists = connectedAccounts
         .filter(acc => acc.id !== accountId)
         .flatMap(acc => acc.taskLists);
       
-      setTaskLists(remainingTaskLists);
       if (remainingTaskLists.length > 0) {
         const tasks = await googleTasksService.getTasks(remainingTaskLists[0].id);
         setTasks(tasks);
@@ -185,7 +182,6 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
       setError(null);
       const lists = await googleTasksService.getTaskLists();
       console.log('Fetched task lists:', lists);
-      setTaskLists(lists);
       if (lists.length > 0) {
         setSelectedTaskList(lists[0].id);
         const tasks = await googleTasksService.getTasks(lists[0].id);
@@ -307,14 +303,17 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
                         <span className="account-name">{account.name}</span>
                         <span className="account-email">{account.email}</span>
                         <div className="account-task-lists">
-                          {account.taskLists.map(list => (
-                            <div key={list.id} className="task-list-item">
-                              <span className="task-list-name">{list.title}</span>
-                              <span className="task-list-count">
-                                ({tasks.filter(t => selectedTaskList === list.id).length} tasks)
-                              </span>
-                            </div>
-                          ))}
+                          {account.taskLists.map(list => {
+                            const taskCount = tasks.filter(task => task.parent === list.id).length;
+                            return (
+                              <div key={list.id} className="task-list-item">
+                                <span className="task-list-name">{list.title}</span>
+                                <span className="task-list-count">
+                                  ({taskCount} tasks)
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
