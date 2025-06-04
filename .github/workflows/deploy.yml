@@ -30,15 +30,7 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_GOOGLE_API_KEY: ${{ secrets.VITE_GOOGLE_API_KEY }}
 
-      - name: Check deployment path
-        run: |
-          if [ -z "${{ github.vars.PRODUCTION_PATH }}" ]; then
-            echo "::error::PRODUCTION_PATH variable is not set. Please set it in repository variables."
-            exit 1
-          fi
-          echo "Using deployment path: ${{ github.vars.PRODUCTION_PATH }}"
-
       - name: Copy files to server
         run: |
-          mkdir -p "${{ github.vars.PRODUCTION_PATH }}"
-          cp -r dist/* "${{ github.vars.PRODUCTION_PATH }}/" 
+          mkdir -p "/home/beny/gtask"
+          cp -r dist/* "/home/beny/gtask/" 
