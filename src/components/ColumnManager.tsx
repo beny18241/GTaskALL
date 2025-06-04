@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Column } from '../App'
+import { Column } from '../types'
 
 interface ColumnManagerProps {
   columns: Column[]

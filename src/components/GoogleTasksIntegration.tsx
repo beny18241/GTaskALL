@@ -15,7 +15,14 @@ interface ConnectedAccount {
   name: string;
   picture?: string;
   taskLists: GoogleTaskList[];
+  color: string;
 }
+
+const DEFAULT_ACCOUNT_COLORS = [
+  '#E3F2FD', // Light blue
+  '#F3E5F5', // Light purple
+  '#E8F5E9'  // Light green
+];
 
 const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy }) => {
   const [isSignedIn, setIsSignedIn] = useState(false);
@@ -69,7 +76,7 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
     };
   }, []);
 
-  const handleLoginSuccess = async (credentialResponse: any) => {
+  const handleLoginSuccess = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -79,34 +86,36 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
       const googleUser = await googleTasksService.signIn();
       const profile = googleUser.getBasicProfile();
       
-      // Create new account object
+      // Check if account already exists
+      if (connectedAccounts.some(acc => acc.id === profile.getId())) {
+        setError('This account is already connected.');
+        setLoading(false);
+        return;
+      }
+      
+      // Create new account object with default color
       const newAccount: ConnectedAccount = {
         id: profile.getId(),
         email: profile.getEmail(),
         name: profile.getName(),
         picture: profile.getImageUrl(),
-        taskLists: []
+        taskLists: [],
+        color: DEFAULT_ACCOUNT_COLORS[connectedAccounts.length % DEFAULT_ACCOUNT_COLORS.length]
       };
       
       // Fetch task lists for the new account
-      const taskLists = await googleTasksService.getTaskLists();
-      newAccount.taskLists = taskLists;
+      const lists = await googleTasksService.getTaskLists();
+      newAccount.taskLists = lists;
       
       // Add the new account to connected accounts
-      setConnectedAccounts(prev => {
-        // Check if account already exists
-        if (prev.some(acc => acc.id === newAccount.id)) {
-          return prev;
-        }
-        return [...prev, newAccount];
-      });
+      setConnectedAccounts(prev => [...prev, newAccount]);
       
       // Update task lists and tasks
-      setTaskLists(prev => [...prev, ...taskLists]);
-      if (taskLists.length > 0) {
-        const tasks = await googleTasksService.getTasks(taskLists[0].id);
+      setTaskLists(prev => [...prev, ...lists]);
+      if (lists.length > 0) {
+        const tasks = await googleTasksService.getTasks(lists[0].id);
         setTasks(prev => [...prev, ...tasks]);
-        setSelectedTaskList(taskLists[0].id);
+        setSelectedTaskList(lists[0].id);
       }
       
       setIsSignedIn(true);
@@ -322,7 +331,7 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
               <button 
                 onClick={() => {
                   setError(null);
-                  handleLoginSuccess({});
+                  handleLoginSuccess();
                 }}
                 disabled={loading}
                 className="add-account-btn"

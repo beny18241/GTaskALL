@@ -1,20 +1,20 @@
-import { Todo } from '../App'
+import { Todo } from '../types'
 import { useState } from 'react'
 
 interface TodoListProps {
   todos: Todo[]
-  onMove: (id: number, newStatus: string) => void
-  onDelete: (id: number) => void
+  onMove: (id: string, newStatus: string) => void
+  onDelete: (id: string) => void
   currentStatus: string
   groupBy: 'none' | 'priority' | 'group'
 }
 
 const TodoList: React.FC<TodoListProps> = ({ todos, onMove, onDelete, currentStatus, groupBy }) => {
   const [isDraggingOver, setIsDraggingOver] = useState(false)
-  const [draggingId, setDraggingId] = useState<number | null>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
 
   const handleDragStart = (e: React.DragEvent, todo: Todo) => {
-    e.dataTransfer.setData('text/plain', todo.id.toString())
+    e.dataTransfer.setData('text/plain', todo.id)
     e.dataTransfer.effectAllowed = 'move'
     setDraggingId(todo.id)
   }
@@ -36,7 +36,7 @@ const TodoList: React.FC<TodoListProps> = ({ todos, onMove, onDelete, currentSta
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
-    const todoId = parseInt(e.dataTransfer.getData('text/plain'))
+    const todoId = e.dataTransfer.getData('text/plain')
     onMove(todoId, currentStatus)
     setIsDraggingOver(false)
   }
@@ -46,7 +46,7 @@ const TodoList: React.FC<TodoListProps> = ({ todos, onMove, onDelete, currentSta
       return { 'All Tasks': todos }
     }
 
-    const groups: { [key: string]: Todo[] } = {}
+    const groups: Record<string, Todo[]> = {}
     todos.forEach(todo => {
       const groupKey = groupBy === 'priority' ? todo.priority : todo.group
       if (!groups[groupKey]) {

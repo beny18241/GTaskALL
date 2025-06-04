@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react'
-import { Priority, Group } from '../App'
+import { Priority, Group } from '../types'
 
 interface TodoFormProps {
   onSubmit: (text: string, dueDate: string, priority: Priority, group: Group) => void
