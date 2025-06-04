@@ -40,8 +40,9 @@ jobs:
       - name: Copy to remote server
         run: |
           echo "Copying files to remote server..."
+          ssh beny@192.168.1.244 "rm -rf /home/beny/gtask/*"
           ssh beny@192.168.1.244 "mkdir -p /home/beny/gtask"
-          scp -r dist/* beny@192.168.1.244:/home/beny/gtask/
+          scp -r dist beny@192.168.1.244:/home/beny/gtask/
           
           echo "Starting server on remote..."
           ssh beny@192.168.1.244 "cd /home/beny/gtask && nohup npm run preview -- --host 0.0.0.0 --port 3000 > server.log 2>&1 &"
