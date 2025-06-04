@@ -5,6 +5,84 @@ const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || '';
 const DISCOVERY_DOCS = ['https://tasks.googleapis.com/$discovery/rest?version=v1'];
 const SCOPES = 'https://www.googleapis.com/auth/tasks';
 
+// Mock data for UAT environment
+const MOCK_TASK_LISTS: GoogleTaskList[] = [
+  { id: 'mock-list-1', title: 'Work Tasks' },
+  { id: 'mock-list-2', title: 'Personal Tasks' },
+  { id: 'mock-list-3', title: 'Shopping List' }
+];
+
+const MOCK_TASKS: Record<string, GoogleTask[]> = {
+  'mock-list-1': [
+    {
+      id: 'task-1',
+      title: 'Complete project documentation',
+      notes: 'Include API documentation and user guides',
+      status: 'needsAction',
+      due: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      position: '00000000000000000001'
+    },
+    {
+      id: 'task-2',
+      title: 'Review pull requests',
+      notes: 'Check team members\' PRs and provide feedback',
+      status: 'completed',
+      completed: new Date().toISOString(),
+      position: '00000000000000000002'
+    },
+    {
+      id: 'task-3',
+      title: 'Schedule team meeting',
+      notes: 'Discuss sprint planning and current blockers',
+      status: 'needsAction',
+      due: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+      position: '00000000000000000003'
+    }
+  ],
+  'mock-list-2': [
+    {
+      id: 'task-4',
+      title: 'Gym workout',
+      notes: 'Focus on upper body today',
+      status: 'needsAction',
+      due: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
+      position: '00000000000000000001'
+    },
+    {
+      id: 'task-5',
+      title: 'Read new book',
+      notes: 'Start reading "Atomic Habits"',
+      status: 'needsAction',
+      position: '00000000000000000002'
+    }
+  ],
+  'mock-list-3': [
+    {
+      id: 'task-6',
+      title: 'Buy groceries',
+      notes: 'Milk, eggs, bread, fruits',
+      status: 'needsAction',
+      due: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
+      position: '00000000000000000001'
+    },
+    {
+      id: 'task-7',
+      title: 'Order new headphones',
+      notes: 'Research noise-cancelling options',
+      status: 'completed',
+      completed: new Date().toISOString(),
+      position: '00000000000000000002'
+    }
+  ]
+};
+
+const MOCK_USER = {
+  id: 'mock-user-1',
+  email: 'test@example.com',
+  name: 'Test User',
+  picture: 'https://ui-avatars.com/api/?name=Test+User&background=random'
+};
+
 export interface GoogleTask {
   id?: string;
   title: string;
@@ -42,8 +120,12 @@ declare global {
 class GoogleTasksService {
   private isInitialized = false;
   private initializationPromise: Promise<void> | null = null;
+  private isUAT = window.location.hostname.includes('uat') || window.location.hostname.includes('localhost');
 
   private async loadGapi(): Promise<void> {
+    if (this.isUAT) {
+      return Promise.resolve();
+    }
     return new Promise((resolve, reject) => {
       try {
         gapi.load('client:auth2', () => {
@@ -58,6 +140,9 @@ class GoogleTasksService {
   }
 
   private async initClient(): Promise<void> {
+    if (this.isUAT) {
+      return Promise.resolve();
+    }
     try {
       await gapi.client.init({
         apiKey: API_KEY,
@@ -73,6 +158,9 @@ class GoogleTasksService {
   }
 
   private async loadTasksApi(): Promise<void> {
+    if (this.isUAT) {
+      return Promise.resolve();
+    }
     return new Promise((resolve, reject) => {
       try {
         gapi.client.load('tasks', 'v1', () => {
@@ -97,24 +185,26 @@ class GoogleTasksService {
 
     this.initializationPromise = (async () => {
       try {
-        // Step 1: Load GAPI client
-        await this.loadGapi();
-        
-        // Step 2: Initialize GAPI client
-        await this.initClient();
-        
-        // Step 3: Load Tasks API
-        await this.loadTasksApi();
+        if (!this.isUAT) {
+          // Step 1: Load GAPI client
+          await this.loadGapi();
+          
+          // Step 2: Initialize GAPI client
+          await this.initClient();
+          
+          // Step 3: Load Tasks API
+          await this.loadTasksApi();
 
-        // Set up auth state listener
-        const auth2 = gapi.auth2.getAuthInstance();
-        auth2.isSignedIn.listen((isSignedIn) => {
-          console.log('Sign-in state changed:', isSignedIn);
-          if (!isSignedIn) {
-            localStorage.removeItem('googleTasksToken');
-            localStorage.removeItem('tokenExpiration');
-          }
-        });
+          // Set up auth state listener
+          const auth2 = gapi.auth2.getAuthInstance();
+          auth2.isSignedIn.listen((isSignedIn) => {
+            console.log('Sign-in state changed:', isSignedIn);
+            if (!isSignedIn) {
+              localStorage.removeItem('googleTasksToken');
+              localStorage.removeItem('tokenExpiration');
+            }
+          });
+        }
 
         this.isInitialized = true;
         console.log('Google Tasks API fully initialized');
@@ -132,6 +222,21 @@ class GoogleTasksService {
   async signIn() {
     if (!this.isInitialized) {
       await this.initialize();
+    }
+
+    if (this.isUAT) {
+      return {
+        getBasicProfile: () => ({
+          getId: () => MOCK_USER.id,
+          getEmail: () => MOCK_USER.email,
+          getName: () => MOCK_USER.name,
+          getImageUrl: () => MOCK_USER.picture
+        }),
+        getAuthResponse: () => ({
+          access_token: 'mock-token',
+          expires_in: 3600
+        })
+      };
     }
 
     try {
@@ -159,6 +264,10 @@ class GoogleTasksService {
   }
 
   async signOut() {
+    if (this.isUAT) {
+      return Promise.resolve();
+    }
+
     if (!this.isInitialized) {
       throw new Error('Google Tasks API not initialized');
     }
@@ -184,6 +293,10 @@ class GoogleTasksService {
       await this.initialize();
     }
 
+    if (this.isUAT) {
+      return MOCK_TASK_LISTS;
+    }
+
     try {
       const auth2 = gapi.auth2.getAuthInstance();
       if (!auth2.isSignedIn.get()) {
@@ -204,6 +317,10 @@ class GoogleTasksService {
       await this.initialize();
     }
 
+    if (this.isUAT) {
+      return MOCK_TASKS[taskListId] || [];
+    }
+
     try {
       const auth2 = gapi.auth2.getAuthInstance();
       if (!auth2.isSignedIn.get()) {
@@ -222,6 +339,16 @@ class GoogleTasksService {
   }
 
   async createTask(taskListId: string, task: GoogleTask): Promise<GoogleTask> {
+    if (this.isUAT) {
+      const newTask = {
+        ...task,
+        id: `task-${Date.now()}`,
+        position: `0000000000000000000${Object.keys(MOCK_TASKS[taskListId] || {}).length + 1}`
+      };
+      MOCK_TASKS[taskListId] = [...(MOCK_TASKS[taskListId] || []), newTask];
+      return newTask;
+    }
+
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -240,6 +367,18 @@ class GoogleTasksService {
   }
 
   async updateTask(taskListId: string, taskId: string, updates: Partial<GoogleTask>): Promise<GoogleTask> {
+    if (this.isUAT) {
+      const taskIndex = MOCK_TASKS[taskListId]?.findIndex(t => t.id === taskId);
+      if (taskIndex === -1) throw new Error('Task not found');
+      
+      const updatedTask = {
+        ...MOCK_TASKS[taskListId][taskIndex],
+        ...updates
+      };
+      MOCK_TASKS[taskListId][taskIndex] = updatedTask;
+      return updatedTask;
+    }
+
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -248,18 +387,13 @@ class GoogleTasksService {
       // If status is being updated to 'completed', also set the completed date
       if (updates.status === 'completed') {
         updates.completed = new Date().toISOString();
-      } else if (updates.status === 'needsAction') {
-        updates.completed = undefined;
       }
 
-      console.log('Updating task with data:', { taskListId, taskId, updates });
-      
       const response = await gapi.client.tasks.tasks.patch({
         tasklist: taskListId,
         task: taskId,
-        resource: updates
+        resource: updates,
       });
-
       console.log('Task updated successfully:', response.result);
       return response.result;
     } catch (error) {
@@ -269,6 +403,11 @@ class GoogleTasksService {
   }
 
   async deleteTask(taskListId: string, taskId: string): Promise<void> {
+    if (this.isUAT) {
+      MOCK_TASKS[taskListId] = MOCK_TASKS[taskListId]?.filter(t => t.id !== taskId) || [];
+      return Promise.resolve();
+    }
+
     if (!this.isInitialized) {
       await this.initialize();
     }
