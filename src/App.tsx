@@ -22,7 +22,7 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <GoogleTasksIntegration sortBy={sortBy} />
+        <GoogleTasksIntegration />
       </div>
     </GoogleOAuthProvider>
   );
