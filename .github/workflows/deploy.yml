@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout code
@@ -21,15 +21,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Type check
+        run: npm run typecheck
+
       - name: Build app
         run: npm run build
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_GOOGLE_API_KEY: ${{ secrets.VITE_GOOGLE_API_KEY }}
 
-      - name: Copy files to server via SSH
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ vars.PRODUCTION_HOST }}
-          username: ${{ vars.PRODUCTION_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "dist/*"
-          target: ${{ vars.PRODUCTION_PATH }}
-          strip_components: 1 
+      - name: Copy files to server
+        run: |
+          mkdir -p ${{ vars.PRODUCTION_PATH }}
+          cp -r dist/* ${{ vars.PRODUCTION_PATH }}/ 

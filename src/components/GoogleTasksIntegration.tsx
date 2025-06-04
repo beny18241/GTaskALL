@@ -311,7 +311,7 @@ const GoogleTasksIntegration: React.FC<GoogleTasksIntegrationProps> = ({ sortBy 
                             <div key={list.id} className="task-list-item">
                               <span className="task-list-name">{list.title}</span>
                               <span className="task-list-count">
-                                ({tasks.filter(task => selectedTaskList === list.id).length} tasks)
+                                ({tasks.filter(t => selectedTaskList === list.id).length} tasks)
                               </span>
                             </div>
                           ))}
