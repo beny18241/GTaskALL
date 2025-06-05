@@ -11,8 +11,11 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format } from 'date-fns';
-import { GoogleLogin } from '@react-oauth/google';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { useGoogleLogin, googleLogout } from '@react-oauth/google';
+import { GoogleLogin } from '@react-oauth/google';
+import axios from 'axios';
+import LogoutIcon from '@mui/icons-material/Logout';
 
 const drawerWidth = 240;
 
@@ -74,11 +77,53 @@ function App() {
   const [draggedTask, setDraggedTask] = useState<{ task: Task; sourceColumnId: string } | null>(null);
   const [selectedTask, setSelectedTask] = useState<{ task: Task; columnId: string } | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [googleTasksToken, setGoogleTasksToken] = useState<string | null>(null);
+  const [googleTasksLoading, setGoogleTasksLoading] = useState(false);
+  const [googleTaskLists, setGoogleTaskLists] = useState<any[]>([]);
+  const [googleTasks, setGoogleTasks] = useState<{ [listId: string]: any[] }>({});
   const GOOGLE_CLIENT_ID = "251184335563-bdf3sv4vc1sr4v2itciiepd7fllvshec.apps.googleusercontent.com";
+  const [googleTasksButtonHover, setGoogleTasksButtonHover] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
   }, [columns]);
+
+  useEffect(() => {
+    if (!googleTasksToken) {
+      setGoogleTaskLists([]);
+      setGoogleTasks({});
+      return;
+    }
+    setGoogleTasksLoading(true);
+    // Fetch task lists
+    axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
+      headers: { Authorization: `Bearer ${googleTasksToken}` },
+    })
+      .then((res: any) => {
+        setGoogleTaskLists(res.data.items || []);
+        // Fetch tasks for each list
+        return Promise.all(
+          (res.data.items || []).map((list: any) =>
+            axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
+              headers: { Authorization: `Bearer ${googleTasksToken}` },
+            }).then((tasksRes: any) => ({ listId: list.id, tasks: tasksRes.data.items || [] }))
+          )
+        );
+      })
+      .then((results: { listId: string; tasks: any[] }[]) => {
+        const tasksByList: { [listId: string]: any[] } = {};
+        results.forEach(({ listId, tasks }: { listId: string; tasks: any[] }) => {
+          tasksByList[listId] = tasks;
+        });
+        setGoogleTasks(tasksByList);
+        setGoogleTasksLoading(false);
+      })
+      .catch(() => {
+        setGoogleTasksLoading(false);
+        setGoogleTaskLists([]);
+        setGoogleTasks({});
+      });
+  }, [googleTasksToken]);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -183,6 +228,19 @@ function App() {
     setUser(null);
   };
 
+  const loginGoogleTasks = useGoogleLogin({
+    scope: 'https://www.googleapis.com/auth/tasks.readonly',
+    onSuccess: (tokenResponse) => {
+      setGoogleTasksToken(tokenResponse.access_token);
+      setGoogleTasksLoading(false);
+    },
+    onError: () => {
+      setGoogleTasksLoading(false);
+      alert('Google Tasks connection failed.');
+    },
+    flow: 'implicit',
+  });
+
   const drawer = (
     <div>
       <Toolbar />
@@ -215,6 +273,73 @@ function App() {
               </ListItemIcon>
               <ListItemText primary="Important" />
             </ListItem>
+            <Divider sx={{ my: 2 }} />
+            <ListItem>
+              {googleTasksToken ? (
+                <Box
+                  sx={{ position: 'relative', width: '100%' }}
+                  onMouseEnter={() => setGoogleTasksButtonHover(true)}
+                  onMouseLeave={() => setGoogleTasksButtonHover(false)}
+                >
+                  <Button
+                    variant="contained"
+                    color="success"
+                    fullWidth
+                    startIcon={
+                      user?.picture ? (
+                        <Avatar src={user.picture} alt={user.name} sx={{ width: 24, height: 24 }} />
+                      ) : (
+                        <img src="/check-circle.svg" alt="Google Tasks" style={{ width: 20, height: 20 }} />
+                      )
+                    }
+                    sx={{ justifyContent: 'flex-start', textTransform: 'none', pr: 4 }}
+                    onClick={() => {
+                      setGoogleTasksToken(null);
+                      googleLogout();
+                    }}
+                  >
+                    Google Task account connected
+                  </Button>
+                  {googleTasksButtonHover && (
+                    <IconButton
+                      size="small"
+                      color="error"
+                      sx={{
+                        position: 'absolute',
+                        right: 2,
+                        top: 2,
+                        width: 24,
+                        height: 24,
+                        bgcolor: 'background.paper',
+                        boxShadow: 1,
+                        zIndex: 2,
+                      }}
+                      onClick={() => {
+                        setGoogleTasksToken(null);
+                        googleLogout();
+                      }}
+                    >
+                      <LogoutIcon fontSize="inherit" />
+                    </IconButton>
+                  )}
+                </Box>
+              ) : (
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  fullWidth
+                  startIcon={<img src="/check-circle.svg" alt="Google Tasks" style={{ width: 20, height: 20 }} />}
+                  sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                  onClick={() => {
+                    setGoogleTasksLoading(true);
+                    loginGoogleTasks();
+                  }}
+                  disabled={googleTasksLoading}
+                >
+                  {googleTasksLoading ? 'Connecting...' : 'Connect Google Task account'}
+                </Button>
+              )}
+            </ListItem>
           </List>
           <Divider />
           <List>
@@ -227,20 +352,18 @@ function App() {
           </List>
         </>
       ) : (
-        <Box sx={{ p: 2 }}>
+        <Box sx={{ textAlign: 'center', py: 2 }}>
           <Typography variant="h6" gutterBottom>
             Welcome to GTaskALL
           </Typography>
-          <Typography variant="body2" color="text.secondary" paragraph>
-            Please sign in to continue
+          <Typography>
+            Sign in to manage your tasks
           </Typography>
-          <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={handleGoogleError}
-              useOneTap
-            />
-          </GoogleOAuthProvider>
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={handleGoogleError}
+            useOneTap
+          />
         </Box>
       )}
     </div>
@@ -296,7 +419,15 @@ function App() {
           variant="permanent"
           sx={{
             display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: drawerWidth,
+              position: 'fixed',
+              left: 0,
+              top: 64,
+              height: 'calc(100% - 64px)',
+              borderRight: '1px solid #e0e0e0',
+            },
           }}
           open
         >
@@ -308,137 +439,76 @@ function App() {
         sx={{
           flexGrow: 1,
           p: 3,
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          width: '100%',
           mt: '64px',
+          minHeight: 'calc(100vh - 64px)',
+          bgcolor: '#f5f5f5',
         }}
       >
         {user ? (
-          <Box sx={{ display: 'flex', gap: 2, height: 'calc(100vh - 100px)' }}>
-            {columns.map((column) => (
-              <Paper
-                key={column.id}
-                elevation={1}
-                sx={{
-                  flex: 1,
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: 1,
-                  p: 2,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  minWidth: '250px',
-                }}
-              >
-                <Box 
-                  sx={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center', 
-                    mb: 2,
-                    '&:hover .delete-button': {
-                      opacity: 1,
-                    }
-                  }}
-                >
-                  <Typography variant="h6">
-                    {column.title}
-                  </Typography>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleDeleteColumn(column.id)}
-                    sx={{ 
-                      color: 'error.main',
-                      opacity: 0,
-                      transition: 'opacity 0.2s',
+          googleTasksToken ? (
+            googleTasksLoading ? (
+              <Typography variant="h6">Loading Google Tasks...</Typography>
+            ) : (
+              <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
+                {googleTaskLists.map((list) => (
+                  <Paper
+                    key={list.id}
+                    sx={{
+                      p: 2,
+                      minWidth: 300,
+                      maxWidth: 300,
+                      height: 'fit-content',
+                      bgcolor: 'background.paper'
                     }}
-                    className="delete-button"
                   >
-                    <DeleteIcon />
-                  </IconButton>
-                </Box>
-                <Box
-                  onDragOver={handleDragOver}
-                  onDrop={() => handleDrop(column.id)}
-                  sx={{ 
-                    flex: 1, 
-                    overflowY: 'auto',
-                    minHeight: '100px',
-                    backgroundColor: 'rgba(0, 0, 0, 0.03)',
-                    borderRadius: 1,
-                    p: 1,
-                  }}
-                >
-                  {column.tasks.map((task) => (
-                    <Paper
-                      key={task.id}
-                      draggable
-                      onDragStart={() => handleDragStart(task, column.id)}
-                      elevation={1}
-                      sx={{
-                        p: 2,
-                        mb: 1,
-                        backgroundColor: 'white',
-                        cursor: 'grab',
-                        userSelect: 'none',
-                        '&:active': {
-                          cursor: 'grabbing',
-                        },
-                        '&:hover': {
-                          boxShadow: 2,
-                        },
-                      }}
-                    >
-                      <Stack spacing={1}>
-                        <Typography>{task.content}</Typography>
-                        <Box 
-                          sx={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: 1,
-                            color: task.dueDate ? 'text.secondary' : 'text.disabled',
-                            fontSize: '0.875rem',
-                          }}
-                        >
-                          <EventIcon 
-                            fontSize="small" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedTask({ task, columnId: column.id });
-                            }}
-                            sx={{ 
-                              cursor: 'pointer',
-                              '&:hover': {
-                                color: 'primary.main',
-                              }
-                            }}
-                          />
-                          {task.dueDate ? (
-                            <Typography variant="body2">
-                              Due: {format(new Date(task.dueDate), 'MMM d, yyyy')}
+                    <Typography variant="h6">{list.title}</Typography>
+                    <Stack spacing={2}>
+                      {(googleTasks[list.id] || []).map((task) => (
+                        <Paper key={task.id} sx={{ p: 2 }}>
+                          <Typography variant="subtitle1">{task.title}</Typography>
+                          {task.notes && (
+                            <Typography variant="body2" color="text.secondary">
+                              {task.notes}
                             </Typography>
-                          ) : (
-                            <Typography variant="body2">Set due date</Typography>
                           )}
-                        </Box>
-                      </Stack>
-                    </Paper>
-                  ))}
-                </Box>
-              </Paper>
-            ))}
-            <Button
-              variant="outlined"
-              startIcon={<AddIcon />}
-              onClick={() => setOpenNewColumnDialog(true)}
-              sx={{
-                minWidth: '250px',
-                height: 'fit-content',
-                alignSelf: 'flex-start',
-                mt: 2,
-              }}
-            >
-              Add Column
-            </Button>
-          </Box>
+                          {task.due && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                              <EventIcon fontSize="small" color="action" />
+                              <Typography variant="caption" color="text.secondary">
+                                {format(new Date(task.due), 'MMM d, yyyy')}
+                              </Typography>
+                            </Box>
+                          )}
+                        </Paper>
+                      ))}
+                    </Stack>
+                  </Paper>
+                ))}
+              </Box>
+            )
+          ) : (
+            <Box sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 'calc(100vh - 64px)',
+              textAlign: 'center',
+              p: 3,
+            }}>
+              <img src="/check-circle.svg" alt="Google Tasks" style={{ width: 80, height: 80, marginBottom: 16 }} />
+              <Typography variant="h4" gutterBottom>
+                Connect your Google Task account
+              </Typography>
+              <Typography variant="body1" color="text.secondary" paragraph>
+                To use GTaskALL, please connect your Google Task account by clicking the button in the left menu.
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Once connected, your Google Tasks will appear here.
+              </Typography>
+            </Box>
+          )
         ) : (
           <Box
             sx={{
@@ -446,28 +516,21 @@ function App() {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              height: 'calc(100vh - 100px)',
+              minHeight: 'calc(100vh - 64px)',
               textAlign: 'center',
-              gap: 4,
+              p: 3,
             }}
           >
-            <img 
-              src="/check-circle.svg" 
-              alt="GTaskALL" 
-              style={{ width: '120px', height: '120px' }} 
-            />
-            <Box sx={{ maxWidth: '600px' }}>
-              <Typography variant="h3" gutterBottom>
-                Welcome to GTaskALL
-              </Typography>
-              <Typography variant="h6" color="text.secondary" paragraph>
-                Your all-in-one task management solution
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                Sign in with your Google account to start organizing your tasks with our powerful Kanban board.
-                Create columns, add tasks, set due dates, and manage your workflow efficiently.
-              </Typography>
-            </Box>
+            <img src="/check-circle.svg" alt="Logo" style={{ width: 120, height: 120, marginBottom: 2 }} />
+            <Typography variant="h3" component="h1" gutterBottom>
+              Welcome to GTaskALL
+            </Typography>
+            <Typography variant="h6" color="text.secondary" paragraph>
+              Your all-in-one task management solution
+            </Typography>
+            <Typography variant="body1" color="text.secondary" paragraph>
+              Sign in with your Google account to get started
+            </Typography>
           </Box>
         )}
       </Box>
