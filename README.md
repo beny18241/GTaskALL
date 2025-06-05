@@ -1,6 +1,22 @@
 # GTaskALL
 
-A modern Kanban board application built with React and TypeScript, integrated with Google Tasks.
+This is the GTaskALL Project - A modern task management application that integrates with Google Tasks API.
+
+## About
+
+GTaskALL is a web application that allows users to manage their tasks through a clean and intuitive interface, with seamless integration with Google Tasks.
+
+## Features (Coming Soon)
+
+- Google Tasks Integration
+- Modern UI/UX
+- Task Management
+- Real-time Updates
+- Cross-platform Support
+
+## Getting Started
+
+Stay tuned for setup instructions and documentation as the project develops.
 
 ## Features
 
