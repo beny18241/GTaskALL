@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { googleTasksService, GoogleTask, GoogleTaskList } from '../services/googleTasks';
+import './GoogleTasksIntegration.css';
 // If you want to display formatted dates, uncomment the next line and install @types/date-fns
 // import { format } from 'date-fns';
 
