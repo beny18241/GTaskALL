@@ -4,6 +4,69 @@ import './GoogleTasksIntegration.css';
 // If you want to display formatted dates, uncomment the next line and install @types/date-fns
 // import { format } from 'date-fns';
 
+// Dummy data for UAT environment
+const dummyTaskLists: GoogleTaskList[] = [
+  { id: '1', title: 'Work Tasks' },
+  { id: '2', title: 'Personal Tasks' },
+  { id: '3', title: 'Shopping List' }
+];
+
+const dummyTasks: Record<string, GoogleTask[]> = {
+  '1': [
+    {
+      id: '101',
+      title: 'Complete project documentation',
+      notes: 'Include API documentation and user guides',
+      status: 'needsAction',
+      due: '2024-03-25T15:00:00'
+    },
+    {
+      id: '102',
+      title: 'Review pull requests',
+      notes: 'Check team members\' PRs and provide feedback',
+      status: 'completed',
+      due: '2024-03-24T12:00:00'
+    },
+    {
+      id: '103',
+      title: 'Team meeting',
+      notes: 'Weekly sync with the development team',
+      status: 'needsAction',
+      due: '2024-03-26T10:00:00'
+    }
+  ],
+  '2': [
+    {
+      id: '201',
+      title: 'Gym workout',
+      notes: 'Upper body training',
+      status: 'needsAction',
+      due: '2024-03-24T18:00:00'
+    },
+    {
+      id: '202',
+      title: 'Read book',
+      notes: 'Continue reading "Clean Code"',
+      status: 'needsAction'
+    }
+  ],
+  '3': [
+    {
+      id: '301',
+      title: 'Buy groceries',
+      notes: 'Milk, eggs, bread, vegetables',
+      status: 'needsAction',
+      due: '2024-03-25T17:00:00'
+    },
+    {
+      id: '302',
+      title: 'Order new headphones',
+      notes: 'Check reviews for wireless options',
+      status: 'completed'
+    }
+  ]
+};
+
 const GoogleTasksIntegration: React.FC = () => {
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [taskLists, setTaskLists] = useState<GoogleTaskList[]>([]);
@@ -17,27 +80,36 @@ const GoogleTasksIntegration: React.FC = () => {
   const [isUAT] = useState(window.location.hostname.includes('uat') || window.location.hostname.includes('localhost'));
 
   useEffect(() => {
-    const init = async () => {
-      try {
-        await googleTasksService.initialize();
-        if (isUAT) {
-          setIsSignedIn(true);
-          await loadTaskLists();
-        } else {
-          setIsSignedIn(googleTasksService.isUserSignedIn());
-        }
-      } catch (error) {
-        setError('Failed to initialize Google Tasks');
+    if (isUAT) {
+      setTaskLists(dummyTaskLists);
+      if (dummyTaskLists.length > 0) {
+        setSelectedList(dummyTaskLists[0].id);
       }
-    };
-    init();
+    } else {
+      const init = async () => {
+        try {
+          await googleTasksService.initialize();
+          setIsSignedIn(googleTasksService.isUserSignedIn());
+          if (googleTasksService.isUserSignedIn()) {
+            await loadTaskLists();
+          }
+        } catch (error) {
+          setError('Failed to initialize Google Tasks');
+        }
+      };
+      init();
+    }
   }, [isUAT]);
 
   useEffect(() => {
     if (selectedList) {
-      loadTasks(selectedList);
+      if (isUAT) {
+        setTasks(dummyTasks[selectedList] || []);
+      } else {
+        loadTasks(selectedList);
+      }
     }
-  }, [selectedList]);
+  }, [selectedList, isUAT]);
 
   const loadTaskLists = async () => {
     try {
@@ -105,11 +177,20 @@ const GoogleTasksIntegration: React.FC = () => {
         status: 'needsAction',
         due: newTaskDue || undefined
       };
-      await googleTasksService.createTask(selectedList, newTask);
+      
+      if (isUAT) {
+        // Simulate task creation in UAT
+        const taskId = Date.now().toString();
+        const task = { ...newTask, id: taskId };
+        setTasks([...tasks, task]);
+      } else {
+        await googleTasksService.createTask(selectedList, newTask);
+        await loadTasks(selectedList);
+      }
+      
       setNewTaskTitle('');
       setNewTaskNotes('');
       setNewTaskDue('');
-      await loadTasks(selectedList);
     } catch (error) {
       setError('Failed to create task');
     } finally {
@@ -120,8 +201,15 @@ const GoogleTasksIntegration: React.FC = () => {
   const handleUpdateTask = async (taskId: string, updates: Partial<GoogleTask>) => {
     try {
       setLoading(true);
-      await googleTasksService.updateTask(selectedList, taskId, updates);
-      await loadTasks(selectedList);
+      if (isUAT) {
+        // Simulate task update in UAT
+        setTasks(tasks.map(task => 
+          task.id === taskId ? { ...task, ...updates } : task
+        ));
+      } else {
+        await googleTasksService.updateTask(selectedList, taskId, updates);
+        await loadTasks(selectedList);
+      }
     } catch (error) {
       setError('Failed to update task');
     } finally {
@@ -132,8 +220,13 @@ const GoogleTasksIntegration: React.FC = () => {
   const handleDeleteTask = async (taskId: string) => {
     try {
       setLoading(true);
-      await googleTasksService.deleteTask(selectedList, taskId);
-      await loadTasks(selectedList);
+      if (isUAT) {
+        // Simulate task deletion in UAT
+        setTasks(tasks.filter(task => task.id !== taskId));
+      } else {
+        await googleTasksService.deleteTask(selectedList, taskId);
+        await loadTasks(selectedList);
+      }
     } catch (error) {
       setError('Failed to delete task');
     } finally {
@@ -145,7 +238,7 @@ const GoogleTasksIntegration: React.FC = () => {
     return <div className="error-message">{error}</div>;
   }
 
-  if (!isSignedIn && !isUAT) {
+  if (!isUAT && !googleTasksService.isUserSignedIn()) {
     return (
       <div className="sign-in-container">
         <button onClick={handleSignIn} disabled={loading}>
@@ -223,13 +316,11 @@ const GoogleTasksIntegration: React.FC = () => {
                 </button>
               </div>
               {task.notes && <p className="task-notes">{task.notes}</p>}
-              {/* Uncomment below if you want to show due dates
               {task.due && (
                 <p className="task-due">
-                  Due: {format(new Date(task.due), 'MMM d, yyyy h:mm a')}
+                  Due: {new Date(task.due).toLocaleString()}
                 </p>
               )}
-              */}
             </div>
           ))}
         </div>
