@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack } from '@mui/material';
+import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -11,6 +11,8 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format } from 'date-fns';
+import { GoogleLogin } from '@react-oauth/google';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 
 const drawerWidth = 240;
 
@@ -24,6 +26,12 @@ interface Column {
   id: string;
   title: string;
   tasks: Task[];
+}
+
+interface User {
+  name: string;
+  email: string;
+  picture: string;
 }
 
 const STORAGE_KEY = 'kanban-board-data';
@@ -65,6 +73,8 @@ function App() {
   const [deleteColumnId, setDeleteColumnId] = useState<string | null>(null);
   const [draggedTask, setDraggedTask] = useState<{ task: Task; sourceColumnId: string } | null>(null);
   const [selectedTask, setSelectedTask] = useState<{ task: Task; columnId: string } | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const GOOGLE_CLIENT_ID = "251184335563-bdf3sv4vc1sr4v2itciiepd7fllvshec.apps.googleusercontent.com";
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
@@ -155,29 +165,84 @@ function App() {
     setSelectedTask(null);
   };
 
+  const handleGoogleSuccess = (credentialResponse: any) => {
+    // In a real app, you would verify the token with your backend
+    const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
+    setUser({
+      name: decoded.name,
+      email: decoded.email,
+      picture: decoded.picture,
+    });
+  };
+
+  const handleGoogleError = () => {
+    console.log('Login Failed');
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+  };
+
   const drawer = (
     <div>
       <Toolbar />
-      <List>
-        <ListItem>
-          <ListItemIcon>
-            <DashboardIcon />
-          </ListItemIcon>
-          <ListItemText primary="Dashboard" />
-        </ListItem>
-        <ListItem>
-          <ListItemIcon>
-            <CalendarTodayIcon />
-          </ListItemIcon>
-          <ListItemText primary="Calendar" />
-        </ListItem>
-        <ListItem>
-          <ListItemIcon>
-            <StarIcon />
-          </ListItemIcon>
-          <ListItemText primary="Important" />
-        </ListItem>
-      </List>
+      {user ? (
+        <>
+          <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Avatar src={user.picture} alt={user.name} />
+            <Box>
+              <Typography variant="subtitle1">{user.name}</Typography>
+              <Typography variant="body2" color="text.secondary">{user.email}</Typography>
+            </Box>
+          </Box>
+          <Divider />
+          <List>
+            <ListItem>
+              <ListItemIcon>
+                <DashboardIcon />
+              </ListItemIcon>
+              <ListItemText primary="Dashboard" />
+            </ListItem>
+            <ListItem>
+              <ListItemIcon>
+                <CalendarTodayIcon />
+              </ListItemIcon>
+              <ListItemText primary="Calendar" />
+            </ListItem>
+            <ListItem>
+              <ListItemIcon>
+                <StarIcon />
+              </ListItemIcon>
+              <ListItemText primary="Important" />
+            </ListItem>
+          </List>
+          <Divider />
+          <List>
+            <ListItem 
+              onClick={handleLogout}
+              sx={{ cursor: 'pointer' }}
+            >
+              <ListItemText primary="Logout" />
+            </ListItem>
+          </List>
+        </>
+      ) : (
+        <Box sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Welcome to GTaskALL
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            Please sign in to continue
+          </Typography>
+          <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              useOneTap
+            />
+          </GoogleOAuthProvider>
+        </Box>
+      )}
     </div>
   );
 
@@ -247,132 +312,164 @@ function App() {
           mt: '64px',
         }}
       >
-        <Box sx={{ display: 'flex', gap: 2, height: 'calc(100vh - 100px)' }}>
-          {columns.map((column) => (
-            <Paper
-              key={column.id}
-              elevation={1}
+        {user ? (
+          <Box sx={{ display: 'flex', gap: 2, height: 'calc(100vh - 100px)' }}>
+            {columns.map((column) => (
+              <Paper
+                key={column.id}
+                elevation={1}
+                sx={{
+                  flex: 1,
+                  backgroundColor: '#f5f5f5',
+                  borderRadius: 1,
+                  p: 2,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  minWidth: '250px',
+                }}
+              >
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    mb: 2,
+                    '&:hover .delete-button': {
+                      opacity: 1,
+                    }
+                  }}
+                >
+                  <Typography variant="h6">
+                    {column.title}
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDeleteColumn(column.id)}
+                    sx={{ 
+                      color: 'error.main',
+                      opacity: 0,
+                      transition: 'opacity 0.2s',
+                    }}
+                    className="delete-button"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Box>
+                <Box
+                  onDragOver={handleDragOver}
+                  onDrop={() => handleDrop(column.id)}
+                  sx={{ 
+                    flex: 1, 
+                    overflowY: 'auto',
+                    minHeight: '100px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+                    borderRadius: 1,
+                    p: 1,
+                  }}
+                >
+                  {column.tasks.map((task) => (
+                    <Paper
+                      key={task.id}
+                      draggable
+                      onDragStart={() => handleDragStart(task, column.id)}
+                      elevation={1}
+                      sx={{
+                        p: 2,
+                        mb: 1,
+                        backgroundColor: 'white',
+                        cursor: 'grab',
+                        userSelect: 'none',
+                        '&:active': {
+                          cursor: 'grabbing',
+                        },
+                        '&:hover': {
+                          boxShadow: 2,
+                        },
+                      }}
+                    >
+                      <Stack spacing={1}>
+                        <Typography>{task.content}</Typography>
+                        <Box 
+                          sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 1,
+                            color: task.dueDate ? 'text.secondary' : 'text.disabled',
+                            fontSize: '0.875rem',
+                          }}
+                        >
+                          <EventIcon 
+                            fontSize="small" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTask({ task, columnId: column.id });
+                            }}
+                            sx={{ 
+                              cursor: 'pointer',
+                              '&:hover': {
+                                color: 'primary.main',
+                              }
+                            }}
+                          />
+                          {task.dueDate ? (
+                            <Typography variant="body2">
+                              Due: {format(new Date(task.dueDate), 'MMM d, yyyy')}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2">Set due date</Typography>
+                          )}
+                        </Box>
+                      </Stack>
+                    </Paper>
+                  ))}
+                </Box>
+              </Paper>
+            ))}
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={() => setOpenNewColumnDialog(true)}
               sx={{
-                flex: 1,
-                backgroundColor: '#f5f5f5',
-                borderRadius: 1,
-                p: 2,
-                display: 'flex',
-                flexDirection: 'column',
                 minWidth: '250px',
+                height: 'fit-content',
+                alignSelf: 'flex-start',
+                mt: 2,
               }}
             >
-              <Box 
-                sx={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center', 
-                  mb: 2,
-                  '&:hover .delete-button': {
-                    opacity: 1,
-                  }
-                }}
-              >
-                <Typography variant="h6">
-                  {column.title}
-                </Typography>
-                <IconButton
-                  size="small"
-                  onClick={() => handleDeleteColumn(column.id)}
-                  sx={{ 
-                    color: 'error.main',
-                    opacity: 0,
-                    transition: 'opacity 0.2s',
-                  }}
-                  className="delete-button"
-                >
-                  <DeleteIcon />
-                </IconButton>
-              </Box>
-              <Box
-                onDragOver={handleDragOver}
-                onDrop={() => handleDrop(column.id)}
-                sx={{ 
-                  flex: 1, 
-                  overflowY: 'auto',
-                  minHeight: '100px',
-                  backgroundColor: 'rgba(0, 0, 0, 0.03)',
-                  borderRadius: 1,
-                  p: 1,
-                }}
-              >
-                {column.tasks.map((task) => (
-                  <Paper
-                    key={task.id}
-                    draggable
-                    onDragStart={() => handleDragStart(task, column.id)}
-                    elevation={1}
-                    sx={{
-                      p: 2,
-                      mb: 1,
-                      backgroundColor: 'white',
-                      cursor: 'grab',
-                      userSelect: 'none',
-                      '&:active': {
-                        cursor: 'grabbing',
-                      },
-                      '&:hover': {
-                        boxShadow: 2,
-                      },
-                    }}
-                  >
-                    <Stack spacing={1}>
-                      <Typography>{task.content}</Typography>
-                      <Box 
-                        sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: 1,
-                          color: task.dueDate ? 'text.secondary' : 'text.disabled',
-                          fontSize: '0.875rem',
-                        }}
-                      >
-                        <EventIcon 
-                          fontSize="small" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedTask({ task, columnId: column.id });
-                          }}
-                          sx={{ 
-                            cursor: 'pointer',
-                            '&:hover': {
-                              color: 'primary.main',
-                            }
-                          }}
-                        />
-                        {task.dueDate ? (
-                          <Typography variant="body2">
-                            Due: {format(new Date(task.dueDate), 'MMM d, yyyy')}
-                          </Typography>
-                        ) : (
-                          <Typography variant="body2">Set due date</Typography>
-                        )}
-                      </Box>
-                    </Stack>
-                  </Paper>
-                ))}
-              </Box>
-            </Paper>
-          ))}
-          <Button
-            variant="outlined"
-            startIcon={<AddIcon />}
-            onClick={() => setOpenNewColumnDialog(true)}
+              Add Column
+            </Button>
+          </Box>
+        ) : (
+          <Box
             sx={{
-              minWidth: '250px',
-              height: 'fit-content',
-              alignSelf: 'flex-start',
-              mt: 2,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: 'calc(100vh - 100px)',
+              textAlign: 'center',
+              gap: 4,
             }}
           >
-            Add Column
-          </Button>
-        </Box>
+            <img 
+              src="/check-circle.svg" 
+              alt="GTaskALL" 
+              style={{ width: '120px', height: '120px' }} 
+            />
+            <Box sx={{ maxWidth: '600px' }}>
+              <Typography variant="h3" gutterBottom>
+                Welcome to GTaskALL
+              </Typography>
+              <Typography variant="h6" color="text.secondary" paragraph>
+                Your all-in-one task management solution
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Sign in with your Google account to start organizing your tasks with our powerful Kanban board.
+                Create columns, add tasks, set due dates, and manage your workflow efficiently.
+              </Typography>
+            </Box>
+          </Box>
+        )}
       </Box>
 
       <Dialog open={openNewColumnDialog} onClose={() => setOpenNewColumnDialog(false)}>
