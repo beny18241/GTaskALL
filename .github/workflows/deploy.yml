@@ -56,5 +56,9 @@ jobs:
             --exclude '.env.*' \
             ./ "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/"
           
-          # Install dependencies and restart
-          ssh "${SSH_USER}@${SSH_HOST}" "cd ${DEPLOY_PATH} && npm ci --production && pm2 restart gtaskall || pm2 start npm --name gtaskall -- start" 
+          # Install dependencies, build and restart
+          ssh "${SSH_USER}@${SSH_HOST}" "cd ${DEPLOY_PATH} && \
+            npm ci && \
+            npm run build && \
+            pm2 delete gtaskall || true && \
+            pm2 start npm --name gtaskall -- start" 
