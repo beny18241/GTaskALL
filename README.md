@@ -137,21 +137,6 @@ Set up the following secrets in your GitHub repository (Settings > Secrets and v
 - `PRODUCTION_HOST`: Production server hostname or IP
 - `PRODUCTION_PATH`: Path on the server where the application will be deployed
 - `GOOGLE_CLIENT_ID`: Your Google OAuth client ID
-- `SSH_PRIVATE_KEY`: Private SSH key for deployment (the corresponding public key should be added to the server's authorized_keys)
-
-### Setting up SSH Access
-
-1. Generate an SSH key pair if you don't have one:
-   ```bash
-   ssh-keygen -t ed25519 -C "github-actions-deploy"
-   ```
-
-2. Add the public key to your server's authorized_keys:
-   ```bash
-   cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
-   ```
-
-3. Add the private key to GitHub repository secrets as `SSH_PRIVATE_KEY`
 
 ### Deployment Process
 
