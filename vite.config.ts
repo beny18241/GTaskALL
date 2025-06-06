@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/',
+  base: './',
   resolve: {
     alias: {
       'date-fns': 'date-fns/esm',
@@ -14,7 +14,7 @@ export default defineConfig({
     }
   },
   server: {
-    host: true,
+    host: '0.0.0.0',
     port: 3000,
     strictPort: true,
     watch: {
@@ -22,9 +22,8 @@ export default defineConfig({
     }
   },
   preview: {
-    host: true,
+    host: '0.0.0.0',
     port: 3000,
-    strictPort: true,
-    allowedHosts: ['task.mpindela.com', '192.168.1.244']
+    strictPort: true
   }
 })
