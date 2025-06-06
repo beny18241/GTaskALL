@@ -50,27 +50,4 @@ jobs:
           scp -r $TEMP_DIR/* ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}:${{ secrets.PRODUCTION_PATH }}/
           
           # Clean up
-          rm -rf $TEMP_DIR
-
-      - name: Setup production environment
-        run: |
-          ssh ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} "cd ${{ secrets.PRODUCTION_PATH }} && \
-          echo 'Current directory:' && pwd && \
-          echo 'Directory contents:' && ls -la && \
-          echo 'Node version:' && node -v && \
-          echo 'NPM version:' && npm -v && \
-          echo 'Cleaning up old installation...' && \
-          rm -rf node_modules package-lock.json && \
-          echo 'Installing dependencies...' && \
-          npm install --legacy-peer-deps && \
-          echo 'Installing Vite globally...' && \
-          npm install -g vite && \
-          echo 'Stopping existing PM2 process...' && \
-          pm2 stop gtaskall || true && \
-          pm2 delete gtaskall || true && \
-          echo 'Starting application...' && \
-          pm2 start npm --name 'gtaskall' -- run start --max-memory-restart 1G --time && \
-          echo 'PM2 status:' && \
-          pm2 status && \
-          echo 'PM2 logs:' && \
-          pm2 logs gtaskall --lines 10" 
+          rm -rf $TEMP_DIR 
