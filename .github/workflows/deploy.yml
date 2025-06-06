@@ -41,10 +41,14 @@ jobs:
 
       - name: Deploy to server
         run: |
-          # Create deployment directory if it doesn't exist
-          ssh -o StrictHostKeyChecking=no ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} "mkdir -p ${{ secrets.PRODUCTION_PATH }}"
+          echo "Starting deployment..."
+          echo "Creating deployment directory..."
           
-          # Copy all files to server
+          # Create deployment directory
+          ssh -v -o StrictHostKeyChecking=no -l ${{ secrets.PRODUCTION_USER }} ${{ secrets.PRODUCTION_HOST }} "mkdir -p ${{ secrets.PRODUCTION_PATH }}"
+          
+          echo "Copying files..."
+          # Copy files
           rsync -avz --delete \
             --exclude 'node_modules' \
             --exclude '.git' \
@@ -53,5 +57,8 @@ jobs:
             --exclude '.env.*' \
             ./ ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}:${{ secrets.PRODUCTION_PATH }}/
           
-          # Install production dependencies and restart the application
-          ssh -o StrictHostKeyChecking=no ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} "cd ${{ secrets.PRODUCTION_PATH }} && npm ci --production && pm2 restart gtaskall || pm2 start npm --name gtaskall -- start" 
+          echo "Installing dependencies and restarting application..."
+          # Install dependencies and restart
+          ssh -v -o StrictHostKeyChecking=no -l ${{ secrets.PRODUCTION_USER }} ${{ secrets.PRODUCTION_HOST }} "cd ${{ secrets.PRODUCTION_PATH }} && npm ci --production && pm2 restart gtaskall || pm2 start npm --name gtaskall -- start"
+          
+          echo "Deployment completed!" 
