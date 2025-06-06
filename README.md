@@ -13,6 +13,8 @@ A modern task management application built with React, TypeScript, and Vite.
 ## Recent Updates
 
 ### March 2024
+- Simplified deployment process to run on pull requests
+- Removed production environment setup from deployment workflow
 - Fixed deployment issues with Vite installation
 - Improved build process and PM2 configuration
 - Added automatic build verification
@@ -26,6 +28,7 @@ The application was reverted to a stable version after deployment issues. The fo
 3. Modified PM2 configuration to prevent multiple instances
 4. Added build verification to ensure dist directory exists
 5. Improved error handling in start script
+6. Simplified deployment process to run directly on pull requests
 
 ## Development
 
@@ -42,12 +45,11 @@ The application will be available at:
 
 ## Production
 
-The application is deployed using GitHub Actions and PM2. The deployment process:
-1. Builds the application
-2. Verifies the build output
-3. Copies files to production server
-4. Installs dependencies
-5. Starts the application using PM2
+The application is deployed using GitHub Actions. The deployment process:
+1. Triggers on pull requests to main branch
+2. Builds the application
+3. Verifies the build output
+4. Copies files to production server
 
 ## Environment Variables
 
