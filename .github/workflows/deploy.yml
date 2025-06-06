@@ -39,13 +39,26 @@ jobs:
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
 
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          cat >>~/.ssh/config <<END
+          Host deploy_host
+            HostName ${{ secrets.SERVER_HOST }}
+            User ${{ secrets.SSH_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          END
+
       - name: Deploy to server
         run: |
           # Create deployment directory if it doesn't exist
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} "mkdir -p ${{ secrets.DEPLOY_PATH }}"
+          ssh deploy_host "mkdir -p ${{ secrets.DEPLOY_PATH }}"
           
           # Copy built files to server
-          scp -r dist/* ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.DEPLOY_PATH }}
+          scp -i ~/.ssh/deploy_key -r dist/* ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.DEPLOY_PATH }}
           
           # Restart the application if needed
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} "cd ${{ secrets.DEPLOY_PATH }} && pm2 restart gtaskall || pm2 start npm --name gtaskall -- start" 
+          ssh deploy_host "cd ${{ secrets.DEPLOY_PATH }} && pm2 restart gtaskall || pm2 start npm --name gtaskall -- start" 
