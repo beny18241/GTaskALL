@@ -2,13 +2,12 @@ name: Deploy to Production
 
 on:
   pull_request:
-    types: [closed]
+    types: [opened, synchronize, reopened]
     branches:
       - main
 
 jobs:
   deploy:
-    if: github.event.pull_request.merged == true
     runs-on: self-hosted
     
     steps:
