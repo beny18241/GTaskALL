@@ -46,5 +46,5 @@ jobs:
       - name: Setup production environment
         run: |
           ssh ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} "cd ${{ secrets.PRODUCTION_PATH }} && \
-          npm install --production --legacy-peer-deps && \
+          npm install --legacy-peer-deps && \
           pm2 restart gtaskall || pm2 start npm --name 'gtaskall' -- start -- --port 3000" 
