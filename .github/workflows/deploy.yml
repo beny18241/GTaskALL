@@ -42,10 +42,16 @@ jobs:
       - name: Deploy to server
         run: |
           # Create deployment directory if it doesn't exist
-          ssh ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} "mkdir -p ${{ secrets.PRODUCTION_PATH }}"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} "mkdir -p ${{ secrets.PRODUCTION_PATH }}"
           
-          # Copy built files to server
-          scp -r dist/* ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}:${{ secrets.PRODUCTION_PATH }}
+          # Copy all files to server
+          rsync -avz --delete \
+            --exclude 'node_modules' \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.env' \
+            --exclude '.env.*' \
+            ./ ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}:${{ secrets.PRODUCTION_PATH }}/
           
-          # Restart the application if needed
-          ssh ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} "cd ${{ secrets.PRODUCTION_PATH }} && pm2 restart gtaskall || pm2 start npm --name gtaskall -- start" 
+          # Install production dependencies and restart the application
+          ssh -o StrictHostKeyChecking=no ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} "cd ${{ secrets.PRODUCTION_PATH }} && npm ci --production && pm2 restart gtaskall || pm2 start npm --name gtaskall -- start" 
