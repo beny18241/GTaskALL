@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout code
@@ -28,33 +28,13 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
 
       - name: Deploy to production
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.PRODUCTION_HOST }}
-          username: ${{ secrets.PRODUCTION_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd ${{ secrets.PRODUCTION_PATH }}
-            rm -rf dist
-            mkdir -p dist
-            exit 0
-
-      - name: Copy files to production
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.PRODUCTION_HOST }}
-          username: ${{ secrets.PRODUCTION_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "dist/*"
-          target: ${{ secrets.PRODUCTION_PATH }}/dist
-          strip_components: 1
+        run: |
+          cd ${{ secrets.PRODUCTION_PATH }}
+          rm -rf dist
+          mkdir -p dist
+          cp -r ../dist/* dist/
 
       - name: Restart production server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.PRODUCTION_HOST }}
-          username: ${{ secrets.PRODUCTION_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd ${{ secrets.PRODUCTION_PATH }}
-            pm2 restart gtaskall || pm2 start npm --name "gtaskall" -- start 
+        run: |
+          cd ${{ secrets.PRODUCTION_PATH }}
+          pm2 restart gtaskall || pm2 start npm --name "gtaskall" -- start 
