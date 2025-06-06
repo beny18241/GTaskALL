@@ -1,0 +1,35 @@
+name: Test Deployment
+
+on:
+  workflow_dispatch:  # This allows manual triggering
+
+jobs:
+  test-deploy:
+    runs-on: self-hosted
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+
+      - name: Test deployment path
+        run: |
+          echo "Testing deployment to: ${{ secrets.PRODUCTION_PATH }}"
+          ls -la ${{ secrets.PRODUCTION_PATH }}
+          echo "Current directory: $(pwd)"
+          echo "Node version: $(node -v)"
+          echo "NPM version: $(npm -v)"
+          echo "PM2 version: $(pm2 -v || echo 'PM2 not installed')" 
