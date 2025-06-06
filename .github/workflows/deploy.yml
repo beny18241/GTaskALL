@@ -14,6 +14,9 @@ on:
 
 env:
   NODE_VERSION: '18'
+  SSH_USER: ${{ secrets.PRODUCTION_USER }}
+  SSH_HOST: ${{ secrets.PRODUCTION_HOST }}
+  DEPLOY_PATH: ${{ secrets.PRODUCTION_PATH }}
 
 jobs:
   deploy:
@@ -39,36 +42,19 @@ jobs:
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
 
-      - name: Create deployment script
+      - name: Deploy to server
         run: |
-          cat > deploy.sh << 'EOF'
-          #!/bin/bash
-          set -e
-          
-          echo "Starting deployment..."
-          
           # Create deployment directory
-          echo "Creating deployment directory..."
-          ssh -o StrictHostKeyChecking=no "${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}" "mkdir -p ${{ secrets.PRODUCTION_PATH }}"
+          ssh "${SSH_USER}@${SSH_HOST}" "mkdir -p ${DEPLOY_PATH}"
           
           # Copy files
-          echo "Copying files..."
           rsync -avz --delete \
             --exclude 'node_modules' \
             --exclude '.git' \
             --exclude '.github' \
             --exclude '.env' \
             --exclude '.env.*' \
-            ./ "${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}:${{ secrets.PRODUCTION_PATH }}/"
+            ./ "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/"
           
           # Install dependencies and restart
-          echo "Installing dependencies and restarting application..."
-          ssh -o StrictHostKeyChecking=no "${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}" "cd ${{ secrets.PRODUCTION_PATH }} && npm ci --production && pm2 restart gtaskall || pm2 start npm --name gtaskall -- start"
-          
-          echo "Deployment completed!"
-          EOF
-          
-          chmod +x deploy.sh
-
-      - name: Deploy to server
-        run: ./deploy.sh 
+          ssh "${SSH_USER}@${SSH_HOST}" "cd ${DEPLOY_PATH} && npm ci --production && pm2 restart gtaskall || pm2 start npm --name gtaskall -- start" 
