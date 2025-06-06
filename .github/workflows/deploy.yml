@@ -32,7 +32,7 @@ jobs:
           cd ${{ secrets.PRODUCTION_PATH }}
           rm -rf dist
           mkdir -p dist
-          cp -r ../dist/* dist/
+          cp -r $GITHUB_WORKSPACE/dist/* dist/
 
       - name: Restart production server
         run: |
