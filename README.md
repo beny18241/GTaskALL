@@ -133,9 +133,9 @@ export default tseslint.config({
 
 Set up the following secrets in your GitHub repository (Settings > Secrets and variables > Actions):
 
-- `SSH_USER`: SSH username for the production server
-- `SERVER_HOST`: Production server hostname or IP
-- `DEPLOY_PATH`: Path on the server where the application will be deployed
+- `PRODUCTION_USER`: SSH username for the production server
+- `PRODUCTION_HOST`: Production server hostname or IP
+- `PRODUCTION_PATH`: Path on the server where the application will be deployed
 - `GOOGLE_CLIENT_ID`: Your Google OAuth client ID
 - `SSH_PRIVATE_KEY`: Private SSH key for deployment (the corresponding public key should be added to the server's authorized_keys)
 
