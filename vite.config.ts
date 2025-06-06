@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  base: '/',
   resolve: {
     alias: {
       'date-fns': 'date-fns/esm',
@@ -24,6 +24,12 @@ export default defineConfig({
   preview: {
     host: '0.0.0.0',
     port: 3000,
-    strictPort: true
+    strictPort: true,
+    cors: true
+  },
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: true
   }
 })
