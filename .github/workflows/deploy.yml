@@ -54,11 +54,13 @@ jobs:
           rm -rf node_modules package-lock.json && \
           echo 'Installing dependencies...' && \
           npm install --legacy-peer-deps && \
+          echo 'Installing Vite globally...' && \
+          npm install -g vite && \
           echo 'Stopping existing PM2 process...' && \
           pm2 stop gtaskall || true && \
           pm2 delete gtaskall || true && \
           echo 'Starting application...' && \
-          pm2 start npm --name 'gtaskall' -- start && \
+          pm2 start npm --name 'gtaskall' -- run start && \
           echo 'PM2 status:' && \
           pm2 status && \
           echo 'PM2 logs:' && \
