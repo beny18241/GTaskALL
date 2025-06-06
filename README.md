@@ -1,3 +1,41 @@
+# GTaskALL
+
+A modern task management application built with React and TypeScript.
+
+## Features
+
+- Google OAuth integration for secure authentication
+- Drag and drop task management
+- Material UI for a beautiful user interface
+- Date picker for task scheduling
+- Responsive design for all devices
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+## Deployment
+
+The application is automatically deployed to production when changes are pushed to the main branch.
+
+## Latest Update
+
+- Added server accessibility improvements
+- Updated deployment workflow
+- Fixed Vite configuration for production
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
