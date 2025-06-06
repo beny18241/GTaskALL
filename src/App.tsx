@@ -10,7 +10,7 @@ import EventIcon from '@mui/icons-material/Event';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { useGoogleLogin, googleLogout } from '@react-oauth/google';
 import { GoogleLogin } from '@react-oauth/google';
@@ -50,24 +50,17 @@ function App() {
       {
         id: 'todo',
         title: 'To Do',
-        tasks: [
-          { id: '1', content: 'Learn React' },
-          { id: '2', content: 'Build Todo App' },
-        ],
+        tasks: [],
       },
       {
         id: 'inProgress',
         title: 'In Progress',
-        tasks: [
-          { id: '3', content: 'Design UI' },
-        ],
+        tasks: [],
       },
       {
         id: 'done',
         title: 'Done',
-        tasks: [
-          { id: '4', content: 'Setup Project' },
-        ],
+        tasks: [],
       },
     ];
   });
@@ -116,6 +109,70 @@ function App() {
           tasksByList[listId] = tasks;
         });
         setGoogleTasks(tasksByList);
+
+        // Map Google Tasks to local columns
+        const mappedColumns = columns.map(column => {
+          let columnTasks: Task[] = [];
+          
+          // Map tasks based on column type
+          if (column.id === 'todo') {
+            // Get tasks from the first list or uncompleted tasks
+            const firstListId = Object.keys(tasksByList)[0];
+            if (firstListId) {
+              columnTasks = tasksByList[firstListId]
+                .filter(task => !task.completed)
+                .map(task => ({
+                  id: task.id,
+                  content: task.title,
+                  dueDate: task.due ? new Date(task.due) : null
+                }));
+            }
+          } else if (column.id === 'inProgress') {
+            // Get tasks from the second list or tasks with notes
+            const secondListId = Object.keys(tasksByList)[1];
+            if (secondListId) {
+              columnTasks = tasksByList[secondListId]
+                .filter(task => !task.completed)
+                .map(task => ({
+                  id: task.id,
+                  content: task.title,
+                  dueDate: task.due ? new Date(task.due) : null
+                }));
+            }
+          } else if (column.id === 'done') {
+            // Get completed tasks from all lists
+            Object.values(tasksByList).forEach(tasks => {
+              const completedTasks = tasks
+                .filter(task => task.completed)
+                .map(task => ({
+                  id: task.id,
+                  content: task.title,
+                  dueDate: task.due ? new Date(task.due) : null
+                }));
+              columnTasks = [...columnTasks, ...completedTasks];
+            });
+          } else {
+            // For custom columns, get tasks from remaining lists
+            const remainingListIds = Object.keys(tasksByList).slice(2);
+            remainingListIds.forEach(listId => {
+              const listTasks = tasksByList[listId]
+                .filter(task => !task.completed)
+                .map(task => ({
+                  id: task.id,
+                  content: task.title,
+                  dueDate: task.due ? new Date(task.due) : null
+                }));
+              columnTasks = [...columnTasks, ...listTasks];
+            });
+          }
+
+          return {
+            ...column,
+            tasks: columnTasks
+          };
+        });
+
+        setColumns(mappedColumns);
         setGoogleTasksLoading(false);
       })
       .catch(() => {
@@ -167,27 +224,16 @@ function App() {
   };
 
   const handleAddColumn = () => {
-    if (newColumnTitle.trim()) {
-      const newColumn: Column = {
-        id: `column-${Date.now()}`,
-        title: newColumnTitle.trim(),
-        tasks: [],
-      };
-      setColumns([...columns, newColumn]);
-      setNewColumnTitle('');
-      setOpenNewColumnDialog(false);
-    }
+    const newColumn: Column = {
+      id: `column-${Date.now()}`,
+      title: 'New Column',
+      tasks: [],
+    };
+    setColumns(prevColumns => [...prevColumns, newColumn]);
   };
 
   const handleDeleteColumn = (columnId: string) => {
-    setDeleteColumnId(columnId);
-  };
-
-  const confirmDeleteColumn = () => {
-    if (deleteColumnId) {
-      setColumns(columns.filter(col => col.id !== deleteColumnId));
-      setDeleteColumnId(null);
-    }
+    setColumns(prevColumns => prevColumns.filter(col => col.id !== columnId));
   };
 
   const handleDateChange = (date: Date | null) => {
@@ -369,6 +415,17 @@ function App() {
     </div>
   );
 
+  const getDateColor = (date: string) => {
+    if (date === 'no-date') return 'grey.600';
+    
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const tomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd');
+    
+    if (date === today) return 'error.main';
+    if (date === tomorrow) return 'warning.main';
+    return 'primary.main';
+  };
+
   return (
     <Box sx={{ display: 'flex' }}>
       <CssBaseline />
@@ -451,10 +508,10 @@ function App() {
               <Typography variant="h6">Loading Google Tasks...</Typography>
             ) : (
               <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
-                {googleTaskLists.map((list) => {
+                {columns.map((column, index) => {
                   // Group tasks by date
-                  const tasksByDate = (googleTasks[list.id] || []).reduce((acc: { [key: string]: any[] }, task) => {
-                    const date = task.due ? format(new Date(task.due), 'yyyy-MM-dd') : 'no-date';
+                  const tasksByDate = column.tasks.reduce((acc: { [key: string]: Task[] }, task) => {
+                    const date = task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : 'no-date';
                     if (!acc[date]) {
                       acc[date] = [];
                     }
@@ -471,16 +528,49 @@ function App() {
 
                   return (
                     <Paper
-                      key={list.id}
+                      key={column.id}
                       sx={{
                         p: 2,
                         minWidth: 300,
                         maxWidth: 300,
                         height: 'fit-content',
-                        bgcolor: 'background.paper'
+                        bgcolor: 'background.paper',
+                        position: 'relative'
                       }}
                     >
-                      <Typography variant="h6" sx={{ mb: 2 }}>{list.title}</Typography>
+                      <Box sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between', 
+                        mb: 2,
+                        p: 1,
+                        borderRadius: 1,
+                        bgcolor: 'action.hover',
+                        '&:hover .delete-button': {
+                          opacity: 1
+                        }
+                      }}>
+                        <Typography variant="h6">{column.title}</Typography>
+                        {index > 0 && (
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDeleteColumn(column.id)}
+                            className="delete-button"
+                            sx={{ 
+                              ml: 1,
+                              opacity: 0,
+                              transition: 'opacity 0.2s ease-in-out',
+                              '&:hover': {
+                                bgcolor: 'error.light',
+                                color: 'white'
+                              }
+                            }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                      </Box>
                       <Stack spacing={2}>
                         {sortedDates.map((date) => (
                           <Box key={date}>
@@ -491,7 +581,7 @@ function App() {
                                 mb: 1,
                                 px: 1.5,
                                 py: 0.75,
-                                bgcolor: date === 'no-date' ? 'grey.600' : 'primary.main',
+                                bgcolor: getDateColor(date),
                                 borderRadius: 1,
                                 fontWeight: 'bold',
                                 display: 'flex',
@@ -506,17 +596,12 @@ function App() {
                             <Stack spacing={1} sx={{ pl: 1 }}>
                               {tasksByDate[date].map((task) => (
                                 <Paper key={task.id} sx={{ p: 2 }}>
-                                  <Typography variant="subtitle1">{task.title}</Typography>
-                                  {task.notes && (
-                                    <Typography variant="body2" color="text.secondary">
-                                      {task.notes}
-                                    </Typography>
-                                  )}
-                                  {task.due && (
+                                  <Typography variant="subtitle1">{task.content}</Typography>
+                                  {task.dueDate && (
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
                                       <EventIcon fontSize="small" color="action" />
                                       <Typography variant="caption" color="text.secondary">
-                                        {format(new Date(task.due), 'MMM d, yyyy')}
+                                        {format(new Date(task.dueDate), 'MMM d, yyyy')}
                                       </Typography>
                                     </Box>
                                   )}
@@ -529,6 +614,25 @@ function App() {
                     </Paper>
                   );
                 })}
+                <Button
+                  variant="outlined"
+                  startIcon={<AddIcon />}
+                  onClick={handleAddColumn}
+                  sx={{
+                    minWidth: 300,
+                    height: 'fit-content',
+                    borderStyle: 'dashed',
+                    borderColor: 'primary.main',
+                    color: 'primary.main',
+                    '&:hover': {
+                      borderStyle: 'dashed',
+                      borderColor: 'primary.dark',
+                      bgcolor: 'action.hover'
+                    }
+                  }}
+                >
+                  Add Column
+                </Button>
               </Box>
             )
           ) : (
@@ -613,7 +717,7 @@ function App() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteColumnId(null)}>Cancel</Button>
-          <Button onClick={confirmDeleteColumn} color="error" variant="contained">
+          <Button onClick={() => handleDeleteColumn(deleteColumnId as string)} color="error" variant="contained">
             Delete
           </Button>
         </DialogActions>
