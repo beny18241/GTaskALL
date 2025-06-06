@@ -9,26 +9,17 @@ A modern task management application built with React, TypeScript, and Vite.
 - Material UI for a beautiful user interface
 - Date picker for task scheduling
 - Responsive design for all devices
+- Automatic deployment on pull request merge
 
 ## Recent Updates
 
 ### March 2024
-- Simplified deployment process to run on pull requests
-- Removed production environment setup from deployment workflow
-- Fixed deployment issues with Vite installation
-- Improved build process and PM2 configuration
-- Added automatic build verification
-- Fixed multiple PM2 instance creation issue
+- Added automatic deployment on pull request merge
+- Updated Google Tasks API integration for full access
+- Added domain support for production deployment
+- Improved task synchronization with Google Tasks
+- Enhanced deployment process with proper build steps
 - Added better error handling and logging
-
-### Revert Information
-The application was reverted to a stable version after deployment issues. The following changes were made:
-1. Re-cloned the repository to fix git corruption issues
-2. Updated deployment workflow to ensure proper Vite installation
-3. Modified PM2 configuration to prevent multiple instances
-4. Added build verification to ensure dist directory exists
-5. Improved error handling in start script
-6. Simplified deployment process to run directly on pull requests
 
 ## Development
 
@@ -46,10 +37,11 @@ The application will be available at:
 ## Production
 
 The application is deployed using GitHub Actions. The deployment process:
-1. Triggers on pull requests to main branch
+1. Triggers automatically when a pull request is merged to main
 2. Builds the application
 3. Verifies the build output
 4. Copies files to production server
+5. Restarts the application using PM2
 
 ## Environment Variables
 
@@ -65,6 +57,41 @@ Required environment variables:
 - React Beautiful DnD
 - Axios
 - Date-fns
+
+## Required Secrets
+
+Set up the following secrets in your GitHub repository (Settings > Secrets and variables > Actions):
+
+- `PRODUCTION_USER`: SSH username for the production server
+- `PRODUCTION_HOST`: Production server hostname or IP
+- `PRODUCTION_PATH`: Path on the server where the application will be deployed
+- `GOOGLE_CLIENT_ID`: Your Google OAuth client ID
+
+### Deployment Process
+
+The deployment is now fully automated:
+1. Create a pull request with your changes
+2. Review and approve the changes
+3. Merge the pull request to main
+4. The deployment will start automatically
+5. The application will be updated on the production server
+
+### Manual Deployment
+
+If you need to deploy manually:
+
+```bash
+# Build the application
+npm run build
+
+# Copy to server
+scp -r dist/* user@your-server:/path/to/deployment
+
+# SSH into server and restart
+ssh user@your-server
+cd /path/to/deployment
+pm2 restart gtaskall || pm2 start npm --name gtaskall -- start
+```
 
 # React + TypeScript + Vite
 
