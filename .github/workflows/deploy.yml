@@ -39,26 +39,36 @@ jobs:
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
 
-      - name: Deploy to server
+      - name: Create deployment script
         run: |
+          cat > deploy.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          
           echo "Starting deployment..."
-          echo "Creating deployment directory..."
           
           # Create deployment directory
-          ssh -v -o StrictHostKeyChecking=no -l ${{ secrets.PRODUCTION_USER }} ${{ secrets.PRODUCTION_HOST }} "mkdir -p ${{ secrets.PRODUCTION_PATH }}"
+          echo "Creating deployment directory..."
+          ssh -o StrictHostKeyChecking=no "${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}" "mkdir -p ${{ secrets.PRODUCTION_PATH }}"
           
-          echo "Copying files..."
           # Copy files
+          echo "Copying files..."
           rsync -avz --delete \
             --exclude 'node_modules' \
             --exclude '.git' \
             --exclude '.github' \
             --exclude '.env' \
             --exclude '.env.*' \
-            ./ ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}:${{ secrets.PRODUCTION_PATH }}/
+            ./ "${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}:${{ secrets.PRODUCTION_PATH }}/"
           
-          echo "Installing dependencies and restarting application..."
           # Install dependencies and restart
-          ssh -v -o StrictHostKeyChecking=no -l ${{ secrets.PRODUCTION_USER }} ${{ secrets.PRODUCTION_HOST }} "cd ${{ secrets.PRODUCTION_PATH }} && npm ci --production && pm2 restart gtaskall || pm2 start npm --name gtaskall -- start"
+          echo "Installing dependencies and restarting application..."
+          ssh -o StrictHostKeyChecking=no "${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}" "cd ${{ secrets.PRODUCTION_PATH }} && npm ci --production && pm2 restart gtaskall || pm2 start npm --name gtaskall -- start"
           
-          echo "Deployment completed!" 
+          echo "Deployment completed!"
+          EOF
+          
+          chmod +x deploy.sh
+
+      - name: Deploy to server
+        run: ./deploy.sh 
