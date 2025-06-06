@@ -451,40 +451,84 @@ function App() {
               <Typography variant="h6">Loading Google Tasks...</Typography>
             ) : (
               <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
-                {googleTaskLists.map((list) => (
-                  <Paper
-                    key={list.id}
-                    sx={{
-                      p: 2,
-                      minWidth: 300,
-                      maxWidth: 300,
-                      height: 'fit-content',
-                      bgcolor: 'background.paper'
-                    }}
-                  >
-                    <Typography variant="h6">{list.title}</Typography>
-                    <Stack spacing={2}>
-                      {(googleTasks[list.id] || []).map((task) => (
-                        <Paper key={task.id} sx={{ p: 2 }}>
-                          <Typography variant="subtitle1">{task.title}</Typography>
-                          {task.notes && (
-                            <Typography variant="body2" color="text.secondary">
-                              {task.notes}
+                {googleTaskLists.map((list) => {
+                  // Group tasks by date
+                  const tasksByDate = (googleTasks[list.id] || []).reduce((acc: { [key: string]: any[] }, task) => {
+                    const date = task.due ? format(new Date(task.due), 'yyyy-MM-dd') : 'no-date';
+                    if (!acc[date]) {
+                      acc[date] = [];
+                    }
+                    acc[date].push(task);
+                    return acc;
+                  }, {});
+
+                  // Sort dates
+                  const sortedDates = Object.keys(tasksByDate).sort((a, b) => {
+                    if (a === 'no-date') return 1;
+                    if (b === 'no-date') return -1;
+                    return new Date(a).getTime() - new Date(b).getTime();
+                  });
+
+                  return (
+                    <Paper
+                      key={list.id}
+                      sx={{
+                        p: 2,
+                        minWidth: 300,
+                        maxWidth: 300,
+                        height: 'fit-content',
+                        bgcolor: 'background.paper'
+                      }}
+                    >
+                      <Typography variant="h6" sx={{ mb: 2 }}>{list.title}</Typography>
+                      <Stack spacing={2}>
+                        {sortedDates.map((date) => (
+                          <Box key={date}>
+                            <Typography 
+                              variant="subtitle2" 
+                              sx={{ 
+                                color: 'white',
+                                mb: 1,
+                                px: 1.5,
+                                py: 0.75,
+                                bgcolor: date === 'no-date' ? 'grey.600' : 'primary.main',
+                                borderRadius: 1,
+                                fontWeight: 'bold',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                boxShadow: 1
+                              }}
+                            >
+                              <EventIcon fontSize="small" />
+                              {date === 'no-date' ? 'No Due Date' : format(new Date(date), 'MMM d, yyyy')}
                             </Typography>
-                          )}
-                          {task.due && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                              <EventIcon fontSize="small" color="action" />
-                              <Typography variant="caption" color="text.secondary">
-                                {format(new Date(task.due), 'MMM d, yyyy')}
-                              </Typography>
-                            </Box>
-                          )}
-                        </Paper>
-                      ))}
-                    </Stack>
-                  </Paper>
-                ))}
+                            <Stack spacing={1} sx={{ pl: 1 }}>
+                              {tasksByDate[date].map((task) => (
+                                <Paper key={task.id} sx={{ p: 2 }}>
+                                  <Typography variant="subtitle1">{task.title}</Typography>
+                                  {task.notes && (
+                                    <Typography variant="body2" color="text.secondary">
+                                      {task.notes}
+                                    </Typography>
+                                  )}
+                                  {task.due && (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                                      <EventIcon fontSize="small" color="action" />
+                                      <Typography variant="caption" color="text.secondary">
+                                        {format(new Date(task.due), 'MMM d, yyyy')}
+                                      </Typography>
+                                    </Box>
+                                  )}
+                                </Paper>
+                              ))}
+                            </Stack>
+                          </Box>
+                        ))}
+                      </Stack>
+                    </Paper>
+                  );
+                })}
               </Box>
             )
           ) : (
