@@ -23,7 +23,14 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Build
-        run: npm run build
+        run: |
+          echo "Starting build process..."
+          npm run build
+          if [ ! -d "dist" ]; then
+            echo "Build failed: dist directory not created"
+            exit 1
+          fi
+          echo "Build completed successfully"
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
 
@@ -60,7 +67,7 @@ jobs:
           pm2 stop gtaskall || true && \
           pm2 delete gtaskall || true && \
           echo 'Starting application...' && \
-          pm2 start npm --name 'gtaskall' -- run start && \
+          pm2 start npm --name 'gtaskall' -- run start --max-memory-restart 1G --time && \
           echo 'PM2 status:' && \
           pm2 status && \
           echo 'PM2 logs:' && \
