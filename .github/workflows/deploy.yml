@@ -27,14 +27,24 @@ jobs:
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
 
-      - name: Deploy to production
+      - name: Copy to production server
         run: |
-          cd ${{ secrets.PRODUCTION_PATH }}
-          rm -rf dist
-          mkdir -p dist
-          cp -r $GITHUB_WORKSPACE/dist/* dist/
+          # Create a temporary directory for the deployment
+          TEMP_DIR=$(mktemp -d)
+          
+          # Copy the built files to the temporary directory
+          cp -r dist/* $TEMP_DIR/
+          cp package.json $TEMP_DIR/
+          cp vite.config.ts $TEMP_DIR/
+          
+          # Copy to production server
+          scp -r $TEMP_DIR/* ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}:${{ secrets.PRODUCTION_PATH }}/
+          
+          # Clean up
+          rm -rf $TEMP_DIR
 
-      - name: Restart production server
+      - name: Setup production environment
         run: |
-          cd ${{ secrets.PRODUCTION_PATH }}
-          pm2 restart gtaskall || pm2 start npm --name "gtaskall" -- start 
+          ssh ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} "cd ${{ secrets.PRODUCTION_PATH }} && \
+          npm install --production --legacy-peer-deps && \
+          pm2 restart gtaskall || pm2 start npm --name 'gtaskall' -- start" 
