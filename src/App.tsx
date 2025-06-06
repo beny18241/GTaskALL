@@ -23,12 +23,14 @@ interface Task {
   id: string;
   content: string;
   dueDate?: Date | null;
+  isDragging?: boolean;
 }
 
 interface Column {
   id: string;
   title: string;
   tasks: Task[];
+  isDragOver?: boolean;
 }
 
 interface User {
@@ -38,6 +40,7 @@ interface User {
 }
 
 const STORAGE_KEY = 'kanban-board-data';
+const USER_STORAGE_KEY = 'gtaskall-user-data';
 
 function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -68,9 +71,17 @@ function App() {
   const [newColumnTitle, setNewColumnTitle] = useState('');
   const [deleteColumnId, setDeleteColumnId] = useState<string | null>(null);
   const [draggedTask, setDraggedTask] = useState<{ task: Task; sourceColumnId: string } | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+  const [dragOverTaskIndex, setDragOverTaskIndex] = useState<number | null>(null);
   const [selectedTask, setSelectedTask] = useState<{ task: Task; columnId: string } | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [googleTasksToken, setGoogleTasksToken] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    const savedUser = localStorage.getItem(USER_STORAGE_KEY);
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+  const [googleTasksToken, setGoogleTasksToken] = useState<string | null>(() => {
+    const savedToken = localStorage.getItem('google-tasks-token');
+    return savedToken || null;
+  });
   const [googleTasksLoading, setGoogleTasksLoading] = useState(false);
   const [googleTaskLists, setGoogleTaskLists] = useState<any[]>([]);
   const [googleTasks, setGoogleTasks] = useState<{ [listId: string]: any[] }>({});
@@ -116,11 +127,11 @@ function App() {
           
           // Map tasks based on column type
           if (column.id === 'todo') {
-            // Get tasks from the first list or uncompleted tasks
+            // Get tasks from the first list or uncompleted tasks without "In Progress" note
             const firstListId = Object.keys(tasksByList)[0];
             if (firstListId) {
               columnTasks = tasksByList[firstListId]
-                .filter(task => !task.completed)
+                .filter(task => !task.completed && (!task.notes || !task.notes.includes('🔄 In Progress')))
                 .map(task => ({
                   id: task.id,
                   content: task.title,
@@ -128,17 +139,17 @@ function App() {
                 }));
             }
           } else if (column.id === 'inProgress') {
-            // Get tasks from the second list or tasks with notes
-            const secondListId = Object.keys(tasksByList)[1];
-            if (secondListId) {
-              columnTasks = tasksByList[secondListId]
-                .filter(task => !task.completed)
+            // Get tasks with "In Progress" note from all lists
+            Object.values(tasksByList).forEach(tasks => {
+              const inProgressTasks = tasks
+                .filter(task => !task.completed && task.notes && task.notes.includes('🔄 In Progress'))
                 .map(task => ({
                   id: task.id,
                   content: task.title,
                   dueDate: task.due ? new Date(task.due) : null
                 }));
-            }
+              columnTasks = [...columnTasks, ...inProgressTasks];
+            });
           } else if (column.id === 'done') {
             // Get completed tasks from all lists
             Object.values(tasksByList).forEach(tasks => {
@@ -156,7 +167,7 @@ function App() {
             const remainingListIds = Object.keys(tasksByList).slice(2);
             remainingListIds.forEach(listId => {
               const listTasks = tasksByList[listId]
-                .filter(task => !task.completed)
+                .filter(task => !task.completed && (!task.notes || !task.notes.includes('🔄 In Progress')))
                 .map(task => ({
                   id: task.id,
                   content: task.title,
@@ -182,28 +193,80 @@ function App() {
       });
   }, [googleTasksToken]);
 
+  // Save user data to localStorage whenever it changes
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(USER_STORAGE_KEY);
+    }
+  }, [user]);
+
+  // Save token to localStorage whenever it changes
+  useEffect(() => {
+    if (googleTasksToken) {
+      localStorage.setItem('google-tasks-token', googleTasksToken);
+    } else {
+      localStorage.removeItem('google-tasks-token');
+    }
+  }, [googleTasksToken]);
+
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
 
   const handleDragStart = (task: Task, columnId: string) => {
     setDraggedTask({ task, sourceColumnId: columnId });
+    // Add dragging state to the task
+    setColumns(columns.map(column => {
+      if (column.id === columnId) {
+        return {
+          ...column,
+          tasks: column.tasks.map(t => 
+            t.id === task.id ? { ...t, isDragging: true } : t
+          )
+        };
+      }
+      return column;
+    }));
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent, columnId: string, taskIndex?: number) => {
     e.preventDefault();
+    setDragOverColumn(columnId);
+    if (taskIndex !== undefined) {
+      setDragOverTaskIndex(taskIndex);
+    }
   };
 
-  const handleDrop = (targetColumnId: string) => {
+  const handleDragLeave = () => {
+    setDragOverColumn(null);
+    setDragOverTaskIndex(null);
+  };
+
+  const handleDrop = async (targetColumnId: string) => {
     if (!draggedTask) return;
 
     const { task, sourceColumnId } = draggedTask;
     
     if (sourceColumnId === targetColumnId) {
       setDraggedTask(null);
+      setDragOverColumn(null);
+      setDragOverTaskIndex(null);
+      // Remove dragging state
+      setColumns(columns.map(column => {
+        if (column.id === sourceColumnId) {
+          return {
+            ...column,
+            tasks: column.tasks.map(t => ({ ...t, isDragging: false }))
+          };
+        }
+        return column;
+      }));
       return;
     }
 
+    // Update local state first
     setColumns(columns.map(column => {
       if (column.id === sourceColumnId) {
         return {
@@ -212,15 +275,144 @@ function App() {
         };
       }
       if (column.id === targetColumnId) {
+        const newTask = { ...task, isDragging: false };
+        if (dragOverTaskIndex !== null) {
+          const newTasks = [...column.tasks];
+          newTasks.splice(dragOverTaskIndex, 0, newTask);
+          return {
+            ...column,
+            tasks: newTasks
+          };
+        }
         return {
           ...column,
-          tasks: [...column.tasks, task]
+          tasks: [...column.tasks, newTask]
         };
       }
       return column;
     }));
 
+    // Sync with Google Tasks if connected
+    if (googleTasksToken) {
+      try {
+        // Find the task in Google Tasks
+        let taskListId = '';
+        let taskId = '';
+        
+        // Search through all task lists to find the task
+        for (const [listId, tasks] of Object.entries(googleTasks)) {
+          const foundTask = tasks.find(t => t.title === task.content);
+          if (foundTask) {
+            taskListId = listId;
+            taskId = foundTask.id;
+            break;
+          }
+        }
+
+        if (taskListId && taskId) {
+          // Prepare the update based on the target column
+          const update: any = {};
+          
+          if (targetColumnId === 'done') {
+            // Mark as completed
+            update.status = 'completed';
+            update.notes = ''; // Clear any notes
+          } else if (targetColumnId === 'inProgress') {
+            // Add "In Progress" note with icon
+            update.notes = '🔄 In Progress';
+            update.status = 'needsAction';
+          } else {
+            // Reset status and remove notes
+            update.status = 'needsAction';
+            update.notes = '';
+          }
+
+          // Update the task in Google Tasks
+          await axios.patch(
+            `https://www.googleapis.com/tasks/v1/lists/${taskListId}/tasks/${taskId}`,
+            update,
+            {
+              headers: { Authorization: `Bearer ${googleTasksToken}` }
+            }
+          );
+
+          // Refresh Google Tasks data
+          const taskListsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
+            headers: { Authorization: `Bearer ${googleTasksToken}` }
+          });
+
+          const taskLists = taskListsResponse.data.items || [];
+          const tasksPromises = taskLists.map((list: any) =>
+            axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
+              headers: { Authorization: `Bearer ${googleTasksToken}` }
+            }).then((tasksRes: any) => ({ listId: list.id, tasks: tasksRes.data.items || [] }))
+          );
+
+          const results = await Promise.all(tasksPromises);
+          const tasksByList: { [listId: string]: any[] } = {};
+          results.forEach(({ listId, tasks }) => {
+            tasksByList[listId] = tasks;
+          });
+
+          // Update local state with fresh data
+          const mappedColumns = columns.map(column => {
+            let columnTasks: Task[] = [];
+            
+            if (column.id === 'todo') {
+              // Get tasks from the first list or uncompleted tasks without "In Progress" note
+              const firstListId = Object.keys(tasksByList)[0];
+              if (firstListId) {
+                columnTasks = tasksByList[firstListId]
+                  .filter(task => !task.completed && (!task.notes || !task.notes.includes('🔄 In Progress')))
+                  .map(task => ({
+                    id: task.id,
+                    content: task.title,
+                    dueDate: task.due ? new Date(task.due) : null
+                  }));
+              }
+            } else if (column.id === 'inProgress') {
+              // Get tasks with "In Progress" note from all lists
+              Object.values(tasksByList).forEach(tasks => {
+                const inProgressTasks = tasks
+                  .filter(task => !task.completed && task.notes && task.notes.includes('🔄 In Progress'))
+                  .map(task => ({
+                    id: task.id,
+                    content: task.title,
+                    dueDate: task.due ? new Date(task.due) : null
+                  }));
+                columnTasks = [...columnTasks, ...inProgressTasks];
+              });
+            } else if (column.id === 'done') {
+              // Get completed tasks from all lists
+              Object.values(tasksByList).forEach(tasks => {
+                const completedTasks = tasks
+                  .filter(task => task.completed)
+                  .map(task => ({
+                    id: task.id,
+                    content: task.title,
+                    dueDate: task.due ? new Date(task.due) : null
+                  }));
+                columnTasks = [...columnTasks, ...completedTasks];
+              });
+            }
+
+            return {
+              ...column,
+              tasks: columnTasks
+            };
+          });
+
+          setColumns(mappedColumns);
+        }
+      } catch (error) {
+        console.error('Error syncing with Google Tasks:', error);
+        // Optionally show an error message to the user
+      }
+    }
+
     setDraggedTask(null);
+    setDragOverColumn(null);
+    setDragOverTaskIndex(null);
   };
 
   const handleAddColumn = () => {
@@ -259,11 +451,13 @@ function App() {
   const handleGoogleSuccess = (credentialResponse: any) => {
     // In a real app, you would verify the token with your backend
     const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
-    setUser({
+    const userData = {
       name: decoded.name,
       email: decoded.email,
       picture: decoded.picture,
-    });
+    };
+    setUser(userData);
+    setGoogleTasksToken(credentialResponse.credential);
   };
 
   const handleGoogleError = () => {
@@ -271,7 +465,14 @@ function App() {
   };
 
   const handleLogout = () => {
+    googleLogout();
     setUser(null);
+    setGoogleTasksToken(null);
+    setGoogleTaskLists([]);
+    setGoogleTasks({});
+    // Clear all stored data
+    localStorage.removeItem(USER_STORAGE_KEY);
+    localStorage.removeItem('google-tasks-token');
   };
 
   const loginGoogleTasks = useGoogleLogin({
@@ -535,8 +736,15 @@ function App() {
                         maxWidth: 300,
                         height: 'fit-content',
                         bgcolor: 'background.paper',
-                        position: 'relative'
+                        position: 'relative',
+                        transition: 'all 0.2s ease',
+                        transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
+                        boxShadow: column.id === dragOverColumn ? 3 : 1,
+                        opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1
                       }}
+                      onDragOver={(e) => handleDragOver(e, column.id)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={() => handleDrop(column.id)}
                     >
                       <Box sx={{ 
                         display: 'flex', 
@@ -594,8 +802,27 @@ function App() {
                               {date === 'no-date' ? 'No Due Date' : format(new Date(date), 'MMM d, yyyy')}
                             </Typography>
                             <Stack spacing={1} sx={{ pl: 1 }}>
-                              {tasksByDate[date].map((task) => (
-                                <Paper key={task.id} sx={{ p: 2 }}>
+                              {tasksByDate[date].map((task, taskIndex) => (
+                                <Paper 
+                                  key={task.id}
+                                  sx={{ 
+                                    p: 2,
+                                    cursor: 'grab',
+                                    transition: 'all 0.2s ease',
+                                    transform: task.isDragging ? 'scale(1.05)' : 'scale(1)',
+                                    opacity: task.isDragging ? 0.5 : 1,
+                                    boxShadow: task.isDragging ? 3 : 1,
+                                    position: 'relative',
+                                    '&:hover': {
+                                      boxShadow: 2
+                                    }
+                                  }}
+                                  draggable
+                                  onDragStart={() => handleDragStart(task, column.id)}
+                                  onDragOver={(e) => handleDragOver(e, column.id, taskIndex)}
+                                  onDragLeave={handleDragLeave}
+                                  onDrop={() => handleDrop(column.id)}
+                                >
                                   <Typography variant="subtitle1">{task.content}</Typography>
                                   {task.dueDate && (
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
@@ -604,6 +831,19 @@ function App() {
                                         {format(new Date(task.dueDate), 'MMM d, yyyy')}
                                       </Typography>
                                     </Box>
+                                  )}
+                                  {dragOverColumn === column.id && dragOverTaskIndex === taskIndex && (
+                                    <Box
+                                      sx={{
+                                        position: 'absolute',
+                                        left: 0,
+                                        right: 0,
+                                        top: -2,
+                                        height: 4,
+                                        bgcolor: 'primary.main',
+                                        borderRadius: 1
+                                      }}
+                                    />
                                   )}
                                 </Paper>
                               ))}
