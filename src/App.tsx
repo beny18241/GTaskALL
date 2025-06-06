@@ -476,7 +476,7 @@ function App() {
   };
 
   const loginGoogleTasks = useGoogleLogin({
-    scope: 'https://www.googleapis.com/auth/tasks.readonly',
+    scope: 'https://www.googleapis.com/auth/tasks',
     onSuccess: (tokenResponse) => {
       setGoogleTasksToken(tokenResponse.access_token);
       setGoogleTasksLoading(false);
