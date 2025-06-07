@@ -303,7 +303,12 @@ function App() {
         };
       }
       if (column.id === targetColumnId) {
-        const newTask = { ...task, isDragging: false };
+        const newTask = { 
+          ...task, 
+          isDragging: false,
+          status: targetColumnId === 'inProgress' ? 'in-progress' as const : 
+                 targetColumnId === 'done' ? 'completed' as const : 'todo' as const
+        };
         if (dragOverTaskIndex !== null) {
           const newTasks = [...column.tasks];
           newTasks.splice(dragOverTaskIndex, 0, newTask);
