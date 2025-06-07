@@ -1,5 +1,7 @@
 # GTaskALL
 
+Version 1.0
+
 A modern task management application built with React, TypeScript, and Vite.
 
 ## Features
@@ -136,73 +138,4 @@ export default tseslint.config({
     },
   },
 })
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
-
-## Deployment
-
-### Prerequisites
-
-1. A self-hosted GitHub Actions runner set up on your production server
-2. PM2 installed on the production server for process management
-3. SSH access to the production server
-
-### Required Secrets
-
-Set up the following secrets in your GitHub repository (Settings > Secrets and variables > Actions):
-
-- `PRODUCTION_USER`: SSH username for the production server
-- `PRODUCTION_HOST`: Production server hostname or IP
-- `PRODUCTION_PATH`: Path on the server where the application will be deployed
-- `GOOGLE_CLIENT_ID`: Your Google OAuth client ID
-
-### Deployment Process
-
-1. Go to the "Actions" tab in your GitHub repository
-2. Select the "Deploy to Production" workflow
-3. Click "Run workflow"
-4. Choose the environment (production or staging)
-5. Click "Run workflow" to start the deployment
-
-The workflow will:
-1. Build the application
-2. Copy the built files to the production server
-3. Restart the application using PM2
-
-### Manual Deployment
-
-If you need to deploy manually:
-
-```bash
-# Build the application
-npm run build
-
-# Copy to server
-scp -r dist/* user@your-server:/path/to/deployment
-
-# SSH into server and restart
-ssh user@your-server
-cd /path/to/deployment
-pm2 restart gtaskall || pm2 start npm --name gtaskall -- start
 ```
