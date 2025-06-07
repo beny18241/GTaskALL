@@ -24,6 +24,10 @@ interface Task {
   content: string;
   dueDate?: Date | null;
   isDragging?: boolean;
+  isRecurring?: boolean;
+  notes?: string;
+  color?: string;
+  status?: 'in-progress' | 'completed' | 'todo';
 }
 
 interface Column {
@@ -135,18 +139,26 @@ function App() {
                 .map(task => ({
                   id: task.id,
                   content: task.title,
-                  dueDate: task.due ? new Date(task.due) : null
+                  dueDate: task.due ? new Date(task.due) : null,
+                  isRecurring: task.recurrence ? true : false,
+                  notes: task.notes || '',
+                  color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
+                  status: 'todo' as const
                 }));
             }
           } else if (column.id === 'inProgress') {
-            // Get tasks with "In Progress" note from all lists
+            // Get tasks with "Active" note from all lists
             Object.values(tasksByList).forEach(tasks => {
               const inProgressTasks = tasks
-                .filter(task => !task.completed && task.notes && task.notes.includes('🔄 In Progress'))
+                .filter(task => !task.completed && task.notes && task.notes.includes('⚡ Active'))
                 .map(task => ({
                   id: task.id,
                   content: task.title,
-                  dueDate: task.due ? new Date(task.due) : null
+                  dueDate: task.due ? new Date(task.due) : null,
+                  isRecurring: task.recurrence ? true : false,
+                  notes: task.notes?.replace('⚡ Active', '').trim() || '',
+                  color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#FFA726',
+                  status: 'in-progress' as const
                 }));
               columnTasks = [...columnTasks, ...inProgressTasks];
             });
@@ -158,7 +170,11 @@ function App() {
                 .map(task => ({
                   id: task.id,
                   content: task.title,
-                  dueDate: task.due ? new Date(task.due) : null
+                  dueDate: task.due ? new Date(task.due) : null,
+                  isRecurring: task.recurrence ? true : false,
+                  notes: task.notes || '',
+                  color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
+                  status: 'completed' as const
                 }));
               columnTasks = [...columnTasks, ...completedTasks];
             });
@@ -171,7 +187,11 @@ function App() {
                 .map(task => ({
                   id: task.id,
                   content: task.title,
-                  dueDate: task.due ? new Date(task.due) : null
+                  dueDate: task.due ? new Date(task.due) : null,
+                  isRecurring: task.recurrence ? true : false,
+                  notes: task.notes || '',
+                  color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
+                  status: 'todo' as const
                 }));
               columnTasks = [...columnTasks, ...listTasks];
             });
@@ -318,8 +338,8 @@ function App() {
             update.status = 'completed';
             update.notes = ''; // Clear any notes
           } else if (targetColumnId === 'inProgress') {
-            // Add "In Progress" note with icon
-            update.notes = '🔄 In Progress';
+            // Add "Active" note with icon
+            update.notes = '⚡ Active';
             update.status = 'needsAction';
           } else {
             // Reset status and remove notes
@@ -367,18 +387,26 @@ function App() {
                   .map(task => ({
                     id: task.id,
                     content: task.title,
-                    dueDate: task.due ? new Date(task.due) : null
+                    dueDate: task.due ? new Date(task.due) : null,
+                    isRecurring: task.recurrence ? true : false,
+                    notes: task.notes || '',
+                    color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
+                    status: 'todo' as const
                   }));
               }
             } else if (column.id === 'inProgress') {
-              // Get tasks with "In Progress" note from all lists
+              // Get tasks with "Active" note from all lists
               Object.values(tasksByList).forEach(tasks => {
                 const inProgressTasks = tasks
-                  .filter(task => !task.completed && task.notes && task.notes.includes('🔄 In Progress'))
+                  .filter(task => !task.completed && task.notes && task.notes.includes('⚡ Active'))
                   .map(task => ({
                     id: task.id,
                     content: task.title,
-                    dueDate: task.due ? new Date(task.due) : null
+                    dueDate: task.due ? new Date(task.due) : null,
+                    isRecurring: task.recurrence ? true : false,
+                    notes: task.notes?.replace('⚡ Active', '').trim() || '',
+                    color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#FFA726',
+                    status: 'in-progress' as const
                   }));
                 columnTasks = [...columnTasks, ...inProgressTasks];
               });
@@ -390,7 +418,11 @@ function App() {
                   .map(task => ({
                     id: task.id,
                     content: task.title,
-                    dueDate: task.due ? new Date(task.due) : null
+                    dueDate: task.due ? new Date(task.due) : null,
+                    isRecurring: task.recurrence ? true : false,
+                    notes: task.notes || '',
+                    color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
+                    status: 'completed' as const
                   }));
                 columnTasks = [...columnTasks, ...completedTasks];
               });
@@ -815,7 +847,11 @@ function App() {
                                     position: 'relative',
                                     '&:hover': {
                                       boxShadow: 2
-                                    }
+                                    },
+                                    borderLeft: task.color ? `4px solid ${task.color}` : 'none',
+                                    bgcolor: task.color ? `${task.color}10` : 'background.paper',
+                                    maxWidth: '100%',
+                                    overflow: 'hidden'
                                   }}
                                   draggable
                                   onDragStart={() => handleDragStart(task, column.id)}
@@ -823,7 +859,57 @@ function App() {
                                   onDragLeave={handleDragLeave}
                                   onDrop={() => handleDrop(column.id)}
                                 >
-                                  <Typography variant="subtitle1">{task.content}</Typography>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                    <Typography variant="subtitle1" sx={{ wordBreak: 'break-word' }}>{task.content}</Typography>
+                                    {task.isRecurring && (
+                                      <Box sx={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        bgcolor: 'primary.main',
+                                        color: 'white',
+                                        px: 1,
+                                        py: 0.5,
+                                        borderRadius: 1,
+                                        fontSize: '0.75rem',
+                                        flexShrink: 0
+                                      }}>
+                                        🔄 Recurring
+                                      </Box>
+                                    )}
+                                    {task.status === 'in-progress' && (
+                                      <Box sx={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        bgcolor: 'warning.main',
+                                        color: 'white',
+                                        px: 1,
+                                        py: 0.5,
+                                        borderRadius: 1,
+                                        fontSize: '0.75rem',
+                                        flexShrink: 0
+                                      }}>
+                                        ⚡ Active
+                                      </Box>
+                                    )}
+                                  </Box>
+                                  {task.notes && (
+                                    <Typography 
+                                      variant="body2" 
+                                      color="text.secondary"
+                                      sx={{ 
+                                        mb: 1,
+                                        fontStyle: 'italic',
+                                        borderLeft: '2px solid',
+                                        borderColor: 'divider',
+                                        pl: 1,
+                                        wordBreak: 'break-word',
+                                        maxHeight: '100px',
+                                        overflow: 'auto'
+                                      }}
+                                    >
+                                      {task.notes}
+                                    </Typography>
+                                  )}
                                   {task.dueDate && (
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
                                       <EventIcon fontSize="small" color="action" />
