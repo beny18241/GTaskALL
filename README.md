@@ -10,6 +10,11 @@ A modern task management application built with React, TypeScript, and Vite.
 - Date picker for task scheduling
 - Responsive design for all devices
 - Automatic deployment on pull request merge
+- Enhanced task display with:
+  - Recurring task indicators
+  - Task notes/details
+  - Color-coded cards
+  - Status badges (Active, Recurring)
 
 ## Recent Updates
 
@@ -20,6 +25,13 @@ A modern task management application built with React, TypeScript, and Vite.
 - Improved task synchronization with Google Tasks
 - Enhanced deployment process with proper build steps
 - Added better error handling and logging
+
+### April 2024
+- Enhanced task display with recurring indicators and status badges
+- Added support for task notes and details
+- Implemented color-coded task cards
+- Improved task card layout and readability
+- Updated Google Tasks integration to support new features
 
 ## Development
 
