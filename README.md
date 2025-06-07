@@ -1,6 +1,7 @@
 # GTaskALL
 
 Version 1.0
+one fix
 
 A modern task management application built with React, TypeScript, and Vite.
 
