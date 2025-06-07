@@ -139,7 +139,7 @@ function App() {
             const firstListId = Object.keys(tasksByList)[0];
             if (firstListId) {
               columnTasks = tasksByList[firstListId]
-                .filter(task => !task.completed && (!task.notes || !task.notes.includes('🔄 In Progress')))
+                .filter(task => !task.completed && (!task.notes || !task.notes.includes('⚡ Active')))
                 .map(task => ({
                   id: task.id,
                   content: task.title,
@@ -391,7 +391,7 @@ function App() {
               const firstListId = Object.keys(tasksByList)[0];
               if (firstListId) {
                 columnTasks = tasksByList[firstListId]
-                  .filter(task => !task.completed && (!task.notes || !task.notes.includes('🔄 In Progress')))
+                  .filter(task => !task.completed && (!task.notes || !task.notes.includes('⚡ Active')))
                   .map(task => ({
                     id: task.id,
                     content: task.title,
