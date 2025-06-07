@@ -139,7 +139,7 @@ function App() {
             const firstListId = Object.keys(tasksByList)[0];
             if (firstListId) {
               columnTasks = tasksByList[firstListId]
-                .filter(task => !task.completed && (!task.notes || !task.notes.includes('🔄 In Progress')))
+                .filter(task => !task.completed && (!task.notes || !task.notes.includes('⚡ Active')))
                 .map(task => ({
                   id: task.id,
                   content: task.title,
@@ -303,7 +303,12 @@ function App() {
         };
       }
       if (column.id === targetColumnId) {
-        const newTask = { ...task, isDragging: false };
+        const newTask = { 
+          ...task, 
+          isDragging: false,
+          status: targetColumnId === 'inProgress' ? 'in-progress' as const : 
+                 targetColumnId === 'done' ? 'completed' as const : 'todo' as const
+        };
         if (dragOverTaskIndex !== null) {
           const newTasks = [...column.tasks];
           newTasks.splice(dragOverTaskIndex, 0, newTask);
@@ -391,7 +396,7 @@ function App() {
               const firstListId = Object.keys(tasksByList)[0];
               if (firstListId) {
                 columnTasks = tasksByList[firstListId]
-                  .filter(task => !task.completed && (!task.notes || !task.notes.includes('🔄 In Progress')))
+                  .filter(task => !task.completed && (!task.notes || !task.notes.includes('⚡ Active')))
                   .map(task => ({
                     id: task.id,
                     content: task.title,
