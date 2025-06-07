@@ -31,6 +31,7 @@ interface Task {
   notes?: string;
   color?: string;
   status?: 'in-progress' | 'completed' | 'todo';
+  completedAt?: Date | null;
 }
 
 interface Column {
@@ -115,11 +116,27 @@ function App() {
         setGoogleTaskLists(res.data.items || []);
         // Fetch tasks for each list
         return Promise.all(
-          (res.data.items || []).map((list: any) =>
-            axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
-              headers: { Authorization: `Bearer ${googleTasksToken}` },
-            }).then((tasksRes: any) => ({ listId: list.id, tasks: tasksRes.data.items || [] }))
-          )
+          (res.data.items || []).map(async (list: any) => {
+            let allTasks: any[] = [];
+            let pageToken: string | undefined;
+            
+            do {
+              const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
+                headers: { Authorization: `Bearer ${googleTasksToken}` },
+                params: {
+                  showCompleted: true,
+                  showHidden: true,
+                  maxResults: 100,
+                  pageToken: pageToken
+                }
+              });
+              
+              allTasks = [...allTasks, ...(response.data.items || [])];
+              pageToken = response.data.nextPageToken;
+            } while (pageToken);
+
+            return { listId: list.id, tasks: allTasks };
+          })
         );
       })
       .then((results: { listId: string; tasks: any[] }[]) => {
@@ -135,10 +152,9 @@ function App() {
           
           // Map tasks based on column type
           if (column.id === 'todo') {
-            // Get tasks from the first list or uncompleted tasks without "In Progress" note
-            const firstListId = Object.keys(tasksByList)[0];
-            if (firstListId) {
-              columnTasks = tasksByList[firstListId]
+            // Get all uncompleted tasks from all lists
+            Object.values(tasksByList).forEach(tasks => {
+              const todoTasks = tasks
                 .filter(task => !task.completed && (!task.notes || !task.notes.includes('⚡ Active')))
                 .map(task => ({
                   id: task.id,
@@ -149,6 +165,30 @@ function App() {
                   color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
                   status: 'todo' as const
                 }));
+              columnTasks = [...columnTasks, ...todoTasks];
+            });
+
+            // Sort by due date (if available) and then by title
+            columnTasks.sort((a, b) => {
+              if (a.dueDate && b.dueDate) {
+                return a.dueDate.getTime() - b.dueDate.getTime();
+              }
+              if (a.dueDate) return -1;
+              if (b.dueDate) return 1;
+              return a.content.localeCompare(b.content);
+            });
+
+            // Limit to 100 tasks
+            columnTasks = columnTasks.slice(0, 100);
+
+            // If no tasks are found, show a message
+            if (columnTasks.length === 0) {
+              columnTasks = [{
+                id: 'no-tasks',
+                content: 'No tasks to do',
+                status: 'todo' as const,
+                color: '#42A5F5'
+              }];
             }
           } else if (column.id === 'inProgress') {
             // Get tasks with "Active" note from all lists
@@ -168,6 +208,7 @@ function App() {
             });
           } else if (column.id === 'done') {
             // Get completed tasks from all lists
+            const allCompletedTasks: Task[] = [];
             Object.values(tasksByList).forEach(tasks => {
               const completedTasks = tasks
                 .filter(task => task.completed)
@@ -178,10 +219,29 @@ function App() {
                   isRecurring: task.recurrence ? true : false,
                   notes: task.notes || '',
                   color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
-                  status: 'completed' as const
+                  status: 'completed' as const,
+                  completedAt: task.completed ? new Date(task.completed) : null
                 }));
-              columnTasks = [...columnTasks, ...completedTasks];
+              allCompletedTasks.push(...completedTasks);
             });
+            
+            // Sort by completion date (most recent first) and take last 10
+            columnTasks = allCompletedTasks
+              .sort((a, b) => {
+                if (!a.completedAt || !b.completedAt) return 0;
+                return b.completedAt.getTime() - a.completedAt.getTime();
+              })
+              .slice(0, 10);
+
+            // If no tasks are completed yet, show a message
+            if (columnTasks.length === 0) {
+              columnTasks = [{
+                id: 'no-tasks',
+                content: 'No completed tasks yet',
+                status: 'completed' as const,
+                color: '#66BB6A'
+              }];
+            }
           } else {
             // For custom columns, get tasks from remaining lists
             const remainingListIds = Object.keys(tasksByList).slice(2);
@@ -348,16 +408,16 @@ function App() {
           
           if (targetColumnId === 'done') {
             // Mark as completed
-            update.status = 'completed';
+            update.completed = new Date().toISOString(); // Add completion date
             update.notes = ''; // Clear any notes
           } else if (targetColumnId === 'inProgress') {
             // Add "Active" note with icon
             update.notes = '⚡ Active';
-            update.status = 'needsAction';
+            update.completed = null; // Clear completion date
           } else {
             // Reset status and remove notes
-            update.status = 'needsAction';
             update.notes = '';
+            update.completed = null; // Clear completion date
           }
 
           // Update the task in Google Tasks
@@ -377,7 +437,11 @@ function App() {
           const taskLists = taskListsResponse.data.items || [];
           const tasksPromises = taskLists.map((list: any) =>
             axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
-              headers: { Authorization: `Bearer ${googleTasksToken}` }
+              headers: { Authorization: `Bearer ${googleTasksToken}` },
+              params: {
+                showCompleted: true,
+                showHidden: true
+              }
             }).then((tasksRes: any) => ({ listId: list.id, tasks: tasksRes.data.items || [] }))
           );
 
@@ -392,10 +456,9 @@ function App() {
             let columnTasks: Task[] = [];
             
             if (column.id === 'todo') {
-              // Get tasks from the first list or uncompleted tasks without "In Progress" note
-              const firstListId = Object.keys(tasksByList)[0];
-              if (firstListId) {
-                columnTasks = tasksByList[firstListId]
+              // Get all uncompleted tasks from all lists
+              Object.values(tasksByList).forEach(tasks => {
+                const todoTasks = tasks
                   .filter(task => !task.completed && (!task.notes || !task.notes.includes('⚡ Active')))
                   .map(task => ({
                     id: task.id,
@@ -406,6 +469,30 @@ function App() {
                     color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
                     status: 'todo' as const
                   }));
+                columnTasks = [...columnTasks, ...todoTasks];
+              });
+
+              // Sort by due date (if available) and then by title
+              columnTasks.sort((a, b) => {
+                if (a.dueDate && b.dueDate) {
+                  return a.dueDate.getTime() - b.dueDate.getTime();
+                }
+                if (a.dueDate) return -1;
+                if (b.dueDate) return 1;
+                return a.content.localeCompare(b.content);
+              });
+
+              // Limit to 100 tasks
+              columnTasks = columnTasks.slice(0, 100);
+
+              // If no tasks are found, show a message
+              if (columnTasks.length === 0) {
+                columnTasks = [{
+                  id: 'no-tasks',
+                  content: 'No tasks to do',
+                  status: 'todo' as const,
+                  color: '#42A5F5'
+                }];
               }
             } else if (column.id === 'inProgress') {
               // Get tasks with "Active" note from all lists
@@ -425,6 +512,7 @@ function App() {
               });
             } else if (column.id === 'done') {
               // Get completed tasks from all lists
+              const allCompletedTasks: Task[] = [];
               Object.values(tasksByList).forEach(tasks => {
                 const completedTasks = tasks
                   .filter(task => task.completed)
@@ -435,10 +523,29 @@ function App() {
                     isRecurring: task.recurrence ? true : false,
                     notes: task.notes || '',
                     color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
-                    status: 'completed' as const
+                    status: 'completed' as const,
+                    completedAt: task.completed ? new Date(task.completed) : null
                   }));
-                columnTasks = [...columnTasks, ...completedTasks];
+                allCompletedTasks.push(...completedTasks);
               });
+              
+              // Sort by completion date (most recent first) and take last 10
+              columnTasks = allCompletedTasks
+                .sort((a, b) => {
+                  if (!a.completedAt || !b.completedAt) return 0;
+                  return b.completedAt.getTime() - a.completedAt.getTime();
+                })
+                .slice(0, 10);
+
+              // If no tasks are completed yet, show a message
+              if (columnTasks.length === 0) {
+                columnTasks = [{
+                  id: 'no-tasks',
+                  content: 'No completed tasks yet',
+                  status: 'completed' as const,
+                  color: '#66BB6A'
+                }];
+              }
             }
 
             return {
@@ -931,8 +1038,23 @@ function App() {
                                         ⚡ Active
                                       </Box>
                                     )}
+                                    {task.status === 'completed' && (
+                                      <Box sx={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        bgcolor: 'success.main',
+                                        color: 'white',
+                                        px: 1,
+                                        py: 0.5,
+                                        borderRadius: 1,
+                                        fontSize: '0.75rem',
+                                        flexShrink: 0
+                                      }}>
+                                        ✓ Done
+                                      </Box>
+                                    )}
                                   </Box>
-                                  {task.notes && (
+                                  {task.notes && task.id !== 'no-tasks' && (
                                     <Typography 
                                       variant="body2" 
                                       color="text.secondary"
@@ -950,14 +1072,31 @@ function App() {
                                       {task.notes}
                                     </Typography>
                                   )}
-                                  {task.dueDate && (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                                      <EventIcon fontSize="small" color="action" />
-                                      <Typography variant="caption" color="text.secondary">
-                                        {format(new Date(task.dueDate), 'MMM d, yyyy')}
-                                      </Typography>
-                                    </Box>
-                                  )}
+                                  <Stack spacing={0.5}>
+                                    {task.dueDate && task.id !== 'no-tasks' && (
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <EventIcon fontSize="small" color={task.status === 'completed' ? 'success' : 'action'} />
+                                        <Typography 
+                                          variant="caption" 
+                                          color={task.status === 'completed' ? 'success.main' : 'text.secondary'}
+                                          sx={{ 
+                                            textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                                            opacity: task.status === 'completed' ? 0.7 : 1
+                                          }}
+                                        >
+                                          Due: {format(new Date(task.dueDate), 'MMM d, yyyy')}
+                                        </Typography>
+                                      </Box>
+                                    )}
+                                    {task.completedAt && task.id !== 'no-tasks' && (
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <EventIcon fontSize="small" color="success" />
+                                        <Typography variant="caption" color="success.main">
+                                          Completed: {format(new Date(task.completedAt), 'MMM d, yyyy')}
+                                        </Typography>
+                                      </Box>
+                                    )}
+                                  </Stack>
                                   {dragOverColumn === column.id && dragOverTaskIndex === taskIndex && (
                                     <Box
                                       sx={{
