@@ -55,4 +55,4 @@ jobs:
             npm ci && \
             npm run build && \
             pm2 delete gtaskall || true && \
-            pm2 start npm --name gtaskall -- start" 
+            pm2 start npm --name gtaskall -- run serve" 
