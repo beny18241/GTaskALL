@@ -19,6 +19,8 @@ import { GoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
 import LogoutIcon from '@mui/icons-material/Logout';
 import SearchIcon from '@mui/icons-material/Search';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import ClearIcon from '@mui/icons-material/Clear';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -969,6 +971,9 @@ function App() {
             bgcolor: 'background.paper',
             borderBottom: 1,
             borderColor: 'divider',
+            display: 'flex',
+            gap: 2,
+            alignItems: 'center'
           }}
         >
           <TextField
@@ -979,12 +984,51 @@ function App() {
             onChange={(e) => setSearchQuery(e.target.value)}
             InputProps={{
               startAdornment: (
-                <IconButton size="small">
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', pl: 1 }}>
                   <SearchIcon />
-                </IconButton>
+                  <FilterListIcon />
+                </Box>
               ),
+              endAdornment: searchQuery && (
+                <IconButton
+                  size="small"
+                  onClick={() => setSearchQuery('')}
+                  sx={{ 
+                    color: 'text.secondary',
+                    '&:hover': { color: 'primary.main' }
+                  }}
+                >
+                  <ClearIcon />
+                </IconButton>
+              )
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                '&:hover fieldset': {
+                  borderColor: 'primary.main',
+                },
+              },
             }}
           />
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={handleAddColumn}
+            sx={{
+              minWidth: 150,
+              height: 56,
+              borderStyle: 'dashed',
+              borderColor: 'primary.main',
+              color: 'primary.main',
+              '&:hover': {
+                borderStyle: 'dashed',
+                borderColor: 'primary.dark',
+                bgcolor: 'action.hover'
+              }
+            }}
+          >
+            Add Column
+          </Button>
         </Box>
 
         <Box
@@ -1063,8 +1107,9 @@ function App() {
                         key={column.id}
                         sx={{
                           p: 2,
-                          minWidth: 300,
-                          maxWidth: 300,
+                          minWidth: 400,
+                          maxWidth: 'none',
+                          flex: 1,
                           bgcolor: 'background.paper',
                           borderRadius: 2,
                           display: 'flex',
@@ -1077,7 +1122,26 @@ function App() {
                           transition: 'all 0.2s ease',
                           transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
                           boxShadow: column.id === dragOverColumn ? 3 : 1,
-                          opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1
+                          opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1,
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          '&:hover': {
+                            boxShadow: 4,
+                            borderColor: 'primary.light',
+                          },
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: 'rgba(0,0,0,0.1)',
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: 'rgba(0,0,0,0.2)',
+                            },
+                          },
                         }}
                         onDragOver={(e) => handleDragOver(e, column.id)}
                         onDragLeave={handleDragLeave}
@@ -1088,7 +1152,7 @@ function App() {
                           alignItems: 'center', 
                           justifyContent: 'space-between', 
                           mb: 2,
-                          p: 1,
+                          p: 1.5,
                           borderRadius: 1,
                           bgcolor: 'action.hover',
                           '&:hover .delete-button': {
@@ -1096,17 +1160,42 @@ function App() {
                           },
                           position: 'sticky',
                           top: 0,
-                          zIndex: 1
+                          zIndex: 1,
+                          borderBottom: '1px solid',
+                          borderColor: 'divider',
                         }}>
-                          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                          <Typography variant="h6" sx={{ 
+                            fontWeight: 'bold',
+                            color: 'primary.main',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1
+                          }}>
                             {column.title}
+                            <Typography variant="caption" sx={{ 
+                              bgcolor: 'primary.main',
+                              color: 'white',
+                              px: 1,
+                              py: 0.5,
+                              borderRadius: 1,
+                              fontSize: '0.75rem'
+                            }}>
+                              {column.tasks.length}
+                            </Typography>
                           </Typography>
                           {column.id === 'done' && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <Typography variant="caption" color="text.secondary">
                                 Limit:
                               </Typography>
-                              <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                              <Box sx={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                border: '1px solid', 
+                                borderColor: 'divider', 
+                                borderRadius: 1,
+                                bgcolor: 'background.paper'
+                              }}>
                                 <IconButton
                                   size="small"
                                   onClick={() => {
@@ -1339,25 +1428,6 @@ function App() {
                       </Paper>
                     );
                   })}
-                  <Button
-                    variant="outlined"
-                    startIcon={<AddIcon />}
-                    onClick={handleAddColumn}
-                    sx={{
-                      minWidth: 300,
-                      height: 'fit-content',
-                      borderStyle: 'dashed',
-                      borderColor: 'primary.main',
-                      color: 'primary.main',
-                      '&:hover': {
-                        borderStyle: 'dashed',
-                        borderColor: 'primary.dark',
-                        bgcolor: 'action.hover'
-                      }
-                    }}
-                  >
-                    Add Column
-                  </Button>
                 </Box>
               )
             ) : (
