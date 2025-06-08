@@ -18,6 +18,7 @@ import { useGoogleLogin, googleLogout } from '@react-oauth/google';
 import { GoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
 import LogoutIcon from '@mui/icons-material/Logout';
+import SearchIcon from '@mui/icons-material/Search';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -98,6 +99,7 @@ function App() {
   const [googleTasks, setGoogleTasks] = useState<{ [listId: string]: any[] }>({});
   const GOOGLE_CLIENT_ID = "251184335563-bdf3sv4vc1sr4v2itciiepd7fllvshec.apps.googleusercontent.com";
   const [googleTasksButtonHover, setGoogleTasksButtonHover] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
@@ -909,528 +911,575 @@ function App() {
     return 'primary.main';
   };
 
+  // Filter tasks based on search query
+  const filterTasks = (tasks: Task[]) => {
+    if (!searchQuery.trim()) return tasks;
+    
+    const query = searchQuery.toLowerCase();
+    return tasks.filter(task => 
+      task.content.toLowerCase().includes(query) ||
+      (task.notes && task.notes.toLowerCase().includes(query))
+    );
+  };
+
   return (
-    <Box sx={{ display: 'flex' }}>
-      <CssBaseline />
-      <AppBar
-        position="fixed"
-        sx={{
-          width: { sm: `calc(100% - ${isDrawerExpanded ? drawerWidth : collapsedDrawerWidth}px)` },
-          ml: { sm: `${isDrawerExpanded ? drawerWidth : collapsedDrawerWidth}px` },
-        }}
-      >
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { sm: 'none' } }}
-          >
-            <MenuIcon />
-          </IconButton>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <img src="/check-circle.svg" alt="GTaskALL" style={{ width: '32px', height: '32px' }} />
-            <Typography variant="h6" noWrap component="div">
-              GTaskALL
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <Box sx={{ display: 'flex' }}>
+        <CssBaseline />
+        <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+          <Toolbar>
+            <IconButton
+              color="inherit"
+              aria-label="open drawer"
+              edge="start"
+              onClick={handleDrawerToggle}
+              sx={{ mr: 2, display: { sm: 'none' } }}
+            >
+              <MenuIcon />
+            </IconButton>
+            <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+              Task Manager
             </Typography>
-          </Box>
-        </Toolbar>
-      </AppBar>
-      <Box
-        component="nav"
-        sx={{ width: { sm: isDrawerExpanded ? drawerWidth : collapsedDrawerWidth }, flexShrink: { sm: 0 } }}
-      >
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true,
-          }}
-          sx={{
-            display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-          }}
-        >
-          {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: isDrawerExpanded ? drawerWidth : collapsedDrawerWidth,
-              position: 'fixed',
-              left: 0,
-              top: 64,
-              height: 'calc(100% - 64px)',
-              borderRight: '1px solid #e0e0e0',
-              transition: 'width 0.2s ease-in-out',
-            },
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
-      </Box>
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: 3,
-          width: '100%',
-          mt: '64px',
-          minHeight: 'calc(100vh - 64px)',
-          bgcolor: '#f5f5f5',
-        }}
-      >
-        {user ? (
-          googleTasksToken ? (
-            googleTasksLoading ? (
-              <Typography variant="h6">Loading Google Tasks...</Typography>
+            {user ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Avatar src={user.picture} alt={user.name} />
+                <Typography variant="body1">{user.name}</Typography>
+                <IconButton color="inherit" onClick={handleLogout}>
+                  <LogoutIcon />
+                </IconButton>
+              </Box>
             ) : (
-              <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
-                {columns.map((column, index) => {
-                  // Group tasks by date
-                  const tasksByDate = column.tasks.reduce((acc: { [key: string]: Task[] }, task) => {
-                    const date = task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : 'no-date';
-                    if (!acc[date]) {
-                      acc[date] = [];
-                    }
-                    acc[date].push(task);
-                    return acc;
-                  }, {});
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+              />
+            )}
+          </Toolbar>
+        </AppBar>
+        
+        {/* Add Search Bar */}
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 64,
+            left: isDrawerExpanded ? drawerWidth : collapsedDrawerWidth,
+            right: 0,
+            zIndex: (theme) => theme.zIndex.drawer,
+            p: 2,
+            bgcolor: 'background.paper',
+            borderBottom: 1,
+            borderColor: 'divider',
+          }}
+        >
+          <TextField
+            fullWidth
+            variant="outlined"
+            placeholder="Search tasks by title or description..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <IconButton size="small">
+                  <SearchIcon />
+                </IconButton>
+              ),
+            }}
+          />
+        </Box>
 
-                  // Sort dates
-                  const sortedDates = Object.keys(tasksByDate).sort((a, b) => {
-                    if (a === 'no-date') return 1;
-                    if (b === 'no-date') return -1;
-                    return new Date(a).getTime() - new Date(b).getTime();
-                  });
+        <Box
+          component="nav"
+          sx={{ width: { sm: isDrawerExpanded ? drawerWidth : collapsedDrawerWidth }, flexShrink: { sm: 0 } }}
+        >
+          <Drawer
+            variant="temporary"
+            open={mobileOpen}
+            onClose={handleDrawerToggle}
+            ModalProps={{
+              keepMounted: true,
+            }}
+            sx={{
+              display: { xs: 'block', sm: 'none' },
+              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            }}
+          >
+            {drawer}
+          </Drawer>
+          <Drawer
+            variant="permanent"
+            sx={{
+              display: { xs: 'none', sm: 'block' },
+              '& .MuiDrawer-paper': {
+                boxSizing: 'border-box',
+                width: isDrawerExpanded ? drawerWidth : collapsedDrawerWidth,
+                position: 'fixed',
+                left: 0,
+                top: 64,
+                height: 'calc(100% - 64px)',
+                borderRight: '1px solid #e0e0e0',
+                transition: 'width 0.2s ease-in-out',
+              },
+            }}
+            open
+          >
+            {drawer}
+          </Drawer>
+        </Box>
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            p: 3,
+            width: { sm: `calc(100% - ${isDrawerExpanded ? drawerWidth : collapsedDrawerWidth}px)` },
+            mt: '128px', // Increased to account for search bar
+          }}
+        >
+          {user ? (
+            googleTasksToken ? (
+              googleTasksLoading ? (
+                <Typography variant="h6">Loading Google Tasks...</Typography>
+              ) : (
+                <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
+                  {columns.map((column, index) => {
+                    // Group tasks by date
+                    const tasksByDate = column.tasks.reduce((acc: { [key: string]: Task[] }, task) => {
+                      const date = task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : 'no-date';
+                      if (!acc[date]) {
+                        acc[date] = [];
+                      }
+                      acc[date].push(task);
+                      return acc;
+                    }, {});
 
-                  return (
-                    <Paper
-                      key={column.id}
-                      sx={{
-                        p: 2,
-                        minWidth: 300,
-                        maxWidth: 300,
-                        bgcolor: 'background.paper',
-                        borderRadius: 2,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 2,
-                        height: 'fit-content',
-                        minHeight: 'calc(100vh - 100px)',
-                        overflow: 'auto',
-                        position: 'relative',
-                        transition: 'all 0.2s ease',
-                        transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
-                        boxShadow: column.id === dragOverColumn ? 3 : 1,
-                        opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1
-                      }}
-                      onDragOver={(e) => handleDragOver(e, column.id)}
-                      onDragLeave={handleDragLeave}
-                      onDrop={() => handleDrop(column.id)}
-                    >
-                      <Box sx={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'space-between', 
-                        mb: 2,
-                        p: 1,
-                        borderRadius: 1,
-                        bgcolor: 'action.hover',
-                        '&:hover .delete-button': {
-                          opacity: 1
-                        },
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 1
-                      }}>
-                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                          {column.title}
-                        </Typography>
-                        {column.id === 'done' && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="caption" color="text.secondary">
-                              Limit:
-                            </Typography>
-                            <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                              <IconButton
-                                size="small"
-                                onClick={() => {
-                                  const currentLimit = column.limit ?? 3;
-                                  if (currentLimit > 0) {
-                                    setColumns(columns.map(col => 
-                                      col.id === 'done' 
-                                        ? { ...col, limit: currentLimit - 1 }
-                                        : col
-                                    ));
-                                  }
-                                }}
-                                sx={{ 
-                                  p: 0.5,
-                                  '&:hover': { bgcolor: 'action.hover' }
-                                }}
-                              >
-                                <Typography variant="body2">−</Typography>
-                              </IconButton>
-                              <Typography 
-                                variant="body2" 
-                                sx={{ 
-                                  px: 1,
-                                  minWidth: '2ch',
-                                  textAlign: 'center'
-                                }}
-                              >
-                                {column.limit ?? 3}
+                    // Sort dates
+                    const sortedDates = Object.keys(tasksByDate).sort((a, b) => {
+                      if (a === 'no-date') return 1;
+                      if (b === 'no-date') return -1;
+                      return new Date(a).getTime() - new Date(b).getTime();
+                    });
+
+                    return (
+                      <Paper
+                        key={column.id}
+                        sx={{
+                          p: 2,
+                          minWidth: 300,
+                          maxWidth: 300,
+                          bgcolor: 'background.paper',
+                          borderRadius: 2,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 2,
+                          height: 'fit-content',
+                          minHeight: 'calc(100vh - 100px)',
+                          overflow: 'auto',
+                          position: 'relative',
+                          transition: 'all 0.2s ease',
+                          transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
+                          boxShadow: column.id === dragOverColumn ? 3 : 1,
+                          opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1
+                        }}
+                        onDragOver={(e) => handleDragOver(e, column.id)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={() => handleDrop(column.id)}
+                      >
+                        <Box sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'space-between', 
+                          mb: 2,
+                          p: 1,
+                          borderRadius: 1,
+                          bgcolor: 'action.hover',
+                          '&:hover .delete-button': {
+                            opacity: 1
+                          },
+                          position: 'sticky',
+                          top: 0,
+                          zIndex: 1
+                        }}>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                            {column.title}
+                          </Typography>
+                          {column.id === 'done' && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="caption" color="text.secondary">
+                                Limit:
                               </Typography>
-                              <IconButton
-                                size="small"
-                                onClick={() => {
-                                  const currentLimit = column.limit ?? 3;
-                                  if (currentLimit < 50) {
-                                    setColumns(columns.map(col => 
-                                      col.id === 'done' 
-                                        ? { ...col, limit: currentLimit + 1 }
-                                        : col
-                                    ));
-                                  }
-                                }}
-                                sx={{ 
-                                  p: 0.5,
-                                  '&:hover': { bgcolor: 'action.hover' }
-                                }}
-                              >
-                                <Typography variant="body2">+</Typography>
-                              </IconButton>
+                              <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    const currentLimit = column.limit ?? 3;
+                                    if (currentLimit > 0) {
+                                      setColumns(columns.map(col => 
+                                        col.id === 'done' 
+                                          ? { ...col, limit: currentLimit - 1 }
+                                          : col
+                                      ));
+                                    }
+                                  }}
+                                  sx={{ 
+                                    p: 0.5,
+                                    '&:hover': { bgcolor: 'action.hover' }
+                                  }}
+                                >
+                                  <Typography variant="body2">−</Typography>
+                                </IconButton>
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ 
+                                    px: 1,
+                                    minWidth: '2ch',
+                                    textAlign: 'center'
+                                  }}
+                                >
+                                  {column.limit ?? 3}
+                                </Typography>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    const currentLimit = column.limit ?? 3;
+                                    if (currentLimit < 50) {
+                                      setColumns(columns.map(col => 
+                                        col.id === 'done' 
+                                          ? { ...col, limit: currentLimit + 1 }
+                                          : col
+                                      ));
+                                    }
+                                  }}
+                                  sx={{ 
+                                    p: 0.5,
+                                    '&:hover': { bgcolor: 'action.hover' }
+                                  }}
+                                >
+                                  <Typography variant="body2">+</Typography>
+                                </IconButton>
+                              </Box>
                             </Box>
-                          </Box>
-                        )}
-                        {index > 0 && (
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleDeleteColumn(column.id)}
-                            className="delete-button"
-                            sx={{ 
-                              ml: 1,
-                              opacity: 0,
-                              transition: 'opacity 0.2s ease-in-out',
-                              '&:hover': {
-                                bgcolor: 'error.light',
-                                color: 'white'
-                              }
-                            }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        )}
-                      </Box>
-                      <Stack spacing={2}>
-                        {sortedDates.map((date) => (
-                          <Box key={date}>
-                            <Typography 
-                              variant="subtitle2" 
+                          )}
+                          {index > 0 && (
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDeleteColumn(column.id)}
+                              className="delete-button"
                               sx={{ 
-                                color: 'white',
-                                mb: 1,
-                                px: 1.5,
-                                py: 0.75,
-                                bgcolor: getDateColor(date),
-                                borderRadius: 1,
-                                fontWeight: 'bold',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 1,
-                                boxShadow: 1
+                                ml: 1,
+                                opacity: 0,
+                                transition: 'opacity 0.2s ease-in-out',
+                                '&:hover': {
+                                  bgcolor: 'error.light',
+                                  color: 'white'
+                                }
                               }}
                             >
-                              <EventIcon fontSize="small" />
-                              {date === 'no-date' ? 'No Due Date' : format(new Date(date), 'MMM d, yyyy')}
-                            </Typography>
-                            <Stack spacing={1} sx={{ pl: 1 }}>
-                              {tasksByDate[date].map((task, taskIndex) => (
-                                <Paper 
-                                  key={task.id}
-                                  sx={{ 
-                                    p: 2,
-                                    cursor: 'grab',
-                                    transition: 'all 0.2s ease',
-                                    transform: task.isDragging ? 'scale(1.05)' : 'scale(1)',
-                                    opacity: task.isDragging ? 0.5 : 1,
-                                    boxShadow: task.isDragging ? 3 : 1,
-                                    position: 'relative',
-                                    '&:hover': {
-                                      boxShadow: 2
-                                    },
-                                    borderLeft: task.color ? `4px solid ${task.color}` : 'none',
-                                    bgcolor: task.color ? `${task.color}10` : 'background.paper',
-                                    maxWidth: '100%',
-                                    overflow: 'hidden'
-                                  }}
-                                  draggable
-                                  onDragStart={() => handleDragStart(task, column.id)}
-                                  onDragOver={(e) => handleDragOver(e, column.id, taskIndex)}
-                                  onDragLeave={handleDragLeave}
-                                  onDrop={() => handleDrop(column.id)}
-                                >
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                    <Typography variant="subtitle1" sx={{ wordBreak: 'break-word' }}>{task.content}</Typography>
-                                    {task.isRecurring && (
-                                      <Box sx={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        bgcolor: 'primary.main',
-                                        color: 'white',
-                                        px: 1,
-                                        py: 0.5,
-                                        borderRadius: 1,
-                                        fontSize: '0.75rem',
-                                        flexShrink: 0
-                                      }}>
-                                        🔄 Recurring
-                                      </Box>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          )}
+                        </Box>
+                        <Stack spacing={2}>
+                          {sortedDates.map((date) => (
+                            <Box key={date}>
+                              <Typography 
+                                variant="subtitle2" 
+                                sx={{ 
+                                  color: 'white',
+                                  mb: 1,
+                                  px: 1.5,
+                                  py: 0.75,
+                                  bgcolor: getDateColor(date),
+                                  borderRadius: 1,
+                                  fontWeight: 'bold',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 1,
+                                  boxShadow: 1
+                                }}
+                              >
+                                <EventIcon fontSize="small" />
+                                {date === 'no-date' ? 'No Due Date' : format(new Date(date), 'MMM d, yyyy')}
+                              </Typography>
+                              <Stack spacing={1} sx={{ pl: 1 }}>
+                                {filterTasks(tasksByDate[date]).map((task, taskIndex) => (
+                                  <Paper 
+                                    key={task.id}
+                                    sx={{ 
+                                      p: 2,
+                                      cursor: 'grab',
+                                      transition: 'all 0.2s ease',
+                                      transform: task.isDragging ? 'scale(1.05)' : 'scale(1)',
+                                      opacity: task.isDragging ? 0.5 : 1,
+                                      boxShadow: task.isDragging ? 3 : 1,
+                                      position: 'relative',
+                                      '&:hover': {
+                                        boxShadow: 2
+                                      },
+                                      borderLeft: task.color ? `4px solid ${task.color}` : 'none',
+                                      bgcolor: task.color ? `${task.color}10` : 'background.paper',
+                                      maxWidth: '100%',
+                                      overflow: 'hidden'
+                                    }}
+                                    draggable
+                                    onDragStart={() => handleDragStart(task, column.id)}
+                                    onDragOver={(e) => handleDragOver(e, column.id, taskIndex)}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={() => handleDrop(column.id)}
+                                  >
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                      <Typography variant="subtitle1" sx={{ wordBreak: 'break-word' }}>{task.content}</Typography>
+                                      {task.isRecurring && (
+                                        <Box sx={{ 
+                                          display: 'flex', 
+                                          alignItems: 'center', 
+                                          bgcolor: 'primary.main',
+                                          color: 'white',
+                                          px: 1,
+                                          py: 0.5,
+                                          borderRadius: 1,
+                                          fontSize: '0.75rem',
+                                          flexShrink: 0
+                                        }}>
+                                          🔄 Recurring
+                                        </Box>
+                                      )}
+                                      {task.status === 'in-progress' && (
+                                        <Box sx={{ 
+                                          display: 'flex', 
+                                          alignItems: 'center', 
+                                          bgcolor: 'warning.main',
+                                          color: 'white',
+                                          px: 1,
+                                          py: 0.5,
+                                          borderRadius: 1,
+                                          fontSize: '0.75rem',
+                                          flexShrink: 0
+                                        }}>
+                                          ⚡ Active
+                                        </Box>
+                                      )}
+                                      {task.status === 'completed' && (
+                                        <Box sx={{ 
+                                          display: 'flex', 
+                                          alignItems: 'center', 
+                                          bgcolor: 'success.main',
+                                          color: 'white',
+                                          px: 1,
+                                          py: 0.5,
+                                          borderRadius: 1,
+                                          fontSize: '0.75rem',
+                                          flexShrink: 0
+                                        }}>
+                                          ✓ Done
+                                        </Box>
+                                      )}
+                                    </Box>
+                                    {task.notes && task.id !== 'no-tasks' && (
+                                      <Typography 
+                                        variant="body2" 
+                                        color="text.secondary"
+                                        sx={{ 
+                                          mb: 1,
+                                          fontStyle: 'italic',
+                                          borderLeft: '2px solid',
+                                          borderColor: 'divider',
+                                          pl: 1,
+                                          wordBreak: 'break-word',
+                                          maxHeight: '100px',
+                                          overflow: 'auto'
+                                        }}
+                                      >
+                                        {task.notes}
+                                      </Typography>
                                     )}
-                                    {task.status === 'in-progress' && (
-                                      <Box sx={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        bgcolor: 'warning.main',
-                                        color: 'white',
-                                        px: 1,
-                                        py: 0.5,
-                                        borderRadius: 1,
-                                        fontSize: '0.75rem',
-                                        flexShrink: 0
-                                      }}>
-                                        ⚡ Active
-                                      </Box>
+                                    <Stack spacing={0.5}>
+                                      {task.dueDate && task.id !== 'no-tasks' && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          <EventIcon fontSize="small" color={task.status === 'completed' ? 'success' : 'action'} />
+                                          <Typography 
+                                            variant="caption" 
+                                            color={task.status === 'completed' ? 'success.main' : 'text.secondary'}
+                                            sx={{ 
+                                              textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                                              opacity: task.status === 'completed' ? 0.7 : 1
+                                            }}
+                                          >
+                                            Due: {format(new Date(task.dueDate), 'MMM d, yyyy')}
+                                          </Typography>
+                                        </Box>
+                                      )}
+                                      {task.completedAt && task.id !== 'no-tasks' && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          <EventIcon fontSize="small" color="success" />
+                                          <Typography variant="caption" color="success.main">
+                                            Completed: {format(new Date(task.completedAt), 'MMM d, yyyy')}
+                                          </Typography>
+                                        </Box>
+                                      )}
+                                    </Stack>
+                                    {dragOverColumn === column.id && dragOverTaskIndex === taskIndex && (
+                                      <Box
+                                        sx={{
+                                          position: 'absolute',
+                                          left: 0,
+                                          right: 0,
+                                          top: -2,
+                                          height: 4,
+                                          bgcolor: 'primary.main',
+                                          borderRadius: 1
+                                        }}
+                                      />
                                     )}
-                                    {task.status === 'completed' && (
-                                      <Box sx={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        bgcolor: 'success.main',
-                                        color: 'white',
-                                        px: 1,
-                                        py: 0.5,
-                                        borderRadius: 1,
-                                        fontSize: '0.75rem',
-                                        flexShrink: 0
-                                      }}>
-                                        ✓ Done
-                                      </Box>
-                                    )}
-                                  </Box>
-                                  {task.notes && task.id !== 'no-tasks' && (
-                                    <Typography 
-                                      variant="body2" 
-                                      color="text.secondary"
-                                      sx={{ 
-                                        mb: 1,
-                                        fontStyle: 'italic',
-                                        borderLeft: '2px solid',
-                                        borderColor: 'divider',
-                                        pl: 1,
-                                        wordBreak: 'break-word',
-                                        maxHeight: '100px',
-                                        overflow: 'auto'
-                                      }}
-                                    >
-                                      {task.notes}
-                                    </Typography>
-                                  )}
-                                  <Stack spacing={0.5}>
-                                    {task.dueDate && task.id !== 'no-tasks' && (
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <EventIcon fontSize="small" color={task.status === 'completed' ? 'success' : 'action'} />
-                                        <Typography 
-                                          variant="caption" 
-                                          color={task.status === 'completed' ? 'success.main' : 'text.secondary'}
-                                          sx={{ 
-                                            textDecoration: task.status === 'completed' ? 'line-through' : 'none',
-                                            opacity: task.status === 'completed' ? 0.7 : 1
-                                          }}
-                                        >
-                                          Due: {format(new Date(task.dueDate), 'MMM d, yyyy')}
-                                        </Typography>
-                                      </Box>
-                                    )}
-                                    {task.completedAt && task.id !== 'no-tasks' && (
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <EventIcon fontSize="small" color="success" />
-                                        <Typography variant="caption" color="success.main">
-                                          Completed: {format(new Date(task.completedAt), 'MMM d, yyyy')}
-                                        </Typography>
-                                      </Box>
-                                    )}
-                                  </Stack>
-                                  {dragOverColumn === column.id && dragOverTaskIndex === taskIndex && (
-                                    <Box
-                                      sx={{
-                                        position: 'absolute',
-                                        left: 0,
-                                        right: 0,
-                                        top: -2,
-                                        height: 4,
-                                        bgcolor: 'primary.main',
-                                        borderRadius: 1
-                                      }}
-                                    />
-                                  )}
-                                </Paper>
-                              ))}
-                            </Stack>
-                          </Box>
-                        ))}
-                      </Stack>
-                    </Paper>
-                  );
-                })}
-                <Button
-                  variant="outlined"
-                  startIcon={<AddIcon />}
-                  onClick={handleAddColumn}
-                  sx={{
-                    minWidth: 300,
-                    height: 'fit-content',
-                    borderStyle: 'dashed',
-                    borderColor: 'primary.main',
-                    color: 'primary.main',
-                    '&:hover': {
+                                  </Paper>
+                                ))}
+                              </Stack>
+                            </Box>
+                          ))}
+                        </Stack>
+                      </Paper>
+                    );
+                  })}
+                  <Button
+                    variant="outlined"
+                    startIcon={<AddIcon />}
+                    onClick={handleAddColumn}
+                    sx={{
+                      minWidth: 300,
+                      height: 'fit-content',
                       borderStyle: 'dashed',
-                      borderColor: 'primary.dark',
-                      bgcolor: 'action.hover'
-                    }
-                  }}
-                >
-                  Add Column
-                </Button>
+                      borderColor: 'primary.main',
+                      color: 'primary.main',
+                      '&:hover': {
+                        borderStyle: 'dashed',
+                        borderColor: 'primary.dark',
+                        bgcolor: 'action.hover'
+                      }
+                    }}
+                  >
+                    Add Column
+                  </Button>
+                </Box>
+              )
+            ) : (
+              <Box sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: 'calc(100vh - 64px)',
+                textAlign: 'center',
+                p: 3,
+              }}>
+                <img src="/check-circle.svg" alt="Google Tasks" style={{ width: 80, height: 80, marginBottom: 16 }} />
+                <Typography variant="h4" gutterBottom>
+                  Connect your Google Task account
+                </Typography>
+                <Typography variant="body1" color="text.secondary" paragraph>
+                  To use GTaskALL, please connect your Google Task account by clicking the button in the left menu.
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Once connected, your Google Tasks will appear here.
+                </Typography>
               </Box>
             )
           ) : (
-            <Box sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: 'calc(100vh - 64px)',
-              textAlign: 'center',
-              p: 3,
-            }}>
-              <img src="/check-circle.svg" alt="Google Tasks" style={{ width: 80, height: 80, marginBottom: 16 }} />
-              <Typography variant="h4" gutterBottom>
-                Connect your Google Task account
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: 'calc(100vh - 64px)',
+                textAlign: 'center',
+                p: 3,
+              }}
+            >
+              <img src="/check-circle.svg" alt="Logo" style={{ width: 120, height: 120, marginBottom: 2 }} />
+              <Typography variant="h3" component="h1" gutterBottom>
+                Welcome to GTaskALL
+              </Typography>
+              <Typography variant="h6" color="text.secondary" paragraph>
+                Your all-in-one task management solution
               </Typography>
               <Typography variant="body1" color="text.secondary" paragraph>
-                To use GTaskALL, please connect your Google Task account by clicking the button in the left menu.
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Once connected, your Google Tasks will appear here.
+                Sign in with your Google account to get started
               </Typography>
             </Box>
-          )
-        ) : (
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: 'calc(100vh - 64px)',
-              textAlign: 'center',
-              p: 3,
-            }}
-          >
-            <img src="/check-circle.svg" alt="Logo" style={{ width: 120, height: 120, marginBottom: 2 }} />
-            <Typography variant="h3" component="h1" gutterBottom>
-              Welcome to GTaskALL
-            </Typography>
-            <Typography variant="h6" color="text.secondary" paragraph>
-              Your all-in-one task management solution
-            </Typography>
-            <Typography variant="body1" color="text.secondary" paragraph>
-              Sign in with your Google account to get started
-            </Typography>
-          </Box>
-        )}
-      </Box>
+          )}
+        </Box>
 
-      <Dialog open={openNewColumnDialog} onClose={() => setOpenNewColumnDialog(false)}>
-        <DialogTitle>Add New Column</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Column Title"
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={newColumnTitle}
-            onChange={(e) => setNewColumnTitle(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenNewColumnDialog(false)}>Cancel</Button>
-          <Button onClick={handleAddColumn} variant="contained">
-            Add
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={!!deleteColumnId}
-        onClose={() => setDeleteColumnId(null)}
-      >
-        <DialogTitle>Delete Column</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete this column? This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteColumnId(null)}>Cancel</Button>
-          <Button onClick={() => handleDeleteColumn(deleteColumnId as string)} color="error" variant="contained">
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={!!selectedTask}
-        onClose={() => setSelectedTask(null)}
-      >
-        <DialogTitle>Set Due Date</DialogTitle>
-        <DialogContent>
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <DatePicker
-              label="Due Date"
-              value={selectedTask?.task.dueDate || null}
-              onChange={handleDateChange}
-              slotProps={{
-                textField: {
-                  fullWidth: true,
-                  margin: 'normal',
-                },
-              }}
+        <Dialog open={openNewColumnDialog} onClose={() => setOpenNewColumnDialog(false)}>
+          <DialogTitle>Add New Column</DialogTitle>
+          <DialogContent>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Column Title"
+              type="text"
+              fullWidth
+              variant="outlined"
+              value={newColumnTitle}
+              onChange={(e) => setNewColumnTitle(e.target.value)}
             />
-          </LocalizationProvider>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSelectedTask(null)}>Cancel</Button>
-          <Button 
-            onClick={() => handleDateChange(null)} 
-            color="error"
-          >
-            Remove Date
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenNewColumnDialog(false)}>Cancel</Button>
+            <Button onClick={handleAddColumn} variant="contained">
+              Add
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Dialog
+          open={!!deleteColumnId}
+          onClose={() => setDeleteColumnId(null)}
+        >
+          <DialogTitle>Delete Column</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Are you sure you want to delete this column? This action cannot be undone.
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDeleteColumnId(null)}>Cancel</Button>
+            <Button onClick={() => handleDeleteColumn(deleteColumnId as string)} color="error" variant="contained">
+              Delete
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Dialog
+          open={!!selectedTask}
+          onClose={() => setSelectedTask(null)}
+        >
+          <DialogTitle>Set Due Date</DialogTitle>
+          <DialogContent>
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <DatePicker
+                label="Due Date"
+                value={selectedTask?.task.dueDate || null}
+                onChange={handleDateChange}
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                    margin: 'normal',
+                  },
+                }}
+              />
+            </LocalizationProvider>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setSelectedTask(null)}>Cancel</Button>
+            <Button 
+              onClick={() => handleDateChange(null)} 
+              color="error"
+            >
+              Remove Date
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    </GoogleOAuthProvider>
   );
 }
 
