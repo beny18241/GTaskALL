@@ -35,6 +35,8 @@ interface Task {
   status: 'todo' | 'in-progress' | 'completed';
   isDragging?: boolean;
   completedAt?: Date | null;
+  tempDate?: Date | null;
+  listId?: string;
 }
 
 interface Column {
@@ -446,10 +448,14 @@ function App() {
             update.completed = null; // Clear completion date
             update.status = 'needsAction';
           } else {
-            // Reset status and remove notes
+            // Reset status and remove notes, but preserve the due date
             update.notes = '';
             update.completed = null; // Clear completion date
             update.status = 'needsAction';
+            // Preserve the due date when moving back to ToDo
+            if (task.dueDate) {
+              update.due = task.dueDate.toISOString();
+            }
           }
 
           // Update the task in Google Tasks
@@ -688,22 +694,54 @@ function App() {
     setColumns(prevColumns => prevColumns.filter(col => col.id !== columnId));
   };
 
-  const handleDateChange = (date: Date | null) => {
-    if (!selectedTask) return;
-
+  const handleQuickDateChange = (task: Task, columnId: string, date: Date | null) => {
+    // Update local state first
     setColumns(columns.map(column => {
-      if (column.id === selectedTask.columnId) {
+      if (column.id === columnId) {
         return {
           ...column,
-          tasks: column.tasks.map(task => 
-            task.id === selectedTask.task.id 
-              ? { ...task, dueDate: date }
-              : task
+          tasks: column.tasks.map(t => 
+            t.id === task.id 
+              ? { ...t, dueDate: date }
+              : t
           )
         };
       }
       return column;
     }));
+
+    // Sync with Google Tasks if connected
+    if (googleTasksToken && task.listId) {
+      try {
+        axios.patch(
+          `https://www.googleapis.com/tasks/v1/lists/${task.listId}/tasks/${task.id}`,
+          {
+            due: date ? date.toISOString() : null
+          },
+          {
+            headers: { Authorization: `Bearer ${googleTasksToken}` }
+          }
+        ).catch(error => {
+          console.error('Error updating due date in Google Tasks:', error);
+          // Revert the local state if the Google Tasks update fails
+          setColumns(columns.map(column => {
+            if (column.id === columnId) {
+              return {
+                ...column,
+                tasks: column.tasks.map(t => 
+                  t.id === task.id 
+                    ? { ...t, dueDate: task.dueDate }
+                    : t
+                )
+              };
+            }
+            return column;
+          }));
+        });
+      } catch (error) {
+        console.error('Error updating due date in Google Tasks:', error);
+      }
+    }
 
     setSelectedTask(null);
   };
@@ -921,6 +959,208 @@ function App() {
     return tasks.filter(task => 
       task.content.toLowerCase().includes(query) ||
       (task.notes && task.notes.toLowerCase().includes(query))
+    );
+  };
+
+  const renderTask = (task: Task, columnId: string) => {
+    const isNoTask = task.id === 'no-tasks';
+    const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed';
+    
+    return (
+      <Paper 
+        key={task.id}
+        sx={{ 
+          p: 1.5,
+          cursor: 'grab',
+          transition: 'all 0.2s ease',
+          transform: task.isDragging ? 'scale(1.02)' : 'scale(1)',
+          opacity: task.isDragging ? 0.5 : 1,
+          boxShadow: task.isDragging ? 2 : 1,
+          position: 'relative',
+          '&:hover': {
+            boxShadow: 2
+          },
+          borderLeft: task.color ? `4px solid ${task.color}` : 'none',
+          bgcolor: task.color ? `${task.color}10` : 'background.paper',
+          maxWidth: '100%',
+          overflow: 'hidden',
+          mb: 1
+        }}
+        draggable
+        onDragStart={() => handleDragStart(task, columnId)}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography 
+              variant="subtitle1" 
+              sx={{ 
+                wordBreak: 'break-word',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                lineHeight: 1.3,
+                mb: 0.5
+              }}
+            >
+              {task.content}
+            </Typography>
+            
+            {!isNoTask && task.notes && (
+              <Typography 
+                variant="body2" 
+                color="text.secondary"
+                sx={{ 
+                  mb: 1,
+                  fontSize: '0.75rem',
+                  lineHeight: 1.3,
+                  wordBreak: 'break-word',
+                  maxHeight: '40px',
+                  overflow: 'auto'
+                }}
+              >
+                {task.notes}
+              </Typography>
+            )}
+
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+              {!isNoTask && task.isRecurring && (
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  bgcolor: 'primary.main',
+                  color: 'white',
+                  px: 1,
+                  py: 0.25,
+                  borderRadius: 1,
+                  fontSize: '0.65rem',
+                  flexShrink: 0
+                }}>
+                  🔄 Recurring
+                </Box>
+              )}
+              {!isNoTask && task.status === 'in-progress' && (
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  bgcolor: 'warning.main',
+                  color: 'white',
+                  px: 1,
+                  py: 0.25,
+                  borderRadius: 1,
+                  fontSize: '0.65rem',
+                  flexShrink: 0
+                }}>
+                  ⚡ Active
+                </Box>
+              )}
+              {!isNoTask && task.status === 'completed' && (
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  bgcolor: 'success.main',
+                  color: 'white',
+                  px: 1,
+                  py: 0.25,
+                  borderRadius: 1,
+                  fontSize: '0.65rem',
+                  flexShrink: 0
+                }}>
+                  ✓ Done
+                </Box>
+              )}
+              {!isNoTask && task.dueDate && (
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    bgcolor: isOverdue ? 'error.main' : 'info.main',
+                    color: 'white',
+                    px: 1,
+                    py: 0.25,
+                    borderRadius: 1,
+                    fontSize: '0.65rem',
+                    flexShrink: 0,
+                    cursor: 'pointer',
+                    '&:hover': {
+                      opacity: 0.9
+                    }
+                  }}
+                  onClick={() => setSelectedTask({ task, columnId })}
+                >
+                  <EventIcon sx={{ fontSize: '0.7rem', mr: 0.5 }} />
+                  {format(new Date(task.dueDate), 'MMM d')}
+                </Box>
+              )}
+              {!isNoTask && !task.dueDate && (
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    bgcolor: 'grey.500',
+                    color: 'white',
+                    px: 1,
+                    py: 0.25,
+                    borderRadius: 1,
+                    fontSize: '0.65rem',
+                    flexShrink: 0,
+                    cursor: 'pointer',
+                    '&:hover': {
+                      opacity: 0.9
+                    }
+                  }}
+                  onClick={() => setSelectedTask({ task, columnId })}
+                >
+                  <EventIcon sx={{ fontSize: '0.7rem', mr: 0.5 }} />
+                  Add Date
+                </Box>
+              )}
+            </Stack>
+
+            {!isNoTask && (
+              <Stack direction="row" spacing={0.5} sx={{ mt: 1, flexWrap: 'wrap', gap: 0.5 }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => handleQuickDateChange(task, columnId, new Date())}
+                  sx={{ 
+                    fontSize: '0.65rem',
+                    py: 0.25,
+                    minWidth: 'auto',
+                    px: 1
+                  }}
+                >
+                  Today
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => handleQuickDateChange(task, columnId, addDays(new Date(), 1))}
+                  sx={{ 
+                    fontSize: '0.65rem',
+                    py: 0.25,
+                    minWidth: 'auto',
+                    px: 1
+                  }}
+                >
+                  Tomorrow
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => handleQuickDateChange(task, columnId, addDays(new Date(), 7))}
+                  sx={{ 
+                    fontSize: '0.65rem',
+                    py: 0.25,
+                    minWidth: 'auto',
+                    px: 1
+                  }}
+                >
+                  Next Week
+                </Button>
+              </Stack>
+            )}
+          </Box>
+        </Box>
+      </Paper>
     );
   };
 
@@ -1291,135 +1531,7 @@ function App() {
                               </Typography>
                               <Stack spacing={1} sx={{ pl: 1 }}>
                                 {filterTasks(tasksByDate[date]).map((task, taskIndex) => (
-                                  <Paper 
-                                    key={task.id}
-                                    sx={{ 
-                                      p: 2,
-                                      cursor: 'grab',
-                                      transition: 'all 0.2s ease',
-                                      transform: task.isDragging ? 'scale(1.05)' : 'scale(1)',
-                                      opacity: task.isDragging ? 0.5 : 1,
-                                      boxShadow: task.isDragging ? 3 : 1,
-                                      position: 'relative',
-                                      '&:hover': {
-                                        boxShadow: 2
-                                      },
-                                      borderLeft: task.color ? `4px solid ${task.color}` : 'none',
-                                      bgcolor: task.color ? `${task.color}10` : 'background.paper',
-                                      maxWidth: '100%',
-                                      overflow: 'hidden'
-                                    }}
-                                    draggable
-                                    onDragStart={() => handleDragStart(task, column.id)}
-                                    onDragOver={(e) => handleDragOver(e, column.id, taskIndex)}
-                                    onDragLeave={handleDragLeave}
-                                    onDrop={() => handleDrop(column.id)}
-                                  >
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                      <Typography variant="subtitle1" sx={{ wordBreak: 'break-word' }}>{task.content}</Typography>
-                                      {task.isRecurring && (
-                                        <Box sx={{ 
-                                          display: 'flex', 
-                                          alignItems: 'center', 
-                                          bgcolor: 'primary.main',
-                                          color: 'white',
-                                          px: 1,
-                                          py: 0.5,
-                                          borderRadius: 1,
-                                          fontSize: '0.75rem',
-                                          flexShrink: 0
-                                        }}>
-                                          🔄 Recurring
-                                        </Box>
-                                      )}
-                                      {task.status === 'in-progress' && (
-                                        <Box sx={{ 
-                                          display: 'flex', 
-                                          alignItems: 'center', 
-                                          bgcolor: 'warning.main',
-                                          color: 'white',
-                                          px: 1,
-                                          py: 0.5,
-                                          borderRadius: 1,
-                                          fontSize: '0.75rem',
-                                          flexShrink: 0
-                                        }}>
-                                          ⚡ Active
-                                        </Box>
-                                      )}
-                                      {task.status === 'completed' && (
-                                        <Box sx={{ 
-                                          display: 'flex', 
-                                          alignItems: 'center', 
-                                          bgcolor: 'success.main',
-                                          color: 'white',
-                                          px: 1,
-                                          py: 0.5,
-                                          borderRadius: 1,
-                                          fontSize: '0.75rem',
-                                          flexShrink: 0
-                                        }}>
-                                          ✓ Done
-                                        </Box>
-                                      )}
-                                    </Box>
-                                    {task.notes && task.id !== 'no-tasks' && (
-                                      <Typography 
-                                        variant="body2" 
-                                        color="text.secondary"
-                                        sx={{ 
-                                          mb: 1,
-                                          fontStyle: 'italic',
-                                          borderLeft: '2px solid',
-                                          borderColor: 'divider',
-                                          pl: 1,
-                                          wordBreak: 'break-word',
-                                          maxHeight: '100px',
-                                          overflow: 'auto'
-                                        }}
-                                      >
-                                        {task.notes}
-                                      </Typography>
-                                    )}
-                                    <Stack spacing={0.5}>
-                                      {task.dueDate && task.id !== 'no-tasks' && (
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                          <EventIcon fontSize="small" color={task.status === 'completed' ? 'success' : 'action'} />
-                                          <Typography 
-                                            variant="caption" 
-                                            color={task.status === 'completed' ? 'success.main' : 'text.secondary'}
-                                            sx={{ 
-                                              textDecoration: task.status === 'completed' ? 'line-through' : 'none',
-                                              opacity: task.status === 'completed' ? 0.7 : 1
-                                            }}
-                                          >
-                                            Due: {format(new Date(task.dueDate), 'MMM d, yyyy')}
-                                          </Typography>
-                                        </Box>
-                                      )}
-                                      {task.completedAt && task.id !== 'no-tasks' && (
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                          <EventIcon fontSize="small" color="success" />
-                                          <Typography variant="caption" color="success.main">
-                                            Completed: {format(new Date(task.completedAt), 'MMM d, yyyy')}
-                                          </Typography>
-                                        </Box>
-                                      )}
-                                    </Stack>
-                                    {dragOverColumn === column.id && dragOverTaskIndex === taskIndex && (
-                                      <Box
-                                        sx={{
-                                          position: 'absolute',
-                                          left: 0,
-                                          right: 0,
-                                          top: -2,
-                                          height: 4,
-                                          bgcolor: 'primary.main',
-                                          borderRadius: 1
-                                        }}
-                                      />
-                                    )}
-                                  </Paper>
+                                  renderTask(task, column.id)
                                 ))}
                               </Stack>
                             </Box>
@@ -1524,11 +1636,50 @@ function App() {
         >
           <DialogTitle>Set Due Date</DialogTitle>
           <DialogContent>
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                Quick Select
+              </Typography>
+              <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, new Date())}
+                  sx={{ minWidth: '100px' }}
+                >
+                  Today
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, addDays(new Date(), 1))}
+                  sx={{ minWidth: '100px' }}
+                >
+                  Tomorrow
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, addDays(new Date(), 7))}
+                  sx={{ minWidth: '100px' }}
+                >
+                  Next Week
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, addDays(new Date(), 30))}
+                  sx={{ minWidth: '100px' }}
+                >
+                  In a Month
+                </Button>
+              </Stack>
+            </Box>
             <LocalizationProvider dateAdapter={AdapterDateFns}>
               <DatePicker
                 label="Due Date"
                 value={selectedTask?.task.dueDate || null}
-                onChange={handleDateChange}
+                onChange={(date) => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, date)}
                 slotProps={{
                   textField: {
                     fullWidth: true,
@@ -1541,7 +1692,7 @@ function App() {
           <DialogActions>
             <Button onClick={() => setSelectedTask(null)}>Cancel</Button>
             <Button 
-              onClick={() => handleDateChange(null)} 
+              onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, null)} 
               color="error"
             >
               Remove Date
