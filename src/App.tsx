@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider } from '@mui/material';
+import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -26,11 +26,11 @@ interface Task {
   id: string;
   content: string;
   dueDate?: Date | null;
-  isDragging?: boolean;
   isRecurring?: boolean;
   notes?: string;
   color?: string;
-  status?: 'in-progress' | 'completed' | 'todo';
+  status: 'todo' | 'in-progress' | 'completed';
+  isDragging?: boolean;
   completedAt?: Date | null;
 }
 
@@ -39,6 +39,7 @@ interface Column {
   title: string;
   tasks: Task[];
   isDragOver?: boolean;
+  limit?: number;
 }
 
 interface User {
@@ -48,7 +49,7 @@ interface User {
 }
 
 const STORAGE_KEY = 'kanban-board-data';
-const USER_STORAGE_KEY = 'gtaskall-user-data';
+const USER_STORAGE_KEY = 'user-data';
 
 function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -73,6 +74,7 @@ function App() {
         id: 'done',
         title: 'Done',
         tasks: [],
+        limit: 3, // Default limit for Done column
       },
     ];
   });
@@ -101,181 +103,235 @@ function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
   }, [columns]);
 
+  // Effect for fetching Google Tasks
   useEffect(() => {
-    if (!googleTasksToken) {
-      setGoogleTaskLists([]);
-      setGoogleTasks({});
-      return;
-    }
+    if (!googleTasksToken) return;
+
     setGoogleTasksLoading(true);
+
     // Fetch task lists
     axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
-      headers: { Authorization: `Bearer ${googleTasksToken}` },
+      headers: { Authorization: `Bearer ${googleTasksToken}` }
     })
-      .then((res: any) => {
-        setGoogleTaskLists(res.data.items || []);
+      .then(response => {
+        const taskLists = response.data.items || [];
+        setGoogleTaskLists(taskLists);
+
         // Fetch tasks for each list
-        return Promise.all(
-          (res.data.items || []).map(async (list: any) => {
-            let allTasks: any[] = [];
-            let pageToken: string | undefined;
-            
-            do {
-              const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
-                headers: { Authorization: `Bearer ${googleTasksToken}` },
-                params: {
-                  showCompleted: true,
-                  showHidden: true,
-                  maxResults: 100,
-                  pageToken: pageToken
-                }
-              });
-              
-              allTasks = [...allTasks, ...(response.data.items || [])];
-              pageToken = response.data.nextPageToken;
-            } while (pageToken);
-
-            return { listId: list.id, tasks: allTasks };
-          })
-        );
-      })
-      .then((results: { listId: string; tasks: any[] }[]) => {
-        const tasksByList: { [listId: string]: any[] } = {};
-        results.forEach(({ listId, tasks }: { listId: string; tasks: any[] }) => {
-          tasksByList[listId] = tasks;
-        });
-        setGoogleTasks(tasksByList);
-
-        // Map Google Tasks to local columns
-        const mappedColumns = columns.map(column => {
-          let columnTasks: Task[] = [];
+        const tasksPromises = taskLists.map(async (list: any) => {
+          let allTasks: any[] = [];
+          let pageToken: string | undefined;
           
-          // Map tasks based on column type
-          if (column.id === 'todo') {
-            // Get all uncompleted tasks from all lists
-            Object.values(tasksByList).forEach(tasks => {
-              const todoTasks = tasks
-                .filter(task => !task.completed && (!task.notes || !task.notes.includes('⚡ Active')))
-                .map(task => ({
-                  id: task.id,
-                  content: task.title,
-                  dueDate: task.due ? new Date(task.due) : null,
-                  isRecurring: task.recurrence ? true : false,
-                  notes: task.notes || '',
-                  color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
-                  status: 'todo' as const
-                }));
-              columnTasks = [...columnTasks, ...todoTasks];
-            });
-
-            // Sort by due date (if available) and then by title
-            columnTasks.sort((a, b) => {
-              if (a.dueDate && b.dueDate) {
-                return a.dueDate.getTime() - b.dueDate.getTime();
+          do {
+            const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
+              headers: { Authorization: `Bearer ${googleTasksToken}` },
+              params: {
+                showCompleted: true,
+                showHidden: true,
+                maxResults: 100,
+                pageToken: pageToken
               }
-              if (a.dueDate) return -1;
-              if (b.dueDate) return 1;
-              return a.content.localeCompare(b.content);
-            });
-
-            // Limit to 100 tasks
-            columnTasks = columnTasks.slice(0, 100);
-
-            // If no tasks are found, show a message
-            if (columnTasks.length === 0) {
-              columnTasks = [{
-                id: 'no-tasks',
-                content: 'No tasks to do',
-                status: 'todo' as const,
-                color: '#42A5F5'
-              }];
-            }
-          } else if (column.id === 'inProgress') {
-            // Get tasks with "Active" note from all lists
-            Object.values(tasksByList).forEach(tasks => {
-              const inProgressTasks = tasks
-                .filter(task => !task.completed && task.notes && task.notes.includes('⚡ Active'))
-                .map(task => ({
-                  id: task.id,
-                  content: task.title,
-                  dueDate: task.due ? new Date(task.due) : null,
-                  isRecurring: task.recurrence ? true : false,
-                  notes: task.notes?.replace('⚡ Active', '').trim() || '',
-                  color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#FFA726',
-                  status: 'in-progress' as const
-                }));
-              columnTasks = [...columnTasks, ...inProgressTasks];
-            });
-          } else if (column.id === 'done') {
-            // Get completed tasks from all lists
-            const allCompletedTasks: Task[] = [];
-            Object.values(tasksByList).forEach(tasks => {
-              const completedTasks = tasks
-                .filter(task => task.completed)
-                .map(task => ({
-                  id: task.id,
-                  content: task.title,
-                  dueDate: task.due ? new Date(task.due) : null,
-                  isRecurring: task.recurrence ? true : false,
-                  notes: task.notes || '',
-                  color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
-                  status: 'completed' as const,
-                  completedAt: task.completed ? new Date(task.completed) : null
-                }));
-              allCompletedTasks.push(...completedTasks);
             });
             
-            // Sort by completion date (most recent first) and take last 10
-            columnTasks = allCompletedTasks
-              .sort((a, b) => {
-                if (!a.completedAt || !b.completedAt) return 0;
-                return b.completedAt.getTime() - a.completedAt.getTime();
-              })
-              .slice(0, 10);
+            const tasks = response.data.items || [];
+            allTasks = [...allTasks, ...tasks];
+            pageToken = response.data.nextPageToken;
+          } while (pageToken);
 
-            // If no tasks are completed yet, show a message
-            if (columnTasks.length === 0) {
-              columnTasks = [{
+          return { listId: list.id, tasks: allTasks };
+        });
+
+        Promise.all(tasksPromises)
+          .then((results: { listId: string; tasks: any[] }[]) => {
+            const tasksByList: { [listId: string]: any[] } = {};
+            results.forEach(({ listId, tasks }) => {
+              tasksByList[listId] = tasks;
+            });
+            setGoogleTasks(tasksByList);
+
+            // Map Google Tasks to local columns
+            const mappedColumns = columns.map(column => {
+              let columnTasks: Task[] = [];
+              
+              if (column.id === 'todo') {
+                // Get all uncompleted tasks from all lists
+                Object.values(tasksByList).forEach(tasks => {
+                  const todoTasks = tasks
+                    .filter(task => !task.completed && (!task.notes || !task.notes.includes('⚡ Active')))
+                    .map(task => ({
+                      id: task.id,
+                      content: task.title,
+                      dueDate: task.due ? new Date(task.due) : null,
+                      isRecurring: task.recurrence ? true : false,
+                      notes: task.notes || '',
+                      color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
+                      status: 'todo' as const
+                    }));
+                  columnTasks = [...columnTasks, ...todoTasks];
+                });
+
+                // Sort by due date (if available) and then by title
+                columnTasks.sort((a, b) => {
+                  if (a.dueDate && b.dueDate) {
+                    return a.dueDate.getTime() - b.dueDate.getTime();
+                  }
+                  if (a.dueDate) return -1;
+                  if (b.dueDate) return 1;
+                  return a.content.localeCompare(b.content);
+                });
+
+                // Show all tasks in ToDo column
+                if (columnTasks.length === 0) {
+                  columnTasks = [{
+                    id: 'no-tasks',
+                    content: 'No tasks to do',
+                    status: 'todo' as const,
+                    color: '#42A5F5'
+                  }];
+                }
+              } else if (column.id === 'inProgress') {
+                // Get tasks with "Active" note from all lists
+                Object.values(tasksByList).forEach(tasks => {
+                  const inProgressTasks = tasks
+                    .filter(task => !task.completed && task.notes && task.notes.includes('⚡ Active'))
+                    .map(task => ({
+                      id: task.id,
+                      content: task.title,
+                      dueDate: task.due ? new Date(task.due) : null,
+                      isRecurring: task.recurrence ? true : false,
+                      notes: task.notes?.replace('⚡ Active', '').trim() || '',
+                      color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#FFA726',
+                      status: 'in-progress' as const
+                    }));
+                  columnTasks = [...columnTasks, ...inProgressTasks];
+                });
+              } else if (column.id === 'done') {
+                // Get completed tasks from all lists
+                const allCompletedTasks: Task[] = [];
+                Object.values(tasksByList).forEach(tasks => {
+                  const completedTasks = tasks
+                    .filter(task => task.completed)
+                    .map(task => ({
+                      id: task.id,
+                      content: task.title,
+                      dueDate: task.due ? new Date(task.due) : null,
+                      isRecurring: task.recurrence ? true : false,
+                      notes: task.notes || '',
+                      color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
+                      status: 'completed' as const,
+                      completedAt: task.completed ? new Date(task.completed) : null
+                    }));
+                  allCompletedTasks.push(...completedTasks);
+                });
+                
+                // Sort by completion date (most recent first) and take last N tasks based on limit
+                columnTasks = allCompletedTasks
+                  .sort((a, b) => {
+                    if (!a.completedAt || !b.completedAt) return 0;
+                    return b.completedAt.getTime() - a.completedAt.getTime();
+                  })
+                  .slice(0, column.limit ?? 3);
+
+                // If no tasks are completed yet or limit is 0, show a message
+                if (columnTasks.length === 0 || column.limit === 0) {
+                  columnTasks = [{
+                    id: 'no-tasks',
+                    content: 'No completed tasks yet',
+                    status: 'completed' as const,
+                    color: '#66BB6A'
+                  }];
+                }
+              } else {
+                // For custom columns, get tasks from remaining lists
+                const remainingListIds = Object.keys(tasksByList).slice(2);
+                remainingListIds.forEach(listId => {
+                  const listTasks = tasksByList[listId]
+                    .filter(task => !task.completed && (!task.notes || !task.notes.includes('🔄 In Progress')))
+                    .map(task => ({
+                      id: task.id,
+                      content: task.title,
+                      dueDate: task.due ? new Date(task.due) : null,
+                      isRecurring: task.recurrence ? true : false,
+                      notes: task.notes || '',
+                      color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
+                      status: 'todo' as const
+                    }));
+                  columnTasks = [...columnTasks, ...listTasks];
+                });
+              }
+
+              return {
+                ...column,
+                tasks: columnTasks
+              };
+            });
+
+            setColumns(mappedColumns);
+            setGoogleTasksLoading(false);
+          })
+          .catch(() => {
+            setGoogleTasksLoading(false);
+            setGoogleTaskLists([]);
+            setGoogleTasks({});
+          });
+      });
+  }, [googleTasksToken]);
+
+  // Effect to handle limit changes
+  useEffect(() => {
+    if (!googleTasksToken || !googleTasks) return;
+
+    setColumns(prevColumns => {
+      return prevColumns.map(column => {
+        if (column.id === 'done') {
+          // Get completed tasks from all lists
+          const allCompletedTasks: Task[] = [];
+          Object.values(googleTasks).forEach(tasks => {
+            const completedTasks = tasks
+              .filter(task => task.completed)
+              .map(task => ({
+                id: task.id,
+                content: task.title,
+                dueDate: task.due ? new Date(task.due) : null,
+                isRecurring: task.recurrence ? true : false,
+                notes: task.notes || '',
+                color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
+                status: 'completed' as const,
+                completedAt: task.completed ? new Date(task.completed) : null
+              }));
+            allCompletedTasks.push(...completedTasks);
+          });
+          
+          // Sort by completion date (most recent first) and take last N tasks based on limit
+          const columnTasks = allCompletedTasks
+            .sort((a, b) => {
+              if (!a.completedAt || !b.completedAt) return 0;
+              return b.completedAt.getTime() - a.completedAt.getTime();
+            })
+            .slice(0, column.limit ?? 3);
+
+          // If no tasks are completed yet or limit is 0, show a message
+          if (columnTasks.length === 0 || column.limit === 0) {
+            return {
+              ...column,
+              tasks: [{
                 id: 'no-tasks',
                 content: 'No completed tasks yet',
                 status: 'completed' as const,
                 color: '#66BB6A'
-              }];
-            }
-          } else {
-            // For custom columns, get tasks from remaining lists
-            const remainingListIds = Object.keys(tasksByList).slice(2);
-            remainingListIds.forEach(listId => {
-              const listTasks = tasksByList[listId]
-                .filter(task => !task.completed && (!task.notes || !task.notes.includes('🔄 In Progress')))
-                .map(task => ({
-                  id: task.id,
-                  content: task.title,
-                  dueDate: task.due ? new Date(task.due) : null,
-                  isRecurring: task.recurrence ? true : false,
-                  notes: task.notes || '',
-                  color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
-                  status: 'todo' as const
-                }));
-              columnTasks = [...columnTasks, ...listTasks];
-            });
+              }]
+            };
           }
 
           return {
             ...column,
             tasks: columnTasks
           };
-        });
-
-        setColumns(mappedColumns);
-        setGoogleTasksLoading(false);
-      })
-      .catch(() => {
-        setGoogleTasksLoading(false);
-        setGoogleTaskLists([]);
-        setGoogleTasks({});
+        }
+        return column;
       });
-  }, [googleTasksToken]);
+    });
+  }, [googleTasksToken, googleTasks, columns.find(col => col.id === 'done')?.limit]);
 
   // Save user data to localStorage whenever it changes
   useEffect(() => {
@@ -354,37 +410,6 @@ function App() {
       return;
     }
 
-    // Update local state first
-    setColumns(columns.map(column => {
-      if (column.id === sourceColumnId) {
-        return {
-          ...column,
-          tasks: column.tasks.filter(t => t.id !== task.id)
-        };
-      }
-      if (column.id === targetColumnId) {
-        const newTask = { 
-          ...task, 
-          isDragging: false,
-          status: targetColumnId === 'inProgress' ? 'in-progress' as const : 
-                 targetColumnId === 'done' ? 'completed' as const : 'todo' as const
-        };
-        if (dragOverTaskIndex !== null) {
-          const newTasks = [...column.tasks];
-          newTasks.splice(dragOverTaskIndex, 0, newTask);
-          return {
-            ...column,
-            tasks: newTasks
-          };
-        }
-        return {
-          ...column,
-          tasks: [...column.tasks, newTask]
-        };
-      }
-      return column;
-    }));
-
     // Sync with Google Tasks if connected
     if (googleTasksToken) {
       try {
@@ -409,19 +434,22 @@ function App() {
           if (targetColumnId === 'done') {
             // Mark as completed
             update.completed = new Date().toISOString(); // Add completion date
+            update.status = 'completed';
             update.notes = ''; // Clear any notes
           } else if (targetColumnId === 'inProgress') {
             // Add "Active" note with icon
             update.notes = '⚡ Active';
             update.completed = null; // Clear completion date
+            update.status = 'needsAction';
           } else {
             // Reset status and remove notes
             update.notes = '';
             update.completed = null; // Clear completion date
+            update.status = 'needsAction';
           }
 
           // Update the task in Google Tasks
-          await axios.patch(
+          const response = await axios.patch(
             `https://www.googleapis.com/tasks/v1/lists/${taskListId}/tasks/${taskId}`,
             update,
             {
@@ -429,21 +457,47 @@ function App() {
             }
           );
 
-          // Refresh Google Tasks data
+          // Update the local Google Tasks state with the response data
+          setGoogleTasks(prevTasks => {
+            const newTasks = { ...prevTasks };
+            if (newTasks[taskListId]) {
+              newTasks[taskListId] = newTasks[taskListId].map(t => 
+                t.id === taskId 
+                  ? { ...t, ...response.data }
+                  : t
+              );
+            }
+            return newTasks;
+          });
+
+          // Refresh the tasks data to ensure everything is in sync
           const taskListsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
             headers: { Authorization: `Bearer ${googleTasksToken}` }
           });
 
           const taskLists = taskListsResponse.data.items || [];
-          const tasksPromises = taskLists.map((list: any) =>
-            axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
-              headers: { Authorization: `Bearer ${googleTasksToken}` },
-              params: {
-                showCompleted: true,
-                showHidden: true
-              }
-            }).then((tasksRes: any) => ({ listId: list.id, tasks: tasksRes.data.items || [] }))
-          );
+          const tasksPromises = taskLists.map(async (list: any) => {
+            let allTasks: any[] = [];
+            let pageToken: string | undefined;
+            
+            do {
+              const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
+                headers: { Authorization: `Bearer ${googleTasksToken}` },
+                params: {
+                  showCompleted: true,
+                  showHidden: true,
+                  maxResults: 100,
+                  pageToken: pageToken
+                }
+              });
+              
+              const tasks = response.data.items || [];
+              allTasks = [...allTasks, ...tasks];
+              pageToken = response.data.nextPageToken;
+            } while (pageToken);
+
+            return { listId: list.id, tasks: allTasks };
+          });
 
           const results = await Promise.all(tasksPromises);
           const tasksByList: { [listId: string]: any[] } = {};
@@ -451,115 +505,165 @@ function App() {
             tasksByList[listId] = tasks;
           });
 
-          // Update local state with fresh data
-          const mappedColumns = columns.map(column => {
-            let columnTasks: Task[] = [];
-            
-            if (column.id === 'todo') {
-              // Get all uncompleted tasks from all lists
-              Object.values(tasksByList).forEach(tasks => {
-                const todoTasks = tasks
-                  .filter(task => !task.completed && (!task.notes || !task.notes.includes('⚡ Active')))
-                  .map(task => ({
-                    id: task.id,
-                    content: task.title,
-                    dueDate: task.due ? new Date(task.due) : null,
-                    isRecurring: task.recurrence ? true : false,
-                    notes: task.notes || '',
-                    color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
-                    status: 'todo' as const
-                  }));
-                columnTasks = [...columnTasks, ...todoTasks];
-              });
+          // Update Google Tasks state
+          setGoogleTasks(tasksByList);
 
-              // Sort by due date (if available) and then by title
-              columnTasks.sort((a, b) => {
-                if (a.dueDate && b.dueDate) {
-                  return a.dueDate.getTime() - b.dueDate.getTime();
-                }
-                if (a.dueDate) return -1;
-                if (b.dueDate) return 1;
-                return a.content.localeCompare(b.content);
-              });
-
-              // Limit to 100 tasks
-              columnTasks = columnTasks.slice(0, 100);
-
-              // If no tasks are found, show a message
-              if (columnTasks.length === 0) {
-                columnTasks = [{
-                  id: 'no-tasks',
-                  content: 'No tasks to do',
-                  status: 'todo' as const,
-                  color: '#42A5F5'
-                }];
-              }
-            } else if (column.id === 'inProgress') {
-              // Get tasks with "Active" note from all lists
-              Object.values(tasksByList).forEach(tasks => {
-                const inProgressTasks = tasks
-                  .filter(task => !task.completed && task.notes && task.notes.includes('⚡ Active'))
-                  .map(task => ({
-                    id: task.id,
-                    content: task.title,
-                    dueDate: task.due ? new Date(task.due) : null,
-                    isRecurring: task.recurrence ? true : false,
-                    notes: task.notes?.replace('⚡ Active', '').trim() || '',
-                    color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#FFA726',
-                    status: 'in-progress' as const
-                  }));
-                columnTasks = [...columnTasks, ...inProgressTasks];
-              });
-            } else if (column.id === 'done') {
-              // Get completed tasks from all lists
-              const allCompletedTasks: Task[] = [];
-              Object.values(tasksByList).forEach(tasks => {
-                const completedTasks = tasks
-                  .filter(task => task.completed)
-                  .map(task => ({
-                    id: task.id,
-                    content: task.title,
-                    dueDate: task.due ? new Date(task.due) : null,
-                    isRecurring: task.recurrence ? true : false,
-                    notes: task.notes || '',
-                    color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
-                    status: 'completed' as const,
-                    completedAt: task.completed ? new Date(task.completed) : null
-                  }));
-                allCompletedTasks.push(...completedTasks);
-              });
+          // Update columns with fresh data
+          setColumns(prevColumns => {
+            return prevColumns.map(column => {
+              let columnTasks: Task[] = [];
               
-              // Sort by completion date (most recent first) and take last 10
-              columnTasks = allCompletedTasks
-                .sort((a, b) => {
-                  if (!a.completedAt || !b.completedAt) return 0;
-                  return b.completedAt.getTime() - a.completedAt.getTime();
-                })
-                .slice(0, 10);
+              if (column.id === 'todo') {
+                // Get all uncompleted tasks from all lists
+                Object.values(tasksByList).forEach(tasks => {
+                  const todoTasks = tasks
+                    .filter(task => !task.completed && (!task.notes || !task.notes.includes('⚡ Active')))
+                    .map(task => ({
+                      id: task.id,
+                      content: task.title,
+                      dueDate: task.due ? new Date(task.due) : null,
+                      isRecurring: task.recurrence ? true : false,
+                      notes: task.notes || '',
+                      color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
+                      status: 'todo' as const
+                    }));
+                  columnTasks = [...columnTasks, ...todoTasks];
+                });
 
-              // If no tasks are completed yet, show a message
-              if (columnTasks.length === 0) {
-                columnTasks = [{
-                  id: 'no-tasks',
-                  content: 'No completed tasks yet',
-                  status: 'completed' as const,
-                  color: '#66BB6A'
-                }];
+                // Sort by due date (if available) and then by title
+                columnTasks.sort((a, b) => {
+                  if (a.dueDate && b.dueDate) {
+                    return a.dueDate.getTime() - b.dueDate.getTime();
+                  }
+                  if (a.dueDate) return -1;
+                  if (b.dueDate) return 1;
+                  return a.content.localeCompare(b.content);
+                });
+
+                // Show all tasks in ToDo column
+                if (columnTasks.length === 0) {
+                  columnTasks = [{
+                    id: 'no-tasks',
+                    content: 'No tasks to do',
+                    status: 'todo' as const,
+                    color: '#42A5F5'
+                  }];
+                }
+              } else if (column.id === 'inProgress') {
+                // Get tasks with "Active" note from all lists
+                Object.values(tasksByList).forEach(tasks => {
+                  const inProgressTasks = tasks
+                    .filter(task => !task.completed && task.notes && task.notes.includes('⚡ Active'))
+                    .map(task => ({
+                      id: task.id,
+                      content: task.title,
+                      dueDate: task.due ? new Date(task.due) : null,
+                      isRecurring: task.recurrence ? true : false,
+                      notes: task.notes?.replace('⚡ Active', '').trim() || '',
+                      color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#FFA726',
+                      status: 'in-progress' as const
+                    }));
+                  columnTasks = [...columnTasks, ...inProgressTasks];
+                });
+              } else if (column.id === 'done') {
+                // Get completed tasks from all lists
+                const allCompletedTasks: Task[] = [];
+                Object.values(tasksByList).forEach(tasks => {
+                  const completedTasks = tasks
+                    .filter(task => task.completed)
+                    .map(task => ({
+                      id: task.id,
+                      content: task.title,
+                      dueDate: task.due ? new Date(task.due) : null,
+                      isRecurring: task.recurrence ? true : false,
+                      notes: task.notes || '',
+                      color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
+                      status: 'completed' as const,
+                      completedAt: task.completed ? new Date(task.completed) : null
+                    }));
+                  allCompletedTasks.push(...completedTasks);
+                });
+                
+                // Sort by completion date (most recent first) and take last N tasks based on limit
+                columnTasks = allCompletedTasks
+                  .sort((a, b) => {
+                    if (!a.completedAt || !b.completedAt) return 0;
+                    return b.completedAt.getTime() - a.completedAt.getTime();
+                  })
+                  .slice(0, column.limit ?? 3);
+
+                if (columnTasks.length === 0 || column.limit === 0) {
+                  columnTasks = [{
+                    id: 'no-tasks',
+                    content: 'No completed tasks yet',
+                    status: 'completed' as const,
+                    color: '#66BB6A'
+                  }];
+                }
               }
-            }
 
-            return {
-              ...column,
-              tasks: columnTasks
-            };
+              return {
+                ...column,
+                tasks: columnTasks
+              };
+            });
           });
-
-          setColumns(mappedColumns);
         }
       } catch (error) {
         console.error('Error syncing with Google Tasks:', error);
-        // Optionally show an error message to the user
+        // Revert the local state if the Google Tasks update fails
+        setColumns(prevColumns => {
+          return prevColumns.map(column => {
+            if (column.id === sourceColumnId) {
+              return {
+                ...column,
+                tasks: [...column.tasks, { ...task, isDragging: false }]
+              };
+            }
+            if (column.id === targetColumnId) {
+              return {
+                ...column,
+                tasks: column.tasks.filter(t => t.id !== task.id)
+              };
+            }
+            return column;
+          });
+        });
       }
+    } else {
+      // If not connected to Google Tasks, just update local state
+      setColumns(prevColumns => {
+        return prevColumns.map(column => {
+          if (column.id === sourceColumnId) {
+            return {
+              ...column,
+              tasks: column.tasks.filter(t => t.id !== task.id)
+            };
+          }
+          if (column.id === targetColumnId) {
+            const newTask = { 
+              ...task, 
+              isDragging: false,
+              status: targetColumnId === 'inProgress' ? 'in-progress' as const : 
+                     targetColumnId === 'done' ? 'completed' as const : 'todo' as const,
+              completedAt: targetColumnId === 'done' ? new Date() : null
+            };
+            if (dragOverTaskIndex !== null) {
+              const newTasks = [...column.tasks];
+              newTasks.splice(dragOverTaskIndex, 0, newTask);
+              return {
+                ...column,
+                tasks: newTasks
+              };
+            }
+            return {
+              ...column,
+              tasks: [...column.tasks, newTask]
+            };
+          }
+          return column;
+        });
+      });
     }
 
     setDraggedTask(null);
@@ -913,8 +1017,14 @@ function App() {
                         p: 2,
                         minWidth: 300,
                         maxWidth: 300,
-                        height: 'fit-content',
                         bgcolor: 'background.paper',
+                        borderRadius: 2,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 2,
+                        height: 'fit-content',
+                        minHeight: 'calc(100vh - 100px)',
+                        overflow: 'auto',
                         position: 'relative',
                         transition: 'all 0.2s ease',
                         transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
@@ -935,9 +1045,71 @@ function App() {
                         bgcolor: 'action.hover',
                         '&:hover .delete-button': {
                           opacity: 1
-                        }
+                        },
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 1
                       }}>
-                        <Typography variant="h6">{column.title}</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                          {column.title}
+                        </Typography>
+                        {column.id === 'done' && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="caption" color="text.secondary">
+                              Limit:
+                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                              <IconButton
+                                size="small"
+                                onClick={() => {
+                                  const currentLimit = column.limit ?? 3;
+                                  if (currentLimit > 0) {
+                                    setColumns(columns.map(col => 
+                                      col.id === 'done' 
+                                        ? { ...col, limit: currentLimit - 1 }
+                                        : col
+                                    ));
+                                  }
+                                }}
+                                sx={{ 
+                                  p: 0.5,
+                                  '&:hover': { bgcolor: 'action.hover' }
+                                }}
+                              >
+                                <Typography variant="body2">−</Typography>
+                              </IconButton>
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  px: 1,
+                                  minWidth: '2ch',
+                                  textAlign: 'center'
+                                }}
+                              >
+                                {column.limit ?? 3}
+                              </Typography>
+                              <IconButton
+                                size="small"
+                                onClick={() => {
+                                  const currentLimit = column.limit ?? 3;
+                                  if (currentLimit < 50) {
+                                    setColumns(columns.map(col => 
+                                      col.id === 'done' 
+                                        ? { ...col, limit: currentLimit + 1 }
+                                        : col
+                                    ));
+                                  }
+                                }}
+                                sx={{ 
+                                  p: 0.5,
+                                  '&:hover': { bgcolor: 'action.hover' }
+                                }}
+                              >
+                                <Typography variant="body2">+</Typography>
+                              </IconButton>
+                            </Box>
+                          </Box>
+                        )}
                         {index > 0 && (
                           <IconButton
                             size="small"
