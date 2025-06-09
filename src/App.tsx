@@ -830,6 +830,41 @@ function App() {
             )}
           </Box>
           <Divider />
+          <Box sx={{ p: 2 }}>
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder="Search tasks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', pl: 1 }}>
+                    <SearchIcon />
+                  </Box>
+                ),
+                endAdornment: searchQuery && (
+                  <IconButton
+                    size="small"
+                    onClick={() => setSearchQuery('')}
+                    sx={{ 
+                      color: 'text.secondary',
+                      '&:hover': { color: 'primary.main' }
+                    }}
+                  >
+                    <ClearIcon />
+                  </IconButton>
+                )
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  '&:hover fieldset': {
+                    borderColor: 'primary.main',
+                  },
+                },
+              }}
+            />
+          </Box>
           <List>
             <ListItem>
               <ListItemIcon>
@@ -997,13 +1032,14 @@ function App() {
         sx={{ 
           p: 1.5,
           cursor: 'grab',
-          transition: 'all 0.2s ease',
-          transform: task.isDragging ? 'scale(1.02)' : 'scale(1)',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          transform: task.isDragging ? 'scale(1.02) rotate(1deg)' : 'scale(1) rotate(0deg)',
           opacity: task.isDragging ? 0.5 : 1,
-          boxShadow: task.isDragging ? 2 : 1,
+          boxShadow: task.isDragging ? 3 : 1,
           position: 'relative',
           '&:hover': {
-            boxShadow: 2
+            boxShadow: 2,
+            transform: 'translateY(-2px)',
           },
           borderLeft: task.color ? `4px solid ${task.color}` : 'none',
           bgcolor: task.color ? `${task.color}10` : 'background.paper',
@@ -1014,6 +1050,27 @@ function App() {
         draggable
         onDragStart={() => handleDragStart(task, columnId)}
       >
+        {user?.picture && !isNoTask && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              zIndex: 1,
+            }}
+          >
+            <Avatar
+              src={user.picture}
+              alt={user.name}
+              sx={{
+                width: 24,
+                height: 24,
+                border: '2px solid white',
+                boxShadow: 1,
+              }}
+            />
+          </Box>
+        )}
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography 
@@ -1023,7 +1080,8 @@ function App() {
                 fontWeight: 600,
                 fontSize: '0.9rem',
                 lineHeight: 1.3,
-                mb: 0.5
+                mb: 0.5,
+                pr: user?.picture ? 4 : 0
               }}
             >
               {task.content}
@@ -1046,7 +1104,7 @@ function App() {
               </Typography>
             )}
 
-            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
               {!isNoTask && task.isRecurring && (
                 <Box sx={{ 
                   display: 'flex', 
@@ -1092,97 +1150,97 @@ function App() {
                   ✓ Done
                 </Box>
               )}
-              {!isNoTask && task.dueDate && (
-                <Box 
-                  sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    bgcolor: isOverdue ? 'error.main' : 'info.main',
-                    color: 'white',
-                    px: 1,
-                    py: 0.25,
-                    borderRadius: 1,
-                    fontSize: '0.65rem',
-                    flexShrink: 0,
-                    cursor: 'pointer',
-                    '&:hover': {
-                      opacity: 0.9
-                    }
-                  }}
-                  onClick={() => setSelectedTask({ task, columnId })}
-                >
-                  <EventIcon sx={{ fontSize: '0.7rem', mr: 0.5 }} />
-                  {format(new Date(task.dueDate), 'MMM d')}
-                </Box>
-              )}
-              {!isNoTask && !task.dueDate && (
-                <Box 
-                  sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    bgcolor: 'grey.500',
-                    color: 'white',
-                    px: 1,
-                    py: 0.25,
-                    borderRadius: 1,
-                    fontSize: '0.65rem',
-                    flexShrink: 0,
-                    cursor: 'pointer',
-                    '&:hover': {
-                      opacity: 0.9
-                    }
-                  }}
-                  onClick={() => setSelectedTask({ task, columnId })}
-                >
-                  <EventIcon sx={{ fontSize: '0.7rem', mr: 0.5 }} />
-                  Add Date
-                </Box>
-              )}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                {!isNoTask && task.dueDate ? (
+                  <Box 
+                    sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      bgcolor: isOverdue ? 'error.main' : 'info.main',
+                      color: 'white',
+                      px: 1,
+                      py: 0.25,
+                      borderRadius: 1,
+                      fontSize: '0.65rem',
+                      flexShrink: 0,
+                      cursor: 'pointer',
+                      '&:hover': {
+                        opacity: 0.9
+                      }
+                    }}
+                    onClick={() => setSelectedTask({ task, columnId })}
+                  >
+                    <EventIcon sx={{ fontSize: '0.7rem', mr: 0.5 }} />
+                    {format(new Date(task.dueDate), 'MMM d')}
+                  </Box>
+                ) : !isNoTask && (
+                  <Box 
+                    sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      bgcolor: 'grey.500',
+                      color: 'white',
+                      px: 1,
+                      py: 0.25,
+                      borderRadius: 1,
+                      fontSize: '0.65rem',
+                      flexShrink: 0,
+                      cursor: 'pointer',
+                      '&:hover': {
+                        opacity: 0.9
+                      }
+                    }}
+                    onClick={() => setSelectedTask({ task, columnId })}
+                  >
+                    <EventIcon sx={{ fontSize: '0.7rem', mr: 0.5 }} />
+                    Add Date
+                  </Box>
+                )}
+                {!isNoTask && (
+                  <Stack direction="row" spacing={0.5}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => handleQuickDateChange(task, columnId, new Date())}
+                      sx={{ 
+                        fontSize: '0.65rem',
+                        py: 0.25,
+                        minWidth: 'auto',
+                        px: 1
+                      }}
+                    >
+                      Today
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => handleQuickDateChange(task, columnId, addDays(new Date(), 1))}
+                      sx={{ 
+                        fontSize: '0.65rem',
+                        py: 0.25,
+                        minWidth: 'auto',
+                        px: 1
+                      }}
+                    >
+                      Tomorrow
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => handleQuickDateChange(task, columnId, addDays(new Date(), 7))}
+                      sx={{ 
+                        fontSize: '0.65rem',
+                        py: 0.25,
+                        minWidth: 'auto',
+                        px: 1
+                      }}
+                    >
+                      Next Week
+                    </Button>
+                  </Stack>
+                )}
+              </Box>
             </Stack>
-
-            {!isNoTask && (
-              <Stack direction="row" spacing={0.5} sx={{ mt: 1, flexWrap: 'wrap', gap: 0.5 }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => handleQuickDateChange(task, columnId, new Date())}
-                  sx={{ 
-                    fontSize: '0.65rem',
-                    py: 0.25,
-                    minWidth: 'auto',
-                    px: 1
-                  }}
-                >
-                  Today
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => handleQuickDateChange(task, columnId, addDays(new Date(), 1))}
-                  sx={{ 
-                    fontSize: '0.65rem',
-                    py: 0.25,
-                    minWidth: 'auto',
-                    px: 1
-                  }}
-                >
-                  Tomorrow
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => handleQuickDateChange(task, columnId, addDays(new Date(), 7))}
-                  sx={{ 
-                    fontSize: '0.65rem',
-                    py: 0.25,
-                    minWidth: 'auto',
-                    px: 1
-                  }}
-                >
-                  Next Week
-                </Button>
-              </Stack>
-            )}
           </Box>
         </Box>
       </Paper>
@@ -1224,78 +1282,6 @@ function App() {
           </Toolbar>
         </AppBar>
         
-        {/* Add Search Bar */}
-        <Box
-          sx={{
-            position: 'fixed',
-            top: 64,
-            left: isDrawerExpanded ? drawerWidth : collapsedDrawerWidth,
-            right: 0,
-            zIndex: (theme) => theme.zIndex.drawer,
-            p: 2,
-            bgcolor: 'background.paper',
-            borderBottom: 1,
-            borderColor: 'divider',
-            display: 'flex',
-            gap: 2,
-            alignItems: 'center'
-          }}
-        >
-          <TextField
-            fullWidth
-            variant="outlined"
-            placeholder="Search tasks by title or description..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', pl: 1 }}>
-                  <SearchIcon />
-                  <FilterListIcon />
-                </Box>
-              ),
-              endAdornment: searchQuery && (
-                <IconButton
-                  size="small"
-                  onClick={() => setSearchQuery('')}
-                  sx={{ 
-                    color: 'text.secondary',
-                    '&:hover': { color: 'primary.main' }
-                  }}
-                >
-                  <ClearIcon />
-                </IconButton>
-              )
-            }}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                '&:hover fieldset': {
-                  borderColor: 'primary.main',
-                },
-              },
-            }}
-          />
-          <Button
-            variant="outlined"
-            startIcon={<AddIcon />}
-            onClick={handleAddColumn}
-            sx={{
-              minWidth: 150,
-              height: 56,
-              borderStyle: 'dashed',
-              borderColor: 'primary.main',
-              color: 'primary.main',
-              '&:hover': {
-                borderStyle: 'dashed',
-                borderColor: 'primary.dark',
-                bgcolor: 'action.hover'
-              }
-            }}
-          >
-            Add Column
-          </Button>
-        </Box>
-
         <Box
           component="nav"
           sx={{ width: { sm: isDrawerExpanded ? drawerWidth : collapsedDrawerWidth }, flexShrink: { sm: 0 } }}
@@ -1334,13 +1320,14 @@ function App() {
             {drawer}
           </Drawer>
         </Box>
+
         <Box
           component="main"
           sx={{
             flexGrow: 1,
             p: 3,
             width: { sm: `calc(100% - ${isDrawerExpanded ? drawerWidth : collapsedDrawerWidth}px)` },
-            mt: '128px', // Increased to account for search bar
+            mt: '64px', // Changed from 128px to 64px since we removed the search bar
           }}
         >
           {user ? (
