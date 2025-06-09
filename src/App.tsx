@@ -21,6 +21,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ClearIcon from '@mui/icons-material/Clear';
+import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -991,6 +992,65 @@ function App() {
     const isNoTask = task.id === 'no-tasks';
     const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed';
     
+    const handleCheckboxClick = async (e: React.MouseEvent) => {
+      e.stopPropagation(); // Prevent task selection when clicking checkbox
+      if (googleTasksToken && task.listId) {
+        try {
+          // Update in Google Tasks
+          const response = await axios.patch(
+            `https://www.googleapis.com/tasks/v1/lists/${task.listId}/tasks/${task.id}`,
+            {
+              completed: new Date().toISOString(),
+              status: 'completed'
+            },
+            {
+              headers: { Authorization: `Bearer ${googleTasksToken}` }
+            }
+          );
+
+          // Update local state
+          setColumns(prevColumns => {
+            return prevColumns.map(column => {
+              if (column.id === columnId) {
+                return {
+                  ...column,
+                  tasks: column.tasks.filter(t => t.id !== task.id)
+                };
+              }
+              if (column.id === 'done') {
+                return {
+                  ...column,
+                  tasks: [...column.tasks, { ...task, status: 'completed' as const, completedAt: new Date() }]
+                };
+              }
+              return column;
+            });
+          });
+        } catch (error) {
+          console.error('Error marking task as completed:', error);
+        }
+      } else {
+        // If not connected to Google Tasks, just update local state
+        setColumns(prevColumns => {
+          return prevColumns.map(column => {
+            if (column.id === columnId) {
+              return {
+                ...column,
+                tasks: column.tasks.filter(t => t.id !== task.id)
+              };
+            }
+            if (column.id === 'done') {
+              return {
+                ...column,
+                tasks: [...column.tasks, { ...task, status: 'completed' as const, completedAt: new Date() }]
+              };
+            }
+            return column;
+          });
+        });
+      }
+    };
+    
     return (
       <Paper 
         key={task.id}
@@ -1013,177 +1073,90 @@ function App() {
         }}
         draggable
         onDragStart={() => handleDragStart(task, columnId)}
+        onDragOver={(e) => handleDragOver(e, columnId)}
+        onDragLeave={handleDragLeave}
+        onDrop={() => handleDrop(columnId)}
+        onClick={() => setSelectedTask({ task, columnId })}
       >
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography 
-              variant="subtitle1" 
-              sx={{ 
-                wordBreak: 'break-word',
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                lineHeight: 1.3,
-                mb: 0.5
+        {/* Google Profile Badge */}
+        {user && user.picture && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              zIndex: 1,
+            }}
+          >
+            <Avatar
+              src={user.picture}
+              alt={user.name || 'User'}
+              sx={{
+                width: 24,
+                height: 24,
+                border: '2px solid',
+                borderColor: 'background.paper',
+                boxShadow: 1
+              }}
+            />
+          </Box>
+        )}
+
+        {/* Checkbox */}
+        {!isNoTask && columnId !== 'done' && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              zIndex: 1,
+            }}
+            onClick={handleCheckboxClick}
+          >
+            <IconButton
+              size="small"
+              sx={{
+                bgcolor: 'background.paper',
+                boxShadow: 1,
+                '&:hover': {
+                  bgcolor: 'action.hover',
+                }
               }}
             >
-              {task.content}
-            </Typography>
-            
-            {!isNoTask && task.notes && (
-              <Typography 
-                variant="body2" 
-                color="text.secondary"
-                sx={{ 
-                  mb: 1,
-                  fontSize: '0.75rem',
-                  lineHeight: 1.3,
-                  wordBreak: 'break-word',
-                  maxHeight: '40px',
-                  overflow: 'auto'
-                }}
-              >
-                {task.notes}
-              </Typography>
-            )}
-
-            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-              {!isNoTask && task.isRecurring && (
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  bgcolor: 'primary.main',
-                  color: 'white',
-                  px: 1,
-                  py: 0.25,
-                  borderRadius: 1,
-                  fontSize: '0.65rem',
-                  flexShrink: 0
-                }}>
-                  🔄 Recurring
-                </Box>
-              )}
-              {!isNoTask && task.status === 'in-progress' && (
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  bgcolor: 'warning.main',
-                  color: 'white',
-                  px: 1,
-                  py: 0.25,
-                  borderRadius: 1,
-                  fontSize: '0.65rem',
-                  flexShrink: 0
-                }}>
-                  ⚡ Active
-                </Box>
-              )}
-              {!isNoTask && task.status === 'completed' && (
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  bgcolor: 'success.main',
-                  color: 'white',
-                  px: 1,
-                  py: 0.25,
-                  borderRadius: 1,
-                  fontSize: '0.65rem',
-                  flexShrink: 0
-                }}>
-                  ✓ Done
-                </Box>
-              )}
-              {!isNoTask && task.dueDate && (
-                <Box 
-                  sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    bgcolor: isOverdue ? 'error.main' : 'info.main',
-                    color: 'white',
-                    px: 1,
-                    py: 0.25,
-                    borderRadius: 1,
-                    fontSize: '0.65rem',
-                    flexShrink: 0,
-                    cursor: 'pointer',
-                    '&:hover': {
-                      opacity: 0.9
-                    }
-                  }}
-                  onClick={() => setSelectedTask({ task, columnId })}
-                >
-                  <EventIcon sx={{ fontSize: '0.7rem', mr: 0.5 }} />
-                  {format(new Date(task.dueDate), 'MMM d')}
-                </Box>
-              )}
-              {!isNoTask && !task.dueDate && (
-                <Box 
-                  sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    bgcolor: 'grey.500',
-                    color: 'white',
-                    px: 1,
-                    py: 0.25,
-                    borderRadius: 1,
-                    fontSize: '0.65rem',
-                    flexShrink: 0,
-                    cursor: 'pointer',
-                    '&:hover': {
-                      opacity: 0.9
-                    }
-                  }}
-                  onClick={() => setSelectedTask({ task, columnId })}
-                >
-                  <EventIcon sx={{ fontSize: '0.7rem', mr: 0.5 }} />
-                  Add Date
-                </Box>
-              )}
-            </Stack>
-
-            {!isNoTask && (
-              <Stack direction="row" spacing={0.5} sx={{ mt: 1, flexWrap: 'wrap', gap: 0.5 }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => handleQuickDateChange(task, columnId, new Date())}
-                  sx={{ 
-                    fontSize: '0.65rem',
-                    py: 0.25,
-                    minWidth: 'auto',
-                    px: 1
-                  }}
-                >
-                  Today
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => handleQuickDateChange(task, columnId, addDays(new Date(), 1))}
-                  sx={{ 
-                    fontSize: '0.65rem',
-                    py: 0.25,
-                    minWidth: 'auto',
-                    px: 1
-                  }}
-                >
-                  Tomorrow
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => handleQuickDateChange(task, columnId, addDays(new Date(), 7))}
-                  sx={{ 
-                    fontSize: '0.65rem',
-                    py: 0.25,
-                    minWidth: 'auto',
-                    px: 1
-                  }}
-                >
-                  Next Week
-                </Button>
-              </Stack>
-            )}
+              <CheckBoxOutlineBlankIcon fontSize="small" />
+            </IconButton>
           </Box>
+        )}
+
+        {/* Task Content */}
+        <Box sx={{ 
+          pl: columnId === 'done' ? 0 : 4, // Add padding for checkbox
+          pr: user?.picture ? 4 : 0, // Add padding for profile badge
+        }}>
+          <Typography variant="body1" sx={{ 
+            fontWeight: 'medium',
+            mb: 0.5,
+            textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+            color: task.status === 'completed' ? 'text.secondary' : 'text.primary'
+          }}>
+            {task.content}
+          </Typography>
+          {task.notes && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              {task.notes}
+            </Typography>
+          )}
+          {task.dueDate && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <EventIcon fontSize="small" color={isOverdue ? 'error' : 'action'} />
+              <Typography 
+                variant="caption" 
+                color={isOverdue ? 'error' : 'text.secondary'}
+              >
+                {format(task.dueDate, 'MMM d, yyyy')}
+              </Typography>
+            </Box>
+          )}
         </Box>
       </Paper>
     );
