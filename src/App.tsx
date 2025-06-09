@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem } from '@mui/material';
+import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -12,7 +12,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { format, addDays } from 'date-fns';
+import { format, addDays, isToday, isSameDay, startOfDay, endOfDay } from 'date-fns';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { useGoogleLogin, googleLogout } from '@react-oauth/google';
 import { GoogleLogin } from '@react-oauth/google';
@@ -21,6 +21,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ClearIcon from '@mui/icons-material/Clear';
+import ListIcon from '@mui/icons-material/List';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -55,6 +56,9 @@ interface User {
 
 const STORAGE_KEY = 'kanban-board-data';
 const USER_STORAGE_KEY = 'user-data';
+
+// Add new view mode type
+type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate';
 
 function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -104,6 +108,8 @@ function App() {
   const GOOGLE_CLIENT_ID = "251184335563-bdf3sv4vc1sr4v2itciiepd7fllvshec.apps.googleusercontent.com";
   const [googleTasksButtonHover, setGoogleTasksButtonHover] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('kanban');
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
@@ -866,23 +872,35 @@ function App() {
             />
           </Box>
           <List>
-            <ListItem>
+            <ListItem button onClick={() => setViewMode('kanban')}>
               <ListItemIcon>
                 <DashboardIcon />
               </ListItemIcon>
-              {isDrawerExpanded && <ListItemText primary="Dashboard" />}
+              {isDrawerExpanded && <ListItemText primary="Kanban View" />}
             </ListItem>
-            <ListItem>
+            <ListItem button onClick={() => setViewMode('list')}>
+              <ListItemIcon>
+                <ListIcon />
+              </ListItemIcon>
+              {isDrawerExpanded && <ListItemText primary="List View" />}
+            </ListItem>
+            <ListItem button onClick={() => setViewMode('calendar')}>
               <ListItemIcon>
                 <CalendarTodayIcon />
               </ListItemIcon>
-              {isDrawerExpanded && <ListItemText primary="Calendar" />}
+              {isDrawerExpanded && <ListItemText primary="Calendar View" />}
             </ListItem>
-            <ListItem>
+            <ListItem button onClick={() => setViewMode('today')}>
+              <ListItemIcon>
+                <EventIcon />
+              </ListItemIcon>
+              {isDrawerExpanded && <ListItemText primary="Today's Tasks" />}
+            </ListItem>
+            <ListItem button onClick={() => setViewMode('ultimate')}>
               <ListItemIcon>
                 <StarIcon />
               </ListItemIcon>
-              {isDrawerExpanded && <ListItemText primary="Important" />}
+              {isDrawerExpanded && <ListItemText primary="Ultimate Board" />}
             </ListItem>
             <Divider sx={{ my: 2 }} />
             <ListItem>
@@ -1025,6 +1043,7 @@ function App() {
   const renderTask = (task: Task, columnId: string) => {
     const isNoTask = task.id === 'no-tasks';
     const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed';
+    const isDoneColumn = columnId === 'done';
     
     return (
       <Paper 
@@ -1196,7 +1215,7 @@ function App() {
                     Add Date
                   </Box>
                 )}
-                {!isNoTask && (
+                {!isNoTask && !isDoneColumn && (
                   <Stack direction="row" spacing={0.5}>
                     <Button
                       size="small"
@@ -1244,6 +1263,331 @@ function App() {
           </Box>
         </Box>
       </Paper>
+    );
+  };
+
+  const renderListView = () => {
+    const allTasks = columns.reduce((acc: Task[], column) => {
+      if (column.id !== 'done') {
+        return [...acc, ...column.tasks];
+      }
+      return acc;
+    }, []);
+
+    const filteredTasks = filterTasks(allTasks);
+
+    return (
+      <Box sx={{ p: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          All Tasks
+        </Typography>
+        <Stack spacing={2}>
+          {filteredTasks.map((task) => (
+            <Paper
+              key={task.id}
+              sx={{
+                p: 2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                '&:hover': {
+                  boxShadow: 2,
+                },
+              }}
+            >
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle1">{task.content}</Typography>
+                {task.notes && (
+                  <Typography variant="body2" color="text.secondary">
+                    {task.notes}
+                  </Typography>
+                )}
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {task.dueDate && (
+                  <Chip
+                    icon={<EventIcon />}
+                    label={format(new Date(task.dueDate), 'MMM d, yyyy')}
+                    color={new Date(task.dueDate) < new Date() ? 'error' : 'primary'}
+                    size="small"
+                  />
+                )}
+                <Chip
+                  label={task.status === 'in-progress' ? 'In Progress' : 'To Do'}
+                  color={task.status === 'in-progress' ? 'warning' : 'info'}
+                  size="small"
+                />
+              </Box>
+            </Paper>
+          ))}
+        </Stack>
+      </Box>
+    );
+  };
+
+  // Add new render functions for different views
+  const renderCalendarView = () => {
+    const allTasks = columns.reduce((acc: Task[], column) => {
+      return [...acc, ...column.tasks];
+    }, []);
+
+    const filteredTasks = filterTasks(allTasks);
+    const tasksByDate = filteredTasks.reduce((acc: { [key: string]: Task[] }, task) => {
+      if (task.dueDate) {
+        const dateKey = format(new Date(task.dueDate), 'yyyy-MM-dd');
+        if (!acc[dateKey]) {
+          acc[dateKey] = [];
+        }
+        acc[dateKey].push(task);
+      }
+      return acc;
+    }, {});
+
+    return (
+      <Box sx={{ p: 2 }}>
+        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h5">Calendar View</Typography>
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <DatePicker
+              value={selectedDate}
+              onChange={(newDate) => newDate && setSelectedDate(newDate)}
+              slotProps={{
+                textField: {
+                  variant: 'outlined',
+                  size: 'small',
+                },
+              }}
+            />
+          </LocalizationProvider>
+        </Box>
+        <Paper sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            {format(selectedDate, 'MMMM d, yyyy')}
+          </Typography>
+          <Stack spacing={2}>
+            {tasksByDate[format(selectedDate, 'yyyy-MM-dd')]?.map((task) => (
+              <Paper
+                key={task.id}
+                sx={{
+                  p: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  borderLeft: `4px solid ${task.color || '#42A5F5'}`,
+                  '&:hover': {
+                    boxShadow: 2,
+                  },
+                }}
+              >
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="subtitle1">{task.content}</Typography>
+                  {task.notes && (
+                    <Typography variant="body2" color="text.secondary">
+                      {task.notes}
+                    </Typography>
+                  )}
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Chip
+                    label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
+                    color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
+                    size="small"
+                  />
+                </Box>
+              </Paper>
+            )) || (
+              <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                No tasks scheduled for this date
+              </Typography>
+            )}
+          </Stack>
+        </Paper>
+      </Box>
+    );
+  };
+
+  const renderTodayView = () => {
+    const allTasks = columns.reduce((acc: Task[], column) => {
+      return [...acc, ...column.tasks];
+    }, []);
+
+    const todayTasks = allTasks.filter(task => 
+      task.dueDate && isToday(new Date(task.dueDate))
+    );
+
+    const filteredTasks = filterTasks(todayTasks);
+
+    return (
+      <Box sx={{ p: 2 }}>
+        <Typography variant="h5" gutterBottom>
+          Today's Tasks
+        </Typography>
+        <Stack spacing={2}>
+          {filteredTasks.map((task) => (
+            <Paper
+              key={task.id}
+              sx={{
+                p: 2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                borderLeft: `4px solid ${task.color || '#42A5F5'}`,
+                '&:hover': {
+                  boxShadow: 2,
+                },
+              }}
+            >
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle1">{task.content}</Typography>
+                {task.notes && (
+                  <Typography variant="body2" color="text.secondary">
+                    {task.notes}
+                  </Typography>
+                )}
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
+                  color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
+                  size="small"
+                />
+              </Box>
+            </Paper>
+          ))}
+          {filteredTasks.length === 0 && (
+            <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+              No tasks scheduled for today
+            </Typography>
+          )}
+        </Stack>
+      </Box>
+    );
+  };
+
+  const renderUltimateView = () => {
+    return (
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={8}>
+          <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
+            {columns.map((column, index) => (
+              <Paper
+                key={column.id}
+                sx={{
+                  p: 2,
+                  minWidth: 400,
+                  maxWidth: 'none',
+                  flex: 1,
+                  bgcolor: 'background.paper',
+                  borderRadius: 2,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                  height: 'fit-content',
+                  minHeight: 'calc(100vh - 100px)',
+                  overflow: 'auto',
+                  position: 'relative',
+                  transition: 'all 0.2s ease',
+                  transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
+                  boxShadow: column.id === dragOverColumn ? 3 : 1,
+                  opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  '&:hover': {
+                    boxShadow: 4,
+                    borderColor: 'primary.light',
+                  },
+                }}
+                onDragOver={(e) => handleDragOver(e, column.id)}
+                onDragLeave={handleDragLeave}
+                onDrop={() => handleDrop(column.id)}
+              >
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  mb: 2,
+                  p: 1.5,
+                  borderRadius: 1,
+                  bgcolor: 'action.hover',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 1,
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                }}>
+                  <Typography variant="h6" sx={{ 
+                    fontWeight: 'bold',
+                    color: 'primary.main',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  }}>
+                    {column.title}
+                    <Typography variant="caption" sx={{ 
+                      bgcolor: 'primary.main',
+                      color: 'white',
+                      px: 1,
+                      py: 0.5,
+                      borderRadius: 1,
+                      fontSize: '0.75rem'
+                    }}>
+                      {column.tasks.length}
+                    </Typography>
+                  </Typography>
+                </Box>
+                <Stack spacing={2}>
+                  {column.tasks.map((task) => renderTask(task, column.id))}
+                </Stack>
+              </Paper>
+            ))}
+          </Box>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 2, height: 'calc(100vh - 100px)', overflow: 'auto' }}>
+            <Typography variant="h6" gutterBottom>
+              Today's Tasks
+            </Typography>
+            <Stack spacing={2}>
+              {columns.reduce((acc: Task[], column) => {
+                const todayTasks = column.tasks.filter(task => 
+                  task.dueDate && isToday(new Date(task.dueDate))
+                );
+                return [...acc, ...todayTasks];
+              }, []).map((task) => (
+                <Paper
+                  key={task.id}
+                  sx={{
+                    p: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2,
+                    borderLeft: `4px solid ${task.color || '#42A5F5'}`,
+                    '&:hover': {
+                      boxShadow: 2,
+                    },
+                  }}
+                >
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle1">{task.content}</Typography>
+                    {task.notes && (
+                      <Typography variant="body2" color="text.secondary">
+                        {task.notes}
+                      </Typography>
+                    )}
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip
+                      label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
+                      color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
+                      size="small"
+                    />
+                  </Box>
+                </Paper>
+              ))}
+            </Stack>
+          </Paper>
+        </Grid>
+      </Grid>
     );
   };
 
@@ -1327,7 +1671,7 @@ function App() {
             flexGrow: 1,
             p: 3,
             width: { sm: `calc(100% - ${isDrawerExpanded ? drawerWidth : collapsedDrawerWidth}px)` },
-            mt: '64px', // Changed from 128px to 64px since we removed the search bar
+            mt: '64px',
           }}
         >
           {user ? (
@@ -1335,224 +1679,133 @@ function App() {
               googleTasksLoading ? (
                 <Typography variant="h6">Loading Google Tasks...</Typography>
               ) : (
-                <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
-                  {columns.map((column, index) => {
-                    // Group tasks by date
-                    const tasksByDate = column.tasks.reduce((acc: { [key: string]: Task[] }, task) => {
-                      const date = task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : 'no-date';
-                      if (!acc[date]) {
-                        acc[date] = [];
-                      }
-                      acc[date].push(task);
-                      return acc;
-                    }, {});
+                <>
+                  {viewMode === 'list' && renderListView()}
+                  {viewMode === 'calendar' && renderCalendarView()}
+                  {viewMode === 'today' && renderTodayView()}
+                  {viewMode === 'ultimate' && renderUltimateView()}
+                  {viewMode === 'kanban' && (
+                    <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
+                      {columns.map((column, index) => {
+                        // Group tasks by date
+                        const tasksByDate = column.tasks.reduce((acc: { [key: string]: Task[] }, task) => {
+                          const date = task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : 'no-date';
+                          if (!acc[date]) {
+                            acc[date] = [];
+                          }
+                          acc[date].push(task);
+                          return acc;
+                        }, {});
 
-                    // Sort dates
-                    const sortedDates = Object.keys(tasksByDate).sort((a, b) => {
-                      if (a === 'no-date') return 1;
-                      if (b === 'no-date') return -1;
-                      return new Date(a).getTime() - new Date(b).getTime();
-                    });
+                        // Sort dates
+                        const sortedDates = Object.keys(tasksByDate).sort((a, b) => {
+                          if (a === 'no-date') return 1;
+                          if (b === 'no-date') return -1;
+                          return new Date(a).getTime() - new Date(b).getTime();
+                        });
 
-                    return (
-                      <Paper
-                        key={column.id}
-                        sx={{
-                          p: 2,
-                          minWidth: 400,
-                          maxWidth: 'none',
-                          flex: 1,
-                          bgcolor: 'background.paper',
-                          borderRadius: 2,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 2,
-                          height: 'fit-content',
-                          minHeight: 'calc(100vh - 100px)',
-                          overflow: 'auto',
-                          position: 'relative',
-                          transition: 'all 0.2s ease',
-                          transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
-                          boxShadow: column.id === dragOverColumn ? 3 : 1,
-                          opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1,
-                          border: '1px solid',
-                          borderColor: 'divider',
-                          '&:hover': {
-                            boxShadow: 4,
-                            borderColor: 'primary.light',
-                          },
-                          '&::-webkit-scrollbar': {
-                            width: '8px',
-                          },
-                          '&::-webkit-scrollbar-track': {
-                            background: 'transparent',
-                          },
-                          '&::-webkit-scrollbar-thumb': {
-                            background: 'rgba(0,0,0,0.1)',
-                            borderRadius: '4px',
-                            '&:hover': {
-                              background: 'rgba(0,0,0,0.2)',
-                            },
-                          },
-                        }}
-                        onDragOver={(e) => handleDragOver(e, column.id)}
-                        onDragLeave={handleDragLeave}
-                        onDrop={() => handleDrop(column.id)}
-                      >
-                        <Box sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'space-between', 
-                          mb: 2,
-                          p: 1.5,
-                          borderRadius: 1,
-                          bgcolor: 'action.hover',
-                          '&:hover .delete-button': {
-                            opacity: 1
-                          },
-                          position: 'sticky',
-                          top: 0,
-                          zIndex: 1,
-                          borderBottom: '1px solid',
-                          borderColor: 'divider',
-                        }}>
-                          <Typography variant="h6" sx={{ 
-                            fontWeight: 'bold',
-                            color: 'primary.main',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1
-                          }}>
-                            {column.title}
-                            <Typography variant="caption" sx={{ 
-                              bgcolor: 'primary.main',
-                              color: 'white',
-                              px: 1,
-                              py: 0.5,
+                        return (
+                          <Paper
+                            key={column.id}
+                            sx={{
+                              p: 2,
+                              minWidth: 400,
+                              maxWidth: 'none',
+                              flex: 1,
+                              bgcolor: 'background.paper',
+                              borderRadius: 2,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 2,
+                              height: 'fit-content',
+                              minHeight: 'calc(100vh - 100px)',
+                              overflow: 'auto',
+                              position: 'relative',
+                              transition: 'all 0.2s ease',
+                              transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
+                              boxShadow: column.id === dragOverColumn ? 3 : 1,
+                              opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1,
+                              border: '1px solid',
+                              borderColor: 'divider',
+                              '&:hover': {
+                                boxShadow: 4,
+                                borderColor: 'primary.light',
+                              },
+                            }}
+                            onDragOver={(e) => handleDragOver(e, column.id)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={() => handleDrop(column.id)}
+                          >
+                            <Box sx={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'space-between', 
+                              mb: 2,
+                              p: 1.5,
                               borderRadius: 1,
-                              fontSize: '0.75rem'
+                              bgcolor: 'action.hover',
+                              position: 'sticky',
+                              top: 0,
+                              zIndex: 1,
+                              borderBottom: '1px solid',
+                              borderColor: 'divider',
                             }}>
-                              {column.tasks.length}
-                            </Typography>
-                          </Typography>
-                          {column.id === 'done' && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="caption" color="text.secondary">
-                                Limit:
-                              </Typography>
-                              <Box sx={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                border: '1px solid', 
-                                borderColor: 'divider', 
-                                borderRadius: 1,
-                                bgcolor: 'background.paper'
+                              <Typography variant="h6" sx={{ 
+                                fontWeight: 'bold',
+                                color: 'primary.main',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1
                               }}>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => {
-                                    const currentLimit = column.limit ?? 3;
-                                    if (currentLimit > 0) {
-                                      setColumns(columns.map(col => 
-                                        col.id === 'done' 
-                                          ? { ...col, limit: currentLimit - 1 }
-                                          : col
-                                      ));
-                                    }
-                                  }}
-                                  sx={{ 
-                                    p: 0.5,
-                                    '&:hover': { bgcolor: 'action.hover' }
-                                  }}
-                                >
-                                  <Typography variant="body2">−</Typography>
-                                </IconButton>
-                                <Typography 
-                                  variant="body2" 
-                                  sx={{ 
-                                    px: 1,
-                                    minWidth: '2ch',
-                                    textAlign: 'center'
-                                  }}
-                                >
-                                  {column.limit ?? 3}
-                                </Typography>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => {
-                                    const currentLimit = column.limit ?? 3;
-                                    if (currentLimit < 50) {
-                                      setColumns(columns.map(col => 
-                                        col.id === 'done' 
-                                          ? { ...col, limit: currentLimit + 1 }
-                                          : col
-                                      ));
-                                    }
-                                  }}
-                                  sx={{ 
-                                    p: 0.5,
-                                    '&:hover': { bgcolor: 'action.hover' }
-                                  }}
-                                >
-                                  <Typography variant="body2">+</Typography>
-                                </IconButton>
-                              </Box>
-                            </Box>
-                          )}
-                          {index > 0 && (
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleDeleteColumn(column.id)}
-                              className="delete-button"
-                              sx={{ 
-                                ml: 1,
-                                opacity: 0,
-                                transition: 'opacity 0.2s ease-in-out',
-                                '&:hover': {
-                                  bgcolor: 'error.light',
-                                  color: 'white'
-                                }
-                              }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          )}
-                        </Box>
-                        <Stack spacing={2}>
-                          {sortedDates.map((date) => (
-                            <Box key={date}>
-                              <Typography 
-                                variant="subtitle2" 
-                                sx={{ 
+                                {column.title}
+                                <Typography variant="caption" sx={{ 
+                                  bgcolor: 'primary.main',
                                   color: 'white',
-                                  mb: 1,
-                                  px: 1.5,
-                                  py: 0.75,
-                                  bgcolor: getDateColor(date),
+                                  px: 1,
+                                  py: 0.5,
                                   borderRadius: 1,
-                                  fontWeight: 'bold',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 1,
-                                  boxShadow: 1
-                                }}
-                              >
-                                <EventIcon fontSize="small" />
-                                {date === 'no-date' ? 'No Due Date' : format(new Date(date), 'MMM d, yyyy')}
+                                  fontSize: '0.75rem'
+                                }}>
+                                  {column.tasks.length}
+                                </Typography>
                               </Typography>
-                              <Stack spacing={1} sx={{ pl: 1 }}>
-                                {filterTasks(tasksByDate[date]).map((task, taskIndex) => (
-                                  renderTask(task, column.id)
-                                ))}
-                              </Stack>
                             </Box>
-                          ))}
-                        </Stack>
-                      </Paper>
-                    );
-                  })}
-                </Box>
+                            <Stack spacing={2}>
+                              {sortedDates.map((date) => (
+                                <Box key={date}>
+                                  <Typography 
+                                    variant="subtitle2" 
+                                    sx={{ 
+                                      color: 'white',
+                                      mb: 1,
+                                      px: 1.5,
+                                      py: 0.75,
+                                      bgcolor: getDateColor(date),
+                                      borderRadius: 1,
+                                      fontWeight: 'bold',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 1,
+                                      boxShadow: 1
+                                    }}
+                                  >
+                                    <EventIcon fontSize="small" />
+                                    {date === 'no-date' ? 'No Due Date' : format(new Date(date), 'MMM d, yyyy')}
+                                  </Typography>
+                                  <Stack spacing={1} sx={{ pl: 1 }}>
+                                    {filterTasks(tasksByDate[date]).map((task, taskIndex) => (
+                                      renderTask(task, column.id)
+                                    ))}
+                                  </Stack>
+                                </Box>
+                              ))}
+                            </Stack>
+                          </Paper>
+                        );
+                      })}
+                    </Box>
+                  )}
+                </>
               )
             ) : (
               <Box sx={{
