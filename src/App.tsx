@@ -357,6 +357,25 @@ function App() {
     }
   }, [googleTasksToken]);
 
+  // Add effect to restore user session on mount
+  useEffect(() => {
+    const savedCredential = localStorage.getItem('google-credential');
+    if (savedCredential) {
+      try {
+        const decoded = JSON.parse(atob(savedCredential.split('.')[1]));
+        const userData = {
+          name: decoded.name,
+          email: decoded.email,
+          picture: decoded.picture,
+        };
+        setUser(userData);
+      } catch (error) {
+        console.error('Error restoring user session:', error);
+        localStorage.removeItem('google-credential');
+      }
+    }
+  }, []);
+
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
@@ -443,13 +462,17 @@ function App() {
             update.status = 'completed';
             update.notes = ''; // Clear any notes
           } else if (targetColumnId === 'inProgress') {
-            // Add "Active" note with icon
-            update.notes = '⚡ Active';
+            // Add "Active" note with icon if not already present
+            const currentNotes = task.notes || '';
+            if (!currentNotes.includes('⚡ Active')) {
+              update.notes = currentNotes ? `${currentNotes}\n⚡ Active` : '⚡ Active';
+            }
             update.completed = null; // Clear completion date
             update.status = 'needsAction';
           } else {
-            // Reset status and remove notes, but preserve the due date
-            update.notes = '';
+            // Reset status and remove only the Active badge from notes
+            const currentNotes = task.notes || '';
+            update.notes = currentNotes.replace('⚡ Active', '').trim();
             update.completed = null; // Clear completion date
             update.status = 'needsAction';
             // Preserve the due date when moving back to ToDo
@@ -755,7 +778,8 @@ function App() {
       picture: decoded.picture,
     };
     setUser(userData);
-    setGoogleTasksToken(credentialResponse.credential);
+    // Store the credential in localStorage
+    localStorage.setItem('google-credential', credentialResponse.credential);
   };
 
   const handleGoogleError = () => {
@@ -771,6 +795,7 @@ function App() {
     // Clear all stored data
     localStorage.removeItem(USER_STORAGE_KEY);
     localStorage.removeItem('google-tasks-token');
+    localStorage.removeItem('google-credential');
   };
 
   const loginGoogleTasks = useGoogleLogin({
