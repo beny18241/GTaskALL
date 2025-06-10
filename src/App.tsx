@@ -120,6 +120,7 @@ function App() {
     color: '#1976d2',
     status: 'todo'
   });
+  const [sidebarWidth, setSidebarWidth] = useState(400);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
@@ -786,7 +787,6 @@ function App() {
   };
 
   const handleGoogleSuccess = (credentialResponse: any) => {
-    // In a real app, you would verify the token with your backend
     const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
     const userData = {
       name: decoded.name,
@@ -794,8 +794,11 @@ function App() {
       picture: decoded.picture,
     };
     setUser(userData);
-    // Store the credential in localStorage
     localStorage.setItem('google-credential', credentialResponse.credential);
+    
+    // Automatically trigger Google Tasks connection after successful login
+    setGoogleTasksLoading(true);
+    loginGoogleTasks();
   };
 
   const handleGoogleError = () => {
@@ -1343,6 +1346,22 @@ function App() {
                       {column.tasks.length}
                     </Typography>
                   </Typography>
+                  {column.id === 'done' && (
+                    <TextField
+                      type="number"
+                      size="small"
+                      label="Limit"
+                      value={column.limit || ''}
+                      onChange={(e) => {
+                        const newLimit = parseInt(e.target.value) || 0;
+                        setColumns(columns.map(col => 
+                          col.id === 'done' ? { ...col, limit: newLimit } : col
+                        ));
+                      }}
+                      sx={{ width: '80px' }}
+                      InputProps={{ inputProps: { min: 0 } }}
+                    />
+                  )}
                 </Box>
                 <Stack spacing={2}>
                   {column.tasks.map((task) => renderTask(task, column.id))}
@@ -1352,7 +1371,46 @@ function App() {
           </Box>
         </Grid>
         <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2, height: 'calc(100vh - 100px)', overflow: 'auto' }}>
+          <Paper 
+            sx={{ 
+              p: 2, 
+              height: 'calc(100vh - 100px)', 
+              overflow: 'auto',
+              width: sidebarWidth,
+              position: 'relative',
+              transition: 'width 0.3s ease'
+            }}
+          >
+            <Box sx={{ 
+              position: 'absolute', 
+              right: 0, 
+              top: 0, 
+              bottom: 0, 
+              width: '4px', 
+              cursor: 'ew-resize',
+              '&:hover': {
+                bgcolor: 'primary.main',
+              }
+            }}
+            onMouseDown={(e) => {
+              const startX = e.clientX;
+              const startWidth = sidebarWidth;
+              
+              const handleMouseMove = (e: MouseEvent) => {
+                const deltaX = e.clientX - startX;
+                const newWidth = Math.max(200, Math.min(800, startWidth + deltaX));
+                setSidebarWidth(newWidth);
+              };
+              
+              const handleMouseUp = () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+              };
+              
+              document.addEventListener('mousemove', handleMouseMove);
+              document.addEventListener('mouseup', handleMouseUp);
+            }}
+            />
             <Typography variant="h6" gutterBottom>
               Today's Tasks
             </Typography>
