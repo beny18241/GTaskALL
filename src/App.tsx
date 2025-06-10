@@ -110,6 +110,16 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [openTaskDialog, setOpenTaskDialog] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [newTask, setNewTask] = useState<Partial<Task>>({
+    content: '',
+    dueDate: null,
+    isRecurring: false,
+    notes: '',
+    color: '#1976d2',
+    status: 'todo'
+  });
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
@@ -817,207 +827,6 @@ function App() {
     flow: 'implicit',
   });
 
-  const drawer = (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', p: 1 }}>
-        <IconButton onClick={handleDrawerExpandToggle}>
-          {isDrawerExpanded ? <ChevronLeftIcon /> : <ChevronRightIcon />}
-        </IconButton>
-      </Box>
-      {user ? (
-        <>
-          <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Avatar src={user.picture} alt={user.name} />
-            {isDrawerExpanded && (
-              <Box>
-                <Typography variant="subtitle1">{user.name}</Typography>
-                <Typography variant="body2" color="text.secondary">{user.email}</Typography>
-              </Box>
-            )}
-          </Box>
-          <Divider />
-          <Box sx={{ p: 2 }}>
-            <TextField
-              fullWidth
-              variant="outlined"
-              placeholder="Search tasks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', pl: 1 }}>
-                    <SearchIcon />
-                  </Box>
-                ),
-                endAdornment: searchQuery && (
-                  <IconButton
-                    size="small"
-                    onClick={() => setSearchQuery('')}
-                    sx={{ 
-                      color: 'text.secondary',
-                      '&:hover': { color: 'primary.main' }
-                    }}
-                  >
-                    <ClearIcon />
-                  </IconButton>
-                )
-              }}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  '&:hover fieldset': {
-                    borderColor: 'primary.main',
-                  },
-                },
-              }}
-            />
-          </Box>
-          <List>
-            <ListItem button onClick={() => setViewMode('kanban')}>
-              <ListItemIcon>
-                <DashboardIcon />
-              </ListItemIcon>
-              {isDrawerExpanded && <ListItemText primary="Kanban View" />}
-            </ListItem>
-            <ListItem button onClick={() => setViewMode('list')}>
-              <ListItemIcon>
-                <ListIcon />
-              </ListItemIcon>
-              {isDrawerExpanded && <ListItemText primary="List View" />}
-            </ListItem>
-            <ListItem button onClick={() => setViewMode('calendar')}>
-              <ListItemIcon>
-                <CalendarTodayIcon />
-              </ListItemIcon>
-              {isDrawerExpanded && <ListItemText primary="Calendar View" />}
-            </ListItem>
-            <ListItem button onClick={() => setViewMode('today')}>
-              <ListItemIcon>
-                <EventIcon />
-              </ListItemIcon>
-              {isDrawerExpanded && <ListItemText primary="Today's Tasks" />}
-            </ListItem>
-            <ListItem button onClick={() => setViewMode('ultimate')}>
-              <ListItemIcon>
-                <StarIcon />
-              </ListItemIcon>
-              {isDrawerExpanded && <ListItemText primary="Ultimate Board" />}
-            </ListItem>
-            <Divider sx={{ my: 2 }} />
-            <ListItem>
-              {googleTasksToken ? (
-                <Box
-                  sx={{ position: 'relative', width: '100%' }}
-                  onMouseEnter={() => setGoogleTasksButtonHover(true)}
-                  onMouseLeave={() => setGoogleTasksButtonHover(false)}
-                >
-                  <Button
-                    variant="contained"
-                    color="success"
-                    fullWidth
-                    startIcon={
-                      user?.picture ? (
-                        <Avatar src={user.picture} alt={user.name} sx={{ width: 24, height: 24 }} />
-                      ) : (
-                        <img src="/check-circle.svg" alt="Google Tasks" style={{ width: 20, height: 20 }} />
-                      )
-                    }
-                    sx={{ 
-                      justifyContent: 'flex-start', 
-                      textTransform: 'none', 
-                      pr: 4,
-                      minWidth: isDrawerExpanded ? 'auto' : '40px',
-                      width: isDrawerExpanded ? '100%' : '40px',
-                      '& .MuiButton-startIcon': {
-                        margin: isDrawerExpanded ? '0 8px 0 -4px' : 0
-                      }
-                    }}
-                    onClick={() => {
-                      setGoogleTasksToken(null);
-                      googleLogout();
-                    }}
-                  >
-                    {isDrawerExpanded && "Google Task account connected"}
-                  </Button>
-                  {googleTasksButtonHover && isDrawerExpanded && (
-                    <IconButton
-                      size="small"
-                      color="error"
-                      sx={{
-                        position: 'absolute',
-                        right: 2,
-                        top: 2,
-                        width: 24,
-                        height: 24,
-                        bgcolor: 'background.paper',
-                        boxShadow: 1,
-                        zIndex: 2,
-                      }}
-                      onClick={() => {
-                        setGoogleTasksToken(null);
-                        googleLogout();
-                      }}
-                    >
-                      <LogoutIcon fontSize="inherit" />
-                    </IconButton>
-                  )}
-                </Box>
-              ) : (
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  fullWidth
-                  startIcon={<img src="/check-circle.svg" alt="Google Tasks" style={{ width: 20, height: 20 }} />}
-                  sx={{ 
-                    justifyContent: 'flex-start', 
-                    textTransform: 'none',
-                    minWidth: isDrawerExpanded ? 'auto' : '40px',
-                    width: isDrawerExpanded ? '100%' : '40px',
-                    '& .MuiButton-startIcon': {
-                      margin: isDrawerExpanded ? '0 8px 0 -4px' : 0
-                    }
-                  }}
-                  onClick={() => {
-                    setGoogleTasksLoading(true);
-                    loginGoogleTasks();
-                  }}
-                  disabled={googleTasksLoading}
-                >
-                  {isDrawerExpanded && (googleTasksLoading ? 'Connecting...' : 'Connect Google Task account')}
-                </Button>
-              )}
-            </ListItem>
-          </List>
-          <Divider />
-          <List>
-            <ListItem 
-              onClick={handleLogout}
-              sx={{ cursor: 'pointer' }}
-            >
-              <ListItemIcon>
-                <LogoutIcon />
-              </ListItemIcon>
-              {isDrawerExpanded && <ListItemText primary="Logout" />}
-            </ListItem>
-          </List>
-        </>
-      ) : (
-        <Box sx={{ textAlign: 'center', py: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Welcome to GTaskALL
-          </Typography>
-          <Typography>
-            Sign in to manage your tasks
-          </Typography>
-          <GoogleLogin
-            onSuccess={handleGoogleSuccess}
-            onError={handleGoogleError}
-            useOneTap
-          />
-        </Box>
-      )}
-    </Box>
-  );
-
   const getDateColor = (date: string) => {
     if (date === 'no-date') return 'grey.600';
     
@@ -1595,25 +1404,214 @@ function App() {
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <Box sx={{ display: 'flex' }}>
         <CssBaseline />
-        <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+        <AppBar 
+          position="fixed" 
+          sx={{ 
+            zIndex: (theme) => theme.zIndex.drawer + 1,
+            background: 'linear-gradient(45deg, #1a237e 30%, #283593 90%)',
+            boxShadow: '0 3px 5px 2px rgba(33, 150, 243, .3)'
+          }}
+        >
           <Toolbar>
-            <IconButton
-              color="inherit"
-              aria-label="open drawer"
-              edge="start"
-              onClick={handleDrawerToggle}
-              sx={{ mr: 2, display: { sm: 'none' } }}
+            <Typography 
+              variant="h6" 
+              noWrap 
+              component="div" 
+              sx={{ 
+                mr: 4,
+                fontWeight: 'bold',
+                letterSpacing: '0.5px',
+                background: 'linear-gradient(45deg, #fff 30%, #e3f2fd 90%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent'
+              }}
             >
-              <MenuIcon />
-            </IconButton>
-            <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
               Task Manager
             </Typography>
+            <Box sx={{ 
+              display: 'flex', 
+              gap: 1,
+              '& .MuiIconButton-root': {
+                color: 'rgba(255, 255, 255, 0.8)',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  color: '#fff',
+                  transform: 'translateY(-2px)',
+                  background: 'rgba(255, 255, 255, 0.1)'
+                },
+                '&.active': {
+                  color: '#fff',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  boxShadow: '0 0 10px rgba(255, 255, 255, 0.3)'
+                }
+              }
+            }}>
+              <IconButton 
+                className={viewMode === 'kanban' ? 'active' : ''}
+                onClick={() => setViewMode('kanban')}
+                title="Kanban View"
+              >
+                <DashboardIcon />
+              </IconButton>
+              <IconButton 
+                className={viewMode === 'list' ? 'active' : ''}
+                onClick={() => setViewMode('list')}
+                title="List View"
+              >
+                <ListIcon />
+              </IconButton>
+              <IconButton 
+                className={viewMode === 'calendar' ? 'active' : ''}
+                onClick={() => setViewMode('calendar')}
+                title="Calendar View"
+              >
+                <CalendarTodayIcon />
+              </IconButton>
+              <IconButton 
+                className={viewMode === 'today' ? 'active' : ''}
+                onClick={() => setViewMode('today')}
+                title="Today's Tasks"
+              >
+                <EventIcon />
+              </IconButton>
+              <IconButton 
+                className={viewMode === 'ultimate' ? 'active' : ''}
+                onClick={() => setViewMode('ultimate')}
+                title="Ultimate Board"
+              >
+                <StarIcon />
+              </IconButton>
+            </Box>
+            <Box sx={{ flexGrow: 1 }} />
+            {user && (
+              <TextField
+                size="small"
+                variant="outlined"
+                placeholder="Search tasks..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <Box sx={{ display: 'flex', alignItems: 'center', color: 'inherit', pl: 1 }}>
+                      <SearchIcon />
+                    </Box>
+                  ),
+                  endAdornment: searchQuery && (
+                    <IconButton
+                      size="small"
+                      onClick={() => setSearchQuery('')}
+                      sx={{ color: 'inherit' }}
+                    >
+                      <ClearIcon />
+                    </IconButton>
+                  ),
+                  sx: { 
+                    color: 'inherit',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'rgba(255, 255, 255, 0.5)',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'primary.main',
+                    }
+                  }
+                }}
+                sx={{ 
+                  mr: 2,
+                  width: 200,
+                  '& .MuiInputBase-root': {
+                    color: 'inherit'
+                  }
+                }}
+              />
+            )}
             {user ? (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Avatar src={user.picture} alt={user.name} />
-                <Typography variant="body1">{user.name}</Typography>
-                <IconButton color="inherit" onClick={handleLogout}>
+                {googleTasksToken ? (
+                  <Button
+                    variant="contained"
+                    color="success"
+                    size="small"
+                    startIcon={
+                      user?.picture ? (
+                        <Avatar src={user.picture} alt={user.name} sx={{ width: 20, height: 20 }} />
+                      ) : (
+                        <img src="/check-circle.svg" alt="Google Tasks" style={{ width: 16, height: 16 }} />
+                      )
+                    }
+                    onClick={() => {
+                      setGoogleTasksToken(null);
+                      googleLogout();
+                    }}
+                    sx={{ 
+                      textTransform: 'none',
+                      minWidth: 'auto',
+                      px: 1,
+                      background: 'rgba(76, 175, 80, 0.9)',
+                      '&:hover': {
+                        background: 'rgba(76, 175, 80, 1)',
+                      }
+                    }}
+                  >
+                    Connected
+                  </Button>
+                ) : (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    size="medium"
+                    startIcon={<img src="/check-circle.svg" alt="Google Tasks" style={{ width: 20, height: 20 }} />}
+                    onClick={() => {
+                      setGoogleTasksLoading(true);
+                      loginGoogleTasks();
+                    }}
+                    disabled={googleTasksLoading}
+                    sx={{ 
+                      textTransform: 'none',
+                      px: 2,
+                      py: 1,
+                      fontWeight: 'bold',
+                      boxShadow: '0 3px 5px 2px rgba(33, 150, 243, .3)',
+                      background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                      '&:hover': {
+                        boxShadow: '0 5px 8px 2px rgba(33, 150, 243, .4)',
+                        background: 'linear-gradient(45deg, #1976D2 30%, #1E88E5 90%)',
+                      }
+                    }}
+                  >
+                    {googleTasksLoading ? 'Connecting...' : 'Connect Google Tasks'}
+                  </Button>
+                )}
+                <Avatar 
+                  src={user.picture} 
+                  alt={user.name}
+                  sx={{
+                    border: '2px solid rgba(255, 255, 255, 0.3)',
+                    boxShadow: '0 0 10px rgba(255, 255, 255, 0.2)'
+                  }}
+                />
+                <Typography 
+                  variant="body1"
+                  sx={{
+                    fontWeight: 500,
+                    textShadow: '0 1px 2px rgba(0, 0, 0, 0.2)'
+                  }}
+                >
+                  {user.name}
+                </Typography>
+                <IconButton 
+                  color="inherit" 
+                  onClick={handleLogout}
+                  sx={{
+                    '&:hover': {
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      transform: 'rotate(90deg)',
+                      transition: 'all 0.3s ease'
+                    }
+                  }}
+                >
                   <LogoutIcon />
                 </IconButton>
               </Box>
@@ -1627,50 +1625,11 @@ function App() {
         </AppBar>
         
         <Box
-          component="nav"
-          sx={{ width: { sm: isDrawerExpanded ? drawerWidth : collapsedDrawerWidth }, flexShrink: { sm: 0 } }}
-        >
-          <Drawer
-            variant="temporary"
-            open={mobileOpen}
-            onClose={handleDrawerToggle}
-            ModalProps={{
-              keepMounted: true,
-            }}
-            sx={{
-              display: { xs: 'block', sm: 'none' },
-              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-            }}
-          >
-            {drawer}
-          </Drawer>
-          <Drawer
-            variant="permanent"
-            sx={{
-              display: { xs: 'none', sm: 'block' },
-              '& .MuiDrawer-paper': {
-                boxSizing: 'border-box',
-                width: isDrawerExpanded ? drawerWidth : collapsedDrawerWidth,
-                position: 'fixed',
-                left: 0,
-                top: 64,
-                height: 'calc(100% - 64px)',
-                borderRight: '1px solid #e0e0e0',
-                transition: 'width 0.2s ease-in-out',
-              },
-            }}
-            open
-          >
-            {drawer}
-          </Drawer>
-        </Box>
-
-        <Box
           component="main"
           sx={{
             flexGrow: 1,
             p: 3,
-            width: { sm: `calc(100% - ${isDrawerExpanded ? drawerWidth : collapsedDrawerWidth}px)` },
+            width: '100%',
             mt: '64px',
           }}
         >
@@ -1808,49 +1767,28 @@ function App() {
                 </>
               )
             ) : (
-              <Box sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: 'calc(100vh - 64px)',
-                textAlign: 'center',
-                p: 3,
-              }}>
-                <img src="/check-circle.svg" alt="Google Tasks" style={{ width: 80, height: 80, marginBottom: 16 }} />
-                <Typography variant="h4" gutterBottom>
-                  Connect your Google Task account
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="h5" gutterBottom>
+                  Connect your Google Tasks account
                 </Typography>
-                <Typography variant="body1" color="text.secondary" paragraph>
-                  To use GTaskALL, please connect your Google Task account by clicking the button in the left menu.
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Once connected, your Google Tasks will appear here.
+                <Typography color="text.secondary" paragraph>
+                  To start managing your tasks, please connect your Google Tasks account.
                 </Typography>
               </Box>
             )
           ) : (
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: 'calc(100vh - 64px)',
-                textAlign: 'center',
-                p: 3,
-              }}
-            >
-              <img src="/check-circle.svg" alt="Logo" style={{ width: 120, height: 120, marginBottom: 2 }} />
-              <Typography variant="h3" component="h1" gutterBottom>
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography variant="h5" gutterBottom>
                 Welcome to GTaskALL
               </Typography>
-              <Typography variant="h6" color="text.secondary" paragraph>
-                Your all-in-one task management solution
+              <Typography color="text.secondary" paragraph>
+                Sign in to manage your tasks
               </Typography>
-              <Typography variant="body1" color="text.secondary" paragraph>
-                Sign in with your Google account to get started
-              </Typography>
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                useOneTap
+              />
             </Box>
           )}
         </Box>
