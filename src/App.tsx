@@ -120,6 +120,7 @@ function App() {
     color: '#1976d2',
     status: 'todo'
   });
+  const [sidebarWidth, setSidebarWidth] = useState(400);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
@@ -785,17 +786,24 @@ function App() {
     setSelectedTask(null);
   };
 
-  const handleGoogleSuccess = (credentialResponse: any) => {
-    // In a real app, you would verify the token with your backend
-    const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
-    const userData = {
-      name: decoded.name,
-      email: decoded.email,
-      picture: decoded.picture,
-    };
-    setUser(userData);
-    // Store the credential in localStorage
-    localStorage.setItem('google-credential', credentialResponse.credential);
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    try {
+      const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
+      const userData = {
+        name: decoded.name,
+        email: decoded.email,
+        picture: decoded.picture,
+      };
+      setUser(userData);
+      localStorage.setItem('google-credential', credentialResponse.credential);
+      
+      // Automatically trigger Google Tasks connection after successful login
+      setGoogleTasksLoading(true);
+      await loginGoogleTasks();
+    } catch (error) {
+      console.error('Error during login:', error);
+      setGoogleTasksLoading(false);
+    }
   };
 
   const handleGoogleError = () => {
@@ -816,9 +824,53 @@ function App() {
 
   const loginGoogleTasks = useGoogleLogin({
     scope: 'https://www.googleapis.com/auth/tasks',
-    onSuccess: (tokenResponse) => {
-      setGoogleTasksToken(tokenResponse.access_token);
-      setGoogleTasksLoading(false);
+    onSuccess: async (tokenResponse) => {
+      try {
+        setGoogleTasksToken(tokenResponse.access_token);
+        
+        // Fetch task lists immediately after getting the token
+        const response = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+        });
+        
+        const taskLists = response.data.items || [];
+        setGoogleTaskLists(taskLists);
+
+        // Fetch tasks for each list
+        const tasksPromises = taskLists.map(async (list: any) => {
+          let allTasks: any[] = [];
+          let pageToken: string | undefined;
+          
+          do {
+            const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
+              headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+              params: {
+                showCompleted: true,
+                showHidden: true,
+                maxResults: 100,
+                pageToken: pageToken
+              }
+            });
+            
+            const tasks = response.data.items || [];
+            allTasks = [...allTasks, ...tasks];
+            pageToken = response.data.nextPageToken;
+          } while (pageToken);
+
+          return { listId: list.id, tasks: allTasks };
+        });
+
+        const results = await Promise.all(tasksPromises);
+        const tasksByList: { [listId: string]: any[] } = {};
+        results.forEach(({ listId, tasks }) => {
+          tasksByList[listId] = tasks;
+        });
+        setGoogleTasks(tasksByList);
+        setGoogleTasksLoading(false);
+      } catch (error) {
+        console.error('Error fetching tasks:', error);
+        setGoogleTasksLoading(false);
+      }
     },
     onError: () => {
       setGoogleTasksLoading(false);
@@ -1275,15 +1327,15 @@ function App() {
 
   const renderUltimateView = () => {
     return (
-      <Grid container spacing={2}>
-        <Grid item xs={12} md={8}>
+      <Box sx={{ display: 'flex', width: '100%' }}>
+        <Box sx={{ flex: 1, minWidth: 0, mr: 2 }}>
           <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
             {columns.map((column, index) => (
               <Paper
                 key={column.id}
                 sx={{
                   p: 2,
-                  minWidth: 400,
+                  minWidth: 300,
                   maxWidth: 'none',
                   flex: 1,
                   bgcolor: 'background.paper',
@@ -1343,6 +1395,22 @@ function App() {
                       {column.tasks.length}
                     </Typography>
                   </Typography>
+                  {column.id === 'done' && (
+                    <TextField
+                      type="number"
+                      size="small"
+                      label="Limit"
+                      value={column.limit || ''}
+                      onChange={(e) => {
+                        const newLimit = parseInt(e.target.value) || 0;
+                        setColumns(columns.map(col => 
+                          col.id === 'done' ? { ...col, limit: newLimit } : col
+                        ));
+                      }}
+                      sx={{ width: '80px' }}
+                      InputProps={{ inputProps: { min: 0 } }}
+                    />
+                  )}
                 </Box>
                 <Stack spacing={2}>
                   {column.tasks.map((task) => renderTask(task, column.id))}
@@ -1350,53 +1418,91 @@ function App() {
               </Paper>
             ))}
           </Box>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2, height: 'calc(100vh - 100px)', overflow: 'auto' }}>
-            <Typography variant="h6" gutterBottom>
-              Today's Tasks
-            </Typography>
-            <Stack spacing={2}>
-              {columns.reduce((acc: Task[], column) => {
-                const todayTasks = column.tasks.filter(task => 
-                  task.dueDate && isToday(new Date(task.dueDate))
-                );
-                return [...acc, ...todayTasks];
-              }, []).map((task) => (
-                <Paper
-                  key={task.id}
-                  sx={{
-                    p: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2,
-                    borderLeft: `4px solid ${task.color || '#42A5F5'}`,
-                    '&:hover': {
-                      boxShadow: 2,
-                    },
-                  }}
-                >
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="subtitle1">{task.content}</Typography>
-                    {task.notes && (
-                      <Typography variant="body2" color="text.secondary">
-                        {task.notes}
-                      </Typography>
-                    )}
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Chip
-                      label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
-                      color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
-                      size="small"
-                    />
-                  </Box>
-                </Paper>
-              ))}
-            </Stack>
-          </Paper>
-        </Grid>
-      </Grid>
+        </Box>
+        <Paper 
+          sx={{ 
+            p: 2, 
+            height: 'calc(100vh - 100px)', 
+            overflow: 'auto',
+            width: sidebarWidth,
+            position: 'relative',
+            transition: 'width 0.3s ease',
+            flexShrink: 0
+          }}
+        >
+          <Box sx={{ 
+            position: 'absolute', 
+            left: 0,
+            top: 0, 
+            bottom: 0, 
+            width: '4px', 
+            cursor: 'ew-resize',
+            '&:hover': {
+              bgcolor: 'primary.main',
+            }
+          }}
+          onMouseDown={(e) => {
+            const startX = e.clientX;
+            const startWidth = sidebarWidth;
+            
+            const handleMouseMove = (e: MouseEvent) => {
+              const deltaX = e.clientX - startX;
+              const newWidth = Math.max(200, Math.min(800, startWidth - deltaX));
+              setSidebarWidth(newWidth);
+            };
+            
+            const handleMouseUp = () => {
+              document.removeEventListener('mousemove', handleMouseMove);
+              document.removeEventListener('mouseup', handleMouseUp);
+            };
+            
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+          }}
+          />
+          <Typography variant="h6" gutterBottom>
+            Today's Tasks
+          </Typography>
+          <Stack spacing={2}>
+            {columns.reduce((acc: Task[], column) => {
+              const todayTasks = column.tasks.filter(task => 
+                task.dueDate && isToday(new Date(task.dueDate))
+              );
+              return [...acc, ...todayTasks];
+            }, []).map((task) => (
+              <Paper
+                key={task.id}
+                sx={{
+                  p: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  borderLeft: `4px solid ${task.color || '#42A5F5'}`,
+                  '&:hover': {
+                    boxShadow: 2,
+                  },
+                }}
+              >
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="subtitle1">{task.content}</Typography>
+                  {task.notes && (
+                    <Typography variant="body2" color="text.secondary">
+                      {task.notes}
+                    </Typography>
+                  )}
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Chip
+                    label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
+                    color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
+                    size="small"
+                  />
+                </Box>
+              </Paper>
+            ))}
+          </Stack>
+        </Paper>
+      </Box>
     );
   };
 
@@ -1668,7 +1774,7 @@ function App() {
                             key={column.id}
                             sx={{
                               p: 2,
-                              minWidth: 400,
+                              minWidth: 300,
                               maxWidth: 'none',
                               flex: 1,
                               bgcolor: 'background.paper',
