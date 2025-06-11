@@ -3,6 +3,8 @@
 Version 1.0
 one fix
 
+Author: Maciej Pindela
+
 A modern task management application built with React, TypeScript, and Vite.
 
 ## Features
