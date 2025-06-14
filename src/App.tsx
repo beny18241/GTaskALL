@@ -75,6 +75,7 @@ type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate';
 function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDrawerExpanded, setIsDrawerExpanded] = useState(true);
+  const [doneTasksLimit, setDoneTasksLimit] = useState(3);
   const [columns, setColumns] = useState<Column[]>(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
@@ -1251,77 +1252,103 @@ function App() {
       <Box sx={{ display: 'flex', width: '100%' }}>
         <Box sx={{ flex: 1, minWidth: 0, mr: 2 }}>
           <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
-            {columns.map((column, index) => (
-              <Paper
-                key={column.id}
-                sx={{
-                  p: 2,
-                  minWidth: 300,
-                  maxWidth: 'none',
-                  flex: 1,
-                  bgcolor: 'background.paper',
-                  borderRadius: 2,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 2,
-                  height: 'fit-content',
-                  minHeight: 'calc(100vh - 100px)',
-                  overflow: 'auto',
-                  position: 'relative',
-                  transition: 'all 0.2s ease',
-                  transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
-                  boxShadow: column.id === dragOverColumn ? 3 : 1,
-                  opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  '&:hover': {
-                    boxShadow: 4,
-                    borderColor: 'primary.light',
-                  },
-                }}
-                onDragOver={(e) => handleDragOver(e, column.id)}
-                onDragLeave={handleDragLeave}
-                onDrop={() => handleDrop(column.id)}
-              >
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between', 
-                  mb: 2,
-                  p: 1.5,
-                  borderRadius: 1,
-                  bgcolor: 'action.hover',
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 1,
-                  borderBottom: '1px solid',
-                  borderColor: 'divider',
-                }}>
-                  <Typography variant="h6" sx={{ 
-                    fontWeight: 'bold',
-                    color: 'primary.main',
+            {columns.map((column, index) => {
+              // Apply limit for done column
+              const displayTasks = column.id === 'done' ? 
+                column.tasks.slice(0, doneTasksLimit) : 
+                column.tasks;
+
+              return (
+                <Paper
+                  key={column.id}
+                  sx={{
+                    p: 2,
+                    minWidth: 300,
+                    maxWidth: 'none',
+                    flex: 1,
+                    bgcolor: 'background.paper',
+                    borderRadius: 2,
                     display: 'flex',
-                    alignItems: 'center',
-                    gap: 1
+                    flexDirection: 'column',
+                    gap: 2,
+                    height: 'fit-content',
+                    minHeight: 'calc(100vh - 100px)',
+                    overflow: 'auto',
+                    position: 'relative',
+                    transition: 'all 0.2s ease',
+                    transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
+                    boxShadow: column.id === dragOverColumn ? 3 : 1,
+                    opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    '&:hover': {
+                      boxShadow: 4,
+                      borderColor: 'primary.light',
+                    },
+                  }}
+                  onDragOver={(e) => handleDragOver(e, column.id)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={() => handleDrop(column.id)}
+                >
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between', 
+                    mb: 2,
+                    p: 1.5,
+                    borderRadius: 1,
+                    bgcolor: 'action.hover',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1,
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
                   }}>
-                    {column.title}
-                    <Typography variant="caption" sx={{ 
-                      bgcolor: 'primary.main',
-                      color: 'white',
-                      px: 1,
-                      py: 0.5,
-                      borderRadius: 1,
-                      fontSize: '0.75rem'
+                    <Typography variant="h6" sx={{ 
+                      fontWeight: 'bold',
+                      color: 'primary.main',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
                     }}>
-                      {column.tasks.length}
+                      {column.title}
+                      <Typography variant="caption" sx={{ 
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                        px: 1,
+                        py: 0.5,
+                        borderRadius: 1,
+                        fontSize: '0.75rem'
+                      }}>
+                        {column.tasks.length}
+                      </Typography>
                     </Typography>
-                  </Typography>
-                </Box>
-                <Stack spacing={2}>
-                  {column.tasks.map((task) => renderTask(task, column.id))}
-                </Stack>
-              </Paper>
-            ))}
+                    {column.id === 'done' && column.tasks.length > doneTasksLimit && (
+                      <Button
+                        size="small"
+                        onClick={() => setDoneTasksLimit(prev => prev === 3 ? column.tasks.length : 3)}
+                        sx={{ 
+                          fontSize: '0.75rem',
+                          textTransform: 'none',
+                          color: 'primary.main',
+                          '&:hover': {
+                            bgcolor: 'primary.light',
+                            color: 'white'
+                          }
+                        }}
+                      >
+                        {doneTasksLimit === 3 ? 'Show More' : 'Show Less'}
+                      </Button>
+                    )}
+                  </Box>
+                  <Stack spacing={2}>
+                    {filterTasks(displayTasks).map((task, taskIndex) => (
+                      renderTask(task, column.id)
+                    ))}
+                  </Stack>
+                </Paper>
+              );
+            })}
           </Box>
         </Box>
         <Paper 
@@ -1740,6 +1767,11 @@ function App() {
                           return new Date(a).getTime() - new Date(b).getTime();
                         });
 
+                        // Apply limit for done column
+                        const displayTasks = column.id === 'done' ? 
+                          column.tasks.slice(0, doneTasksLimit) : 
+                          column.tasks;
+
                         return (
                           <Paper
                             key={column.id}
@@ -1805,6 +1837,23 @@ function App() {
                                   {column.tasks.length}
                                 </Typography>
                               </Typography>
+                              {column.id === 'done' && column.tasks.length > doneTasksLimit && (
+                                <Button
+                                  size="small"
+                                  onClick={() => setDoneTasksLimit(prev => prev === 3 ? column.tasks.length : 3)}
+                                  sx={{ 
+                                    fontSize: '0.75rem',
+                                    textTransform: 'none',
+                                    color: 'primary.main',
+                                    '&:hover': {
+                                      bgcolor: 'primary.light',
+                                      color: 'white'
+                                    }
+                                  }}
+                                >
+                                  {doneTasksLimit === 3 ? 'Show More' : 'Show Less'}
+                                </Button>
+                              )}
                             </Box>
                             <Stack spacing={2}>
                               {sortedDates.map((date) => (
@@ -1829,9 +1878,11 @@ function App() {
                                     {date === 'no-date' ? 'No Due Date' : format(new Date(date), 'MMM d, yyyy')}
                                   </Typography>
                                   <Stack spacing={1} sx={{ pl: 1 }}>
-                                    {filterTasks(tasksByDate[date]).map((task, taskIndex) => (
-                                      renderTask(task, column.id)
-                                    ))}
+                                    {filterTasks(tasksByDate[date])
+                                      .filter(task => displayTasks.includes(task))
+                                      .map((task, taskIndex) => (
+                                        renderTask(task, column.id)
+                                      ))}
                                   </Stack>
                                 </Box>
                               ))}
