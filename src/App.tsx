@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid } from '@mui/material';
+import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid, Menu } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -9,6 +9,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EventIcon from '@mui/icons-material/Event';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -288,12 +289,27 @@ function App() {
         email: decoded.email,
         picture: decoded.picture,
       };
-      setUser(userData);
-      localStorage.setItem('google-credential', credentialResponse.credential);
+
+      // If this is the first login, set as main user
+      if (!user) {
+        setUser(userData);
+        localStorage.setItem('google-credential', credentialResponse.credential);
+      }
+
+      // Check if this account is already connected
+      const isExistingAccount = googleAccounts.some(account => account.user.email === userData.email);
       
-      // Automatically trigger Google Tasks connection after successful login
-      setGoogleTasksLoading(true);
-      await loginGoogleTasks();
+      if (!isExistingAccount) {
+        // Automatically trigger Google Tasks connection for new account
+        setGoogleTasksLoading(true);
+        await loginGoogleTasks();
+      } else {
+        // If account exists, just switch to it
+        const accountIndex = googleAccounts.findIndex(account => account.user.email === userData.email);
+        if (accountIndex !== -1) {
+          setActiveAccountIndex(accountIndex);
+        }
+      }
     } catch (error) {
       console.error('Error during login:', error);
       setGoogleTasksLoading(false);
@@ -811,6 +827,20 @@ function App() {
     const isNoTask = task.id === 'no-tasks';
     const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed';
     const isDoneColumn = columnId === 'done';
+    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+    
+    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+      setAnchorEl(event.currentTarget);
+    };
+
+    const handleMenuClose = () => {
+      setAnchorEl(null);
+    };
+
+    const handleQuickReschedule = (days: number) => {
+      handleQuickDateChange(task, columnId, addDays(new Date(), days));
+      handleMenuClose();
+    };
     
     return (
       <Paper 
@@ -831,7 +861,8 @@ function App() {
           bgcolor: task.color ? `${task.color}10` : 'background.paper',
           maxWidth: '100%',
           overflow: 'hidden',
-          mb: 1
+          mb: 1,
+          minHeight: task.notes ? '120px' : 'auto'
         }}
         draggable
         onDragStart={() => handleDragStart(task, columnId)}
@@ -882,7 +913,7 @@ function App() {
                   fontSize: '0.75rem',
                   lineHeight: 1.3,
                   wordBreak: 'break-word',
-                  maxHeight: '40px',
+                  maxHeight: '60px',
                   overflow: 'auto'
                 }}
               >
@@ -998,47 +1029,40 @@ function App() {
                   </Box>
                 )}
                 {!isNoTask && !isDoneColumn && (
-                  <Stack direction="row" spacing={0.5}>
-                    <Button
+                  <>
+                    <IconButton
                       size="small"
-                      variant="outlined"
-                      onClick={() => handleQuickDateChange(task, columnId, new Date())}
+                      onClick={handleMenuOpen}
                       sx={{ 
-                        fontSize: '0.65rem',
-                        py: 0.25,
-                        minWidth: 'auto',
-                        px: 1
+                        p: 0.5,
+                        color: 'primary.main',
+                        '&:hover': {
+                          bgcolor: 'primary.light',
+                          color: 'white'
+                        }
                       }}
                     >
-                      Today
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => handleQuickDateChange(task, columnId, addDays(new Date(), 1))}
-                      sx={{ 
-                        fontSize: '0.65rem',
-                        py: 0.25,
-                        minWidth: 'auto',
-                        px: 1
+                      <MoreVertIcon fontSize="small" />
+                    </IconButton>
+                    <Menu
+                      anchorEl={anchorEl}
+                      open={Boolean(anchorEl)}
+                      onClose={handleMenuClose}
+                      PaperProps={{
+                        sx: {
+                          mt: 1,
+                          '& .MuiMenuItem-root': {
+                            fontSize: '0.875rem',
+                            py: 1
+                          }
+                        }
                       }}
                     >
-                      Tomorrow
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => handleQuickDateChange(task, columnId, addDays(new Date(), 7))}
-                      sx={{ 
-                        fontSize: '0.65rem',
-                        py: 0.25,
-                        minWidth: 'auto',
-                        px: 1
-                      }}
-                    >
-                      Next Week
-                    </Button>
-                  </Stack>
+                      <MenuItem onClick={() => handleQuickReschedule(0)}>Today</MenuItem>
+                      <MenuItem onClick={() => handleQuickReschedule(1)}>Tomorrow</MenuItem>
+                      <MenuItem onClick={() => handleQuickReschedule(7)}>Next Week</MenuItem>
+                    </Menu>
+                  </>
                 )}
               </Box>
             </Stack>
@@ -1058,49 +1082,85 @@ function App() {
 
     const filteredTasks = filterTasks(allTasks);
 
+    // Group tasks by date
+    const tasksByDate = filteredTasks.reduce((acc: { [key: string]: Task[] }, task) => {
+      const date = task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : 'no-date';
+      if (!acc[date]) {
+        acc[date] = [];
+      }
+      acc[date].push(task);
+      return acc;
+    }, {});
+
+    // Sort dates
+    const sortedDates = Object.keys(tasksByDate).sort((a, b) => {
+      if (a === 'no-date') return 1;
+      if (b === 'no-date') return -1;
+      return new Date(a).getTime() - new Date(b).getTime();
+    });
+
     return (
       <Box sx={{ p: 2 }}>
         <Typography variant="h6" gutterBottom>
           All Tasks
         </Typography>
-        <Stack spacing={2}>
-          {filteredTasks.map((task) => (
-            <Paper
-              key={task.id}
-              sx={{
-                p: 2,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                '&:hover': {
-                  boxShadow: 2,
-                },
-              }}
-            >
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="subtitle1">{task.content}</Typography>
-                {task.notes && (
-                  <Typography variant="body2" color="text.secondary">
-                    {task.notes}
-                  </Typography>
-                )}
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {task.dueDate && (
-                  <Chip
-                    icon={<EventIcon />}
-                    label={format(new Date(task.dueDate), 'MMM d, yyyy')}
-                    color={new Date(task.dueDate) < new Date() ? 'error' : 'primary'}
-                    size="small"
-                  />
-                )}
-                <Chip
-                  label={task.status === 'in-progress' ? 'In Progress' : 'To Do'}
-                  color={task.status === 'in-progress' ? 'warning' : 'info'}
-                  size="small"
-                />
-              </Box>
-            </Paper>
+        <Stack spacing={1}>
+          {sortedDates.map((date) => (
+            <Box key={date}>
+              <Typography 
+                variant="subtitle2" 
+                sx={{ 
+                  color: 'white',
+                  mb: 1,
+                  px: 1.5,
+                  py: 0.75,
+                  bgcolor: getDateColor(date),
+                  borderRadius: 1,
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  boxShadow: 1
+                }}
+              >
+                <EventIcon fontSize="small" />
+                {date === 'no-date' ? 'No Due Date' : format(new Date(date), 'MMM d, yyyy')}
+              </Typography>
+              <Stack spacing={0.5}>
+                {tasksByDate[date].map((task) => (
+                  <Paper
+                    key={task.id}
+                    sx={{
+                      p: 1.5,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2,
+                      borderLeft: `4px solid ${task.color || '#42A5F5'}`,
+                      '&:hover': {
+                        boxShadow: 1,
+                      },
+                    }}
+                  >
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="subtitle2">{task.content}</Typography>
+                      {task.notes && (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                          {task.notes}
+                        </Typography>
+                      )}
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Chip
+                        label={task.status === 'in-progress' ? 'In Progress' : 'To Do'}
+                        color={task.status === 'in-progress' ? 'warning' : 'info'}
+                        size="small"
+                        sx={{ height: 24 }}
+                      />
+                    </Box>
+                  </Paper>
+                ))}
+              </Stack>
+            </Box>
           ))}
         </Stack>
       </Box>
@@ -1828,8 +1888,8 @@ function App() {
                                     <EventIcon fontSize="small" />
                                     {date === 'no-date' ? 'No Due Date' : format(new Date(date), 'MMM d, yyyy')}
                                   </Typography>
-                                  <Stack spacing={1} sx={{ pl: 1 }}>
-                                    {filterTasks(tasksByDate[date]).map((task, taskIndex) => (
+                                  <Stack spacing={0.5}>
+                                    {filterTasks(tasksByDate[date]).map((task) => (
                                       renderTask(task, column.id)
                                     ))}
                                   </Stack>
