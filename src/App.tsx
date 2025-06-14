@@ -79,7 +79,11 @@ function App() {
   const [columns, setColumns] = useState<Column[]>(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
-      return JSON.parse(savedData);
+      const parsedData = JSON.parse(savedData);
+      // Ensure the Done column has a limit
+      return parsedData.map((col: Column) => 
+        col.id === 'done' ? { ...col, limit: col.limit || 3 } : col
+      );
     }
     return [
       {
@@ -198,7 +202,7 @@ function App() {
             return newAccounts;
           });
 
-          // Fetch tasks for each list
+          // Fetch tasks for each list with proper pagination
           const tasksPromises = taskLists.map(async (list: any) => {
             let allTasks: any[] = [];
             let pageToken: string | undefined;
@@ -614,20 +618,27 @@ function App() {
                       notes: task.notes || '',
                       color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
                       status: 'completed' as const,
-                      completedAt: task.completed ? new Date(task.completed) : null
+                      completedAt: task.completed ? new Date(task.completed) : null,
+                      accountEmail: task.accountEmail,
+                      accountName: task.accountName,
+                      accountPicture: task.accountPicture
                     }));
                   allCompletedTasks.push(...completedTasks);
                 });
                 
-                // Sort by completion date (most recent first) and take last N tasks based on limit
+                // Sort by completion date (most recent first)
                 columnTasks = allCompletedTasks
                   .sort((a, b) => {
                     if (!a.completedAt || !b.completedAt) return 0;
                     return b.completedAt.getTime() - a.completedAt.getTime();
-                  })
-                  .slice(0, column.limit ?? 3);
+                  });
 
-                if (columnTasks.length === 0 || column.limit === 0) {
+                // Apply limit if specified
+                if (column.limit && column.limit > 0) {
+                  columnTasks = columnTasks.slice(0, column.limit);
+                }
+
+                if (columnTasks.length === 0) {
                   columnTasks = [{
                     id: 'no-tasks',
                     content: 'No completed tasks yet',
@@ -832,7 +843,9 @@ function App() {
           bgcolor: task.color ? `${task.color}10` : 'background.paper',
           maxWidth: '100%',
           overflow: 'hidden',
-          mb: 1
+          mb: 1,
+          display: 'flex',
+          flexDirection: 'column'
         }}
         draggable
         onDragStart={() => handleDragStart(task, columnId)}
@@ -858,7 +871,7 @@ function App() {
             />
           </Box>
         )}
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%' }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography 
               variant="subtitle1" 
@@ -881,10 +894,11 @@ function App() {
                 sx={{ 
                   mb: 1,
                   fontSize: '0.75rem',
-                  lineHeight: 1.3,
+                  lineHeight: 1.5,
                   wordBreak: 'break-word',
-                  maxHeight: '40px',
-                  overflow: 'auto'
+                  whiteSpace: 'pre-wrap',
+                  overflow: 'visible',
+                  maxHeight: 'none'
                 }}
               >
                 {task.notes}
@@ -997,49 +1011,6 @@ function App() {
                     <EventIcon sx={{ fontSize: '0.7rem', mr: 0.5 }} />
                     Add Date
                   </Box>
-                )}
-                {!isNoTask && !isDoneColumn && (
-                  <Stack direction="row" spacing={0.5}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => handleQuickDateChange(task, columnId, new Date())}
-                      sx={{ 
-                        fontSize: '0.65rem',
-                        py: 0.25,
-                        minWidth: 'auto',
-                        px: 1
-                      }}
-                    >
-                      Today
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => handleQuickDateChange(task, columnId, addDays(new Date(), 1))}
-                      sx={{ 
-                        fontSize: '0.65rem',
-                        py: 0.25,
-                        minWidth: 'auto',
-                        px: 1
-                      }}
-                    >
-                      Tomorrow
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => handleQuickDateChange(task, columnId, addDays(new Date(), 7))}
-                      sx={{ 
-                        fontSize: '0.65rem',
-                        py: 0.25,
-                        minWidth: 'auto',
-                        px: 1
-                      }}
-                    >
-                      Next Week
-                    </Button>
-                  </Stack>
                 )}
               </Box>
             </Stack>
@@ -1255,7 +1226,7 @@ function App() {
             {columns.map((column, index) => {
               // Apply limit for done column
               const displayTasks = column.id === 'done' ? 
-                column.tasks.slice(0, doneTasksLimit) : 
+                (column.limit && column.limit > 0 ? column.tasks.slice(0, column.limit) : column.tasks) : 
                 column.tasks;
 
               return (
@@ -1323,22 +1294,41 @@ function App() {
                         {column.tasks.length}
                       </Typography>
                     </Typography>
-                    {column.id === 'done' && column.tasks.length > doneTasksLimit && (
-                      <Button
-                        size="small"
-                        onClick={() => setDoneTasksLimit(prev => prev === 3 ? column.tasks.length : 3)}
-                        sx={{ 
-                          fontSize: '0.75rem',
-                          textTransform: 'none',
-                          color: 'primary.main',
-                          '&:hover': {
-                            bgcolor: 'primary.light',
-                            color: 'white'
-                          }
-                        }}
-                      >
-                        {doneTasksLimit === 3 ? 'Show More' : 'Show Less'}
-                      </Button>
+                    {column.id === 'done' && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          Show:
+                        </Typography>
+                        <Select
+                          size="small"
+                          value={column.limit || 3}
+                          onChange={(e) => {
+                            const newLimit = Number(e.target.value);
+                            const newColumns = columns.map(col => 
+                              col.id === column.id 
+                                ? { ...col, limit: newLimit }
+                                : col
+                            );
+                            setColumns(newColumns);
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(newColumns));
+                          }}
+                          sx={{ 
+                            fontSize: '0.75rem',
+                            height: '28px',
+                            '& .MuiSelect-select': {
+                              py: 0.5
+                            }
+                          }}
+                        >
+                          <MenuItem value={3}>3</MenuItem>
+                          <MenuItem value={5}>5</MenuItem>
+                          <MenuItem value={10}>10</MenuItem>
+                          <MenuItem value={20}>20</MenuItem>
+                          <MenuItem value={50}>50</MenuItem>
+                          <MenuItem value={100}>100</MenuItem>
+                          <MenuItem value={-1}>All</MenuItem>
+                        </Select>
+                      </Box>
                     )}
                   </Box>
                   <Stack spacing={2}>
@@ -1455,10 +1445,7 @@ function App() {
                 isRecurring: task.recurrence ? true : false,
                 notes: task.notes || '',
                 color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
-                status: 'todo' as const,
-                accountEmail: task.accountEmail,
-                accountName: task.accountName,
-                accountPicture: task.accountPicture
+                status: 'todo' as const
               }));
             columnTasks = [...columnTasks, ...todoTasks];
           });
@@ -1494,10 +1481,7 @@ function App() {
                 isRecurring: task.recurrence ? true : false,
                 notes: task.notes?.replace('⚡ Active', '').trim() || '',
                 color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#FFA726',
-                status: 'in-progress' as const,
-                accountEmail: task.accountEmail,
-                accountName: task.accountName,
-                accountPicture: task.accountPicture
+                status: 'in-progress' as const
               }));
             columnTasks = [...columnTasks, ...inProgressTasks];
           });
@@ -1523,15 +1507,19 @@ function App() {
             allCompletedTasks.push(...completedTasks);
           });
           
-          // Sort by completion date (most recent first) and take last N tasks based on limit
+          // Sort by completion date (most recent first)
           columnTasks = allCompletedTasks
             .sort((a, b) => {
               if (!a.completedAt || !b.completedAt) return 0;
               return b.completedAt.getTime() - a.completedAt.getTime();
-            })
-            .slice(0, column.limit ?? 3);
+            });
 
-          if (columnTasks.length === 0 || column.limit === 0) {
+          // Apply limit if specified
+          if (column.limit && column.limit > 0) {
+            columnTasks = columnTasks.slice(0, column.limit);
+          }
+
+          if (columnTasks.length === 0) {
             columnTasks = [{
               id: 'no-tasks',
               content: 'No completed tasks yet',
@@ -1750,26 +1738,9 @@ function App() {
                   {viewMode === 'kanban' && (
                     <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
                       {columns.map((column, index) => {
-                        // Group tasks by date
-                        const tasksByDate = column.tasks.reduce((acc: { [key: string]: Task[] }, task) => {
-                          const date = task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : 'no-date';
-                          if (!acc[date]) {
-                            acc[date] = [];
-                          }
-                          acc[date].push(task);
-                          return acc;
-                        }, {});
-
-                        // Sort dates
-                        const sortedDates = Object.keys(tasksByDate).sort((a, b) => {
-                          if (a === 'no-date') return 1;
-                          if (b === 'no-date') return -1;
-                          return new Date(a).getTime() - new Date(b).getTime();
-                        });
-
                         // Apply limit for done column
                         const displayTasks = column.id === 'done' ? 
-                          column.tasks.slice(0, doneTasksLimit) : 
+                          (column.limit && column.limit > 0 ? column.tasks.slice(0, column.limit) : column.tasks) : 
                           column.tasks;
 
                         return (
@@ -1837,54 +1808,46 @@ function App() {
                                   {column.tasks.length}
                                 </Typography>
                               </Typography>
-                              {column.id === 'done' && column.tasks.length > doneTasksLimit && (
-                                <Button
-                                  size="small"
-                                  onClick={() => setDoneTasksLimit(prev => prev === 3 ? column.tasks.length : 3)}
-                                  sx={{ 
-                                    fontSize: '0.75rem',
-                                    textTransform: 'none',
-                                    color: 'primary.main',
-                                    '&:hover': {
-                                      bgcolor: 'primary.light',
-                                      color: 'white'
-                                    }
-                                  }}
-                                >
-                                  {doneTasksLimit === 3 ? 'Show More' : 'Show Less'}
-                                </Button>
+                              {column.id === 'done' && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                    Show:
+                                  </Typography>
+                                  <Select
+                                    size="small"
+                                    value={column.limit || 3}
+                                    onChange={(e) => {
+                                      const newLimit = Number(e.target.value);
+                                      const newColumns = columns.map(col => 
+                                        col.id === column.id 
+                                          ? { ...col, limit: newLimit }
+                                          : col
+                                      );
+                                      setColumns(newColumns);
+                                      localStorage.setItem(STORAGE_KEY, JSON.stringify(newColumns));
+                                    }}
+                                    sx={{ 
+                                      fontSize: '0.75rem',
+                                      height: '28px',
+                                      '& .MuiSelect-select': {
+                                        py: 0.5
+                                      }
+                                    }}
+                                  >
+                                    <MenuItem value={3}>3</MenuItem>
+                                    <MenuItem value={5}>5</MenuItem>
+                                    <MenuItem value={10}>10</MenuItem>
+                                    <MenuItem value={20}>20</MenuItem>
+                                    <MenuItem value={50}>50</MenuItem>
+                                    <MenuItem value={100}>100</MenuItem>
+                                    <MenuItem value={-1}>All</MenuItem>
+                                  </Select>
+                                </Box>
                               )}
                             </Box>
                             <Stack spacing={2}>
-                              {sortedDates.map((date) => (
-                                <Box key={date}>
-                                  <Typography 
-                                    variant="subtitle2" 
-                                    sx={{ 
-                                      color: 'white',
-                                      mb: 1,
-                                      px: 1.5,
-                                      py: 0.75,
-                                      bgcolor: getDateColor(date),
-                                      borderRadius: 1,
-                                      fontWeight: 'bold',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: 1,
-                                      boxShadow: 1
-                                    }}
-                                  >
-                                    <EventIcon fontSize="small" />
-                                    {date === 'no-date' ? 'No Due Date' : format(new Date(date), 'MMM d, yyyy')}
-                                  </Typography>
-                                  <Stack spacing={1} sx={{ pl: 1 }}>
-                                    {filterTasks(tasksByDate[date])
-                                      .filter(task => displayTasks.includes(task))
-                                      .map((task, taskIndex) => (
-                                        renderTask(task, column.id)
-                                      ))}
-                                  </Stack>
-                                </Box>
+                              {filterTasks(displayTasks).map((task, taskIndex) => (
+                                renderTask(task, column.id)
                               ))}
                             </Stack>
                           </Paper>
