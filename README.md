@@ -1,7 +1,6 @@
 # GTaskALL
 
-Version 1.0
-one fix
+Version 1.1.0
 
 Author: Maciej Pindela
 
@@ -23,13 +22,13 @@ A modern task management application built with React, TypeScript, and Vite.
 
 ## Recent Updates
 
-### March 2024
-- Added automatic deployment on pull request merge
-- Updated Google Tasks API integration for full access
-- Added domain support for production deployment
+### May 2024
+- Updated to React 18.2.0
+- Upgraded Material-UI to version 5.15.10
+- Enhanced date picker functionality
 - Improved task synchronization with Google Tasks
-- Enhanced deployment process with proper build steps
-- Added better error handling and logging
+- Added better error handling for API calls
+- Updated dependencies to latest stable versions
 
 ### April 2024
 - Enhanced task display with recurring indicators and status badges
@@ -37,6 +36,14 @@ A modern task management application built with React, TypeScript, and Vite.
 - Implemented color-coded task cards
 - Improved task card layout and readability
 - Updated Google Tasks integration to support new features
+
+### March 2024
+- Added automatic deployment on pull request merge
+- Updated Google Tasks API integration for full access
+- Added domain support for production deployment
+- Improved task synchronization with Google Tasks
+- Enhanced deployment process with proper build steps
+- Added better error handling and logging
 
 ## Development
 
