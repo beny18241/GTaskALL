@@ -38,6 +38,9 @@ interface Task {
   completedAt?: Date | null;
   tempDate?: Date | null;
   listId?: string;
+  accountEmail?: string;
+  accountName?: string;
+  accountPicture?: string;
 }
 
 interface Column {
@@ -54,8 +57,17 @@ interface User {
   picture: string;
 }
 
+interface GoogleAccount {
+  user: User;
+  token: string;
+  taskLists: any[];
+  tasks: { [listId: string]: any[] };
+}
+
 const STORAGE_KEY = 'kanban-board-data';
 const USER_STORAGE_KEY = 'user-data';
+const GOOGLE_ACCOUNTS_KEY = 'google-accounts';
+const GOOGLE_CLIENT_ID = "251184335563-bdf3sv4vc1sr4v2itciiepd7fllvshec.apps.googleusercontent.com";
 
 // Add new view mode type
 type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate';
@@ -83,7 +95,7 @@ function App() {
         id: 'done',
         title: 'Done',
         tasks: [],
-        limit: 3, // Default limit for Done column
+        limit: 3,
       },
     ];
   });
@@ -98,14 +110,14 @@ function App() {
     const savedUser = localStorage.getItem(USER_STORAGE_KEY);
     return savedUser ? JSON.parse(savedUser) : null;
   });
-  const [googleTasksToken, setGoogleTasksToken] = useState<string | null>(() => {
-    const savedToken = localStorage.getItem('google-tasks-token');
-    return savedToken || null;
+  const [googleAccounts, setGoogleAccounts] = useState<GoogleAccount[]>(() => {
+    const savedAccounts = localStorage.getItem(GOOGLE_ACCOUNTS_KEY);
+    return savedAccounts ? JSON.parse(savedAccounts) : [];
   });
+  const [activeAccountIndex, setActiveAccountIndex] = useState<number>(0);
   const [googleTasksLoading, setGoogleTasksLoading] = useState(false);
-  const [googleTaskLists, setGoogleTaskLists] = useState<any[]>([]);
-  const [googleTasks, setGoogleTasks] = useState<{ [listId: string]: any[] }>({});
-  const GOOGLE_CLIENT_ID = "251184335563-bdf3sv4vc1sr4v2itciiepd7fllvshec.apps.googleusercontent.com";
+  const [openAccountDialog, setOpenAccountDialog] = useState(false);
+  const [selectedAccountForRemoval, setSelectedAccountForRemoval] = useState<number | null>(null);
   const [googleTasksButtonHover, setGoogleTasksButtonHover] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
@@ -121,258 +133,7 @@ function App() {
     status: 'todo'
   });
   const [sidebarWidth, setSidebarWidth] = useState(400);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
-  }, [columns]);
-
-  // Effect for fetching Google Tasks
-  useEffect(() => {
-    if (!googleTasksToken) return;
-
-    setGoogleTasksLoading(true);
-
-    // Fetch task lists
-    axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
-      headers: { Authorization: `Bearer ${googleTasksToken}` }
-    })
-      .then(response => {
-        const taskLists = response.data.items || [];
-        setGoogleTaskLists(taskLists);
-
-        // Fetch tasks for each list
-        const tasksPromises = taskLists.map(async (list: any) => {
-          let allTasks: any[] = [];
-          let pageToken: string | undefined;
-          
-          do {
-            const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
-              headers: { Authorization: `Bearer ${googleTasksToken}` },
-              params: {
-                showCompleted: true,
-                showHidden: true,
-                maxResults: 100,
-                pageToken: pageToken
-              }
-            });
-            
-            const tasks = response.data.items || [];
-            allTasks = [...allTasks, ...tasks];
-            pageToken = response.data.nextPageToken;
-          } while (pageToken);
-
-          return { listId: list.id, tasks: allTasks };
-        });
-
-        Promise.all(tasksPromises)
-          .then((results: { listId: string; tasks: any[] }[]) => {
-            const tasksByList: { [listId: string]: any[] } = {};
-            results.forEach(({ listId, tasks }) => {
-              tasksByList[listId] = tasks;
-            });
-            setGoogleTasks(tasksByList);
-
-            // Map Google Tasks to local columns
-            const mappedColumns = columns.map(column => {
-              let columnTasks: Task[] = [];
-              
-              if (column.id === 'todo') {
-                // Get all uncompleted tasks from all lists
-                Object.values(tasksByList).forEach(tasks => {
-                  const todoTasks = tasks
-                    .filter(task => !task.completed && (!task.notes || !task.notes.includes('⚡ Active')))
-                    .map(task => ({
-                      id: task.id,
-                      content: task.title,
-                      dueDate: task.due ? new Date(task.due) : null,
-                      isRecurring: task.recurrence ? true : false,
-                      notes: task.notes || '',
-                      color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
-                      status: 'todo' as const
-                    }));
-                  columnTasks = [...columnTasks, ...todoTasks];
-                });
-
-                // Sort by due date (if available) and then by title
-                columnTasks.sort((a, b) => {
-                  if (a.dueDate && b.dueDate) {
-                    return a.dueDate.getTime() - b.dueDate.getTime();
-                  }
-                  if (a.dueDate) return -1;
-                  if (b.dueDate) return 1;
-                  return a.content.localeCompare(b.content);
-                });
-
-                // Show all tasks in ToDo column
-                if (columnTasks.length === 0) {
-                  columnTasks = [{
-                    id: 'no-tasks',
-                    content: 'No tasks to do',
-                    status: 'todo' as const,
-                    color: '#42A5F5'
-                  }];
-                }
-              } else if (column.id === 'inProgress') {
-                // Get tasks with "Active" note from all lists
-                Object.values(tasksByList).forEach(tasks => {
-                  const inProgressTasks = tasks
-                    .filter(task => !task.completed && task.notes && task.notes.includes('⚡ Active'))
-                    .map(task => ({
-                      id: task.id,
-                      content: task.title,
-                      dueDate: task.due ? new Date(task.due) : null,
-                      isRecurring: task.recurrence ? true : false,
-                      notes: task.notes?.replace('⚡ Active', '').trim() || '',
-                      color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#FFA726',
-                      status: 'in-progress' as const
-                    }));
-                  columnTasks = [...columnTasks, ...inProgressTasks];
-                });
-              } else if (column.id === 'done') {
-                // Get completed tasks from all lists
-                const allCompletedTasks: Task[] = [];
-                Object.values(tasksByList).forEach(tasks => {
-                  const completedTasks = tasks
-                    .filter(task => task.completed)
-                    .map(task => ({
-                      id: task.id,
-                      content: task.title,
-                      dueDate: task.due ? new Date(task.due) : null,
-                      isRecurring: task.recurrence ? true : false,
-                      notes: task.notes || '',
-                      color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
-                      status: 'completed' as const,
-                      completedAt: task.completed ? new Date(task.completed) : null
-                    }));
-                  allCompletedTasks.push(...completedTasks);
-                });
-                
-                // Sort by completion date (most recent first) and take last N tasks based on limit
-                columnTasks = allCompletedTasks
-                  .sort((a, b) => {
-                    if (!a.completedAt || !b.completedAt) return 0;
-                    return b.completedAt.getTime() - a.completedAt.getTime();
-                  })
-                  .slice(0, column.limit ?? 3);
-
-                // If no tasks are completed yet or limit is 0, show a message
-                if (columnTasks.length === 0 || column.limit === 0) {
-                  columnTasks = [{
-                    id: 'no-tasks',
-                    content: 'No completed tasks yet',
-                    status: 'completed' as const,
-                    color: '#66BB6A'
-                  }];
-                }
-              } else {
-                // For custom columns, get tasks from remaining lists
-                const remainingListIds = Object.keys(tasksByList).slice(2);
-                remainingListIds.forEach(listId => {
-                  const listTasks = tasksByList[listId]
-                    .filter(task => !task.completed && (!task.notes || !task.notes.includes('🔄 In Progress')))
-                    .map(task => ({
-                      id: task.id,
-                      content: task.title,
-                      dueDate: task.due ? new Date(task.due) : null,
-                      isRecurring: task.recurrence ? true : false,
-                      notes: task.notes || '',
-                      color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
-                      status: 'todo' as const
-                    }));
-                  columnTasks = [...columnTasks, ...listTasks];
-                });
-              }
-
-              return {
-                ...column,
-                tasks: columnTasks
-              };
-            });
-
-            setColumns(mappedColumns);
-            setGoogleTasksLoading(false);
-          })
-          .catch(() => {
-            setGoogleTasksLoading(false);
-            setGoogleTaskLists([]);
-            setGoogleTasks({});
-          });
-      });
-  }, [googleTasksToken]);
-
-  // Effect to handle limit changes
-  useEffect(() => {
-    if (!googleTasksToken || !googleTasks) return;
-
-    setColumns(prevColumns => {
-      return prevColumns.map(column => {
-        if (column.id === 'done') {
-          // Get completed tasks from all lists
-          const allCompletedTasks: Task[] = [];
-          Object.values(googleTasks).forEach(tasks => {
-            const completedTasks = tasks
-              .filter(task => task.completed)
-              .map(task => ({
-                id: task.id,
-                content: task.title,
-                dueDate: task.due ? new Date(task.due) : null,
-                isRecurring: task.recurrence ? true : false,
-                notes: task.notes || '',
-                color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
-                status: 'completed' as const,
-                completedAt: task.completed ? new Date(task.completed) : null
-              }));
-            allCompletedTasks.push(...completedTasks);
-          });
-          
-          // Sort by completion date (most recent first) and take last N tasks based on limit
-          const columnTasks = allCompletedTasks
-            .sort((a, b) => {
-              if (!a.completedAt || !b.completedAt) return 0;
-              return b.completedAt.getTime() - a.completedAt.getTime();
-            })
-            .slice(0, column.limit ?? 3);
-
-          // If no tasks are completed yet or limit is 0, show a message
-          if (columnTasks.length === 0 || column.limit === 0) {
-            return {
-              ...column,
-              tasks: [{
-                id: 'no-tasks',
-                content: 'No completed tasks yet',
-                status: 'completed' as const,
-                color: '#66BB6A'
-              }]
-            };
-          }
-
-          return {
-            ...column,
-            tasks: columnTasks
-          };
-        }
-        return column;
-      });
-    });
-  }, [googleTasksToken, googleTasks, columns.find(col => col.id === 'done')?.limit]);
-
-  // Save user data to localStorage whenever it changes
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-    } else {
-      localStorage.removeItem(USER_STORAGE_KEY);
-    }
-  }, [user]);
-
-  // Save token to localStorage whenever it changes
-  useEffect(() => {
-    if (googleTasksToken) {
-      localStorage.setItem('google-tasks-token', googleTasksToken);
-    } else {
-      localStorage.removeItem('google-tasks-token');
-    }
-  }, [googleTasksToken]);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Add effect to restore user session on mount
   useEffect(() => {
@@ -392,6 +153,225 @@ function App() {
       }
     }
   }, []);
+
+  // Save user data to localStorage whenever it changes
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(USER_STORAGE_KEY);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
+  }, [columns]);
+
+  // Update the effect for fetching Google Tasks to work with multiple accounts
+  useEffect(() => {
+    if (googleAccounts.length === 0) {
+      setIsInitialLoad(false);
+      return;
+    }
+
+    const fetchTasksForAllAccounts = async () => {
+      try {
+        setGoogleTasksLoading(true);
+
+        // Fetch tasks for all accounts
+        const allTasksPromises = googleAccounts.map(async (account, index) => {
+          // Fetch task lists
+          const listsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
+            headers: { Authorization: `Bearer ${account.token}` }
+          });
+          
+          const taskLists = listsResponse.data.items || [];
+          
+          // Update the account with new task lists
+          setGoogleAccounts(prevAccounts => {
+            const newAccounts = [...prevAccounts];
+            newAccounts[index] = {
+              ...newAccounts[index],
+              taskLists
+            };
+            return newAccounts;
+          });
+
+          // Fetch tasks for each list
+          const tasksPromises = taskLists.map(async (list: any) => {
+            let allTasks: any[] = [];
+            let pageToken: string | undefined;
+            
+            do {
+              const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
+                headers: { Authorization: `Bearer ${account.token}` },
+                params: {
+                  showCompleted: true,
+                  showHidden: true,
+                  maxResults: 100,
+                  pageToken: pageToken
+                }
+              });
+              
+              const tasks = response.data.items || [];
+              // Add account info to each task
+              const tasksWithAccount = tasks.map((task: any) => ({
+                ...task,
+                accountEmail: account.user.email,
+                accountName: account.user.name,
+                accountPicture: account.user.picture
+              }));
+              allTasks = [...allTasks, ...tasksWithAccount];
+              pageToken = response.data.nextPageToken;
+            } while (pageToken);
+
+            return { listId: list.id, tasks: allTasks };
+          });
+
+          const results = await Promise.all(tasksPromises);
+          const tasksByList: { [listId: string]: any[] } = {};
+          results.forEach(({ listId, tasks }) => {
+            tasksByList[listId] = tasks;
+          });
+
+          return { accountIndex: index, tasksByList };
+        });
+
+        const allResults = await Promise.all(allTasksPromises);
+        
+        // Update all accounts with their tasks
+        setGoogleAccounts(prevAccounts => {
+          const newAccounts = [...prevAccounts];
+          allResults.forEach(({ accountIndex, tasksByList }) => {
+            newAccounts[accountIndex] = {
+              ...newAccounts[accountIndex],
+              tasks: tasksByList
+            };
+          });
+          return newAccounts;
+        });
+
+        // Combine tasks from all accounts
+        const combinedTasksByList: { [listId: string]: any[] } = {};
+        allResults.forEach(({ tasksByList }) => {
+          Object.entries(tasksByList).forEach(([listId, tasks]) => {
+            if (!combinedTasksByList[listId]) {
+              combinedTasksByList[listId] = [];
+            }
+            combinedTasksByList[listId] = [...combinedTasksByList[listId], ...tasks];
+          });
+        });
+
+        // Update columns with the combined tasks
+        updateColumnsWithTasks(combinedTasksByList);
+      } catch (error) {
+        console.error('Error fetching tasks:', error);
+      } finally {
+        setGoogleTasksLoading(false);
+        setIsInitialLoad(false);
+      }
+    };
+
+    fetchTasksForAllAccounts();
+  }, [googleAccounts.length]); // Only depend on the number of accounts
+
+  // Save accounts to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem(GOOGLE_ACCOUNTS_KEY, JSON.stringify(googleAccounts));
+  }, [googleAccounts]);
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    try {
+      const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
+      const userData = {
+        name: decoded.name,
+        email: decoded.email,
+        picture: decoded.picture,
+      };
+      setUser(userData);
+      localStorage.setItem('google-credential', credentialResponse.credential);
+      
+      // Automatically trigger Google Tasks connection after successful login
+      setGoogleTasksLoading(true);
+      await loginGoogleTasks();
+    } catch (error) {
+      console.error('Error during login:', error);
+      setGoogleTasksLoading(false);
+    }
+  };
+
+  const loginGoogleTasks = useGoogleLogin({
+    scope: 'https://www.googleapis.com/auth/tasks',
+    onSuccess: async (tokenResponse) => {
+      try {
+        if (!user) {
+          throw new Error('User not logged in');
+        }
+
+        const newAccount: GoogleAccount = {
+          user,
+          token: tokenResponse.access_token,
+          taskLists: [],
+          tasks: {}
+        };
+
+        setGoogleAccounts(prevAccounts => [...prevAccounts, newAccount]);
+        setActiveAccountIndex(googleAccounts.length);
+        setGoogleTasksLoading(false);
+      } catch (error) {
+        console.error('Error fetching tasks:', error);
+        setGoogleTasksLoading(false);
+      }
+    },
+    onError: () => {
+      setGoogleTasksLoading(false);
+      alert('Google Tasks connection failed.');
+    },
+    flow: 'implicit',
+  });
+
+  const handleRemoveAccount = (index: number) => {
+    setGoogleAccounts(prevAccounts => prevAccounts.filter((_, i) => i !== index));
+    if (activeAccountIndex >= index) {
+      setActiveAccountIndex(Math.max(0, activeAccountIndex - 1));
+    }
+    setSelectedAccountForRemoval(null);
+  };
+
+  // Add this new component for the account switcher
+  const AccountSwitcher = () => (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      {googleAccounts.map((account, index) => (
+        <Chip
+          key={account.user.email}
+          avatar={<Avatar src={account.user.picture} alt={account.user.name} />}
+          label={account.user.name}
+          onClick={() => setActiveAccountIndex(index)}
+          onDelete={() => setSelectedAccountForRemoval(index)}
+          color={index === activeAccountIndex ? 'primary' : 'default'}
+          sx={{
+            '&:hover': {
+              opacity: 0.8
+            }
+          }}
+        />
+      ))}
+      <IconButton
+        color="primary"
+        onClick={() => setOpenAccountDialog(true)}
+        sx={{
+          border: '1px dashed',
+          borderColor: 'primary.main',
+          '&:hover': {
+            backgroundColor: 'primary.light',
+            color: 'white'
+          }
+        }}
+      >
+        <AddIcon />
+      </IconButton>
+    </Box>
+  );
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -453,14 +433,14 @@ function App() {
     }
 
     // Sync with Google Tasks if connected
-    if (googleTasksToken) {
+    if (googleAccounts.length > 0) {
       try {
         // Find the task in Google Tasks
         let taskListId = '';
         let taskId = '';
         
         // Search through all task lists to find the task
-        for (const [listId, tasks] of Object.entries(googleTasks)) {
+        for (const [listId, tasks] of Object.entries(googleAccounts[activeAccountIndex].tasks)) {
           const foundTask = tasks.find(t => t.title === task.content);
           if (foundTask) {
             taskListId = listId;
@@ -503,26 +483,26 @@ function App() {
             `https://www.googleapis.com/tasks/v1/lists/${taskListId}/tasks/${taskId}`,
             update,
             {
-              headers: { Authorization: `Bearer ${googleTasksToken}` }
+              headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` }
             }
           );
 
           // Update the local Google Tasks state with the response data
-          setGoogleTasks(prevTasks => {
-            const newTasks = { ...prevTasks };
-            if (newTasks[taskListId]) {
-              newTasks[taskListId] = newTasks[taskListId].map(t => 
+          setGoogleAccounts(prevAccounts => {
+            const newAccounts = [...prevAccounts];
+            if (newAccounts[activeAccountIndex].tasks[taskListId]) {
+              newAccounts[activeAccountIndex].tasks[taskListId] = newAccounts[activeAccountIndex].tasks[taskListId].map(t => 
                 t.id === taskId 
                   ? { ...t, ...response.data }
                   : t
               );
             }
-            return newTasks;
+            return newAccounts;
           });
 
           // Refresh the tasks data to ensure everything is in sync
           const taskListsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
-            headers: { Authorization: `Bearer ${googleTasksToken}` }
+            headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` }
           });
 
           const taskLists = taskListsResponse.data.items || [];
@@ -532,7 +512,7 @@ function App() {
             
             do {
               const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
-                headers: { Authorization: `Bearer ${googleTasksToken}` },
+                headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` },
                 params: {
                   showCompleted: true,
                   showHidden: true,
@@ -556,7 +536,11 @@ function App() {
           });
 
           // Update Google Tasks state
-          setGoogleTasks(tasksByList);
+          setGoogleAccounts(prevAccounts => {
+            const newAccounts = [...prevAccounts];
+            newAccounts[activeAccountIndex].tasks = tasksByList;
+            return newAccounts;
+          });
 
           // Update columns with fresh data
           setColumns(prevColumns => {
@@ -751,7 +735,7 @@ function App() {
     }));
 
     // Sync with Google Tasks if connected
-    if (googleTasksToken && task.listId) {
+    if (googleAccounts.length > 0 && task.listId) {
       try {
         axios.patch(
           `https://www.googleapis.com/tasks/v1/lists/${task.listId}/tasks/${task.id}`,
@@ -759,7 +743,7 @@ function App() {
             due: date ? date.toISOString() : null
           },
           {
-            headers: { Authorization: `Bearer ${googleTasksToken}` }
+            headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` }
           }
         ).catch(error => {
           console.error('Error updating due date in Google Tasks:', error);
@@ -786,26 +770,6 @@ function App() {
     setSelectedTask(null);
   };
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
-    try {
-      const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
-      const userData = {
-        name: decoded.name,
-        email: decoded.email,
-        picture: decoded.picture,
-      };
-      setUser(userData);
-      localStorage.setItem('google-credential', credentialResponse.credential);
-      
-      // Automatically trigger Google Tasks connection after successful login
-      setGoogleTasksLoading(true);
-      await loginGoogleTasks();
-    } catch (error) {
-      console.error('Error during login:', error);
-      setGoogleTasksLoading(false);
-    }
-  };
-
   const handleGoogleError = () => {
     console.log('Login Failed');
   };
@@ -813,71 +777,13 @@ function App() {
   const handleLogout = () => {
     googleLogout();
     setUser(null);
-    setGoogleTasksToken(null);
-    setGoogleTaskLists([]);
-    setGoogleTasks({});
+    setGoogleAccounts([]);
+    setActiveAccountIndex(0);
     // Clear all stored data
     localStorage.removeItem(USER_STORAGE_KEY);
-    localStorage.removeItem('google-tasks-token');
+    localStorage.removeItem(GOOGLE_ACCOUNTS_KEY);
     localStorage.removeItem('google-credential');
   };
-
-  const loginGoogleTasks = useGoogleLogin({
-    scope: 'https://www.googleapis.com/auth/tasks',
-    onSuccess: async (tokenResponse) => {
-      try {
-        setGoogleTasksToken(tokenResponse.access_token);
-        
-        // Fetch task lists immediately after getting the token
-        const response = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
-        });
-        
-        const taskLists = response.data.items || [];
-        setGoogleTaskLists(taskLists);
-
-        // Fetch tasks for each list
-        const tasksPromises = taskLists.map(async (list: any) => {
-          let allTasks: any[] = [];
-          let pageToken: string | undefined;
-          
-          do {
-            const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
-              headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-              params: {
-                showCompleted: true,
-                showHidden: true,
-                maxResults: 100,
-                pageToken: pageToken
-              }
-            });
-            
-            const tasks = response.data.items || [];
-            allTasks = [...allTasks, ...tasks];
-            pageToken = response.data.nextPageToken;
-          } while (pageToken);
-
-          return { listId: list.id, tasks: allTasks };
-        });
-
-        const results = await Promise.all(tasksPromises);
-        const tasksByList: { [listId: string]: any[] } = {};
-        results.forEach(({ listId, tasks }) => {
-          tasksByList[listId] = tasks;
-        });
-        setGoogleTasks(tasksByList);
-        setGoogleTasksLoading(false);
-      } catch (error) {
-        console.error('Error fetching tasks:', error);
-        setGoogleTasksLoading(false);
-      }
-    },
-    onError: () => {
-      setGoogleTasksLoading(false);
-      alert('Google Tasks connection failed.');
-    },
-    flow: 'implicit',
-  });
 
   const getDateColor = (date: string) => {
     if (date === 'no-date') return 'grey.600';
@@ -930,7 +836,7 @@ function App() {
         draggable
         onDragStart={() => handleDragStart(task, columnId)}
       >
-        {user?.picture && !isNoTask && (
+        {task.accountPicture && !isNoTask && (
           <Box
             sx={{
               position: 'absolute',
@@ -940,8 +846,8 @@ function App() {
             }}
           >
             <Avatar
-              src={user.picture}
-              alt={user.name}
+              src={task.accountPicture}
+              alt={task.accountName}
               sx={{
                 width: 24,
                 height: 24,
@@ -961,7 +867,7 @@ function App() {
                 fontSize: '0.9rem',
                 lineHeight: 1.3,
                 mb: 0.5,
-                pr: user?.picture ? 4 : 0
+                pr: task.accountPicture ? 4 : 0
               }}
             >
               {task.content}
@@ -1028,6 +934,21 @@ function App() {
                   flexShrink: 0
                 }}>
                   ✓ Done
+                </Box>
+              )}
+              {!isNoTask && task.accountName && (
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  bgcolor: 'grey.700',
+                  color: 'white',
+                  px: 1,
+                  py: 0.25,
+                  borderRadius: 1,
+                  fontSize: '0.65rem',
+                  flexShrink: 0
+                }}>
+                  {task.accountName}
                 </Box>
               )}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
@@ -1395,22 +1316,6 @@ function App() {
                       {column.tasks.length}
                     </Typography>
                   </Typography>
-                  {column.id === 'done' && (
-                    <TextField
-                      type="number"
-                      size="small"
-                      label="Limit"
-                      value={column.limit || ''}
-                      onChange={(e) => {
-                        const newLimit = parseInt(e.target.value) || 0;
-                        setColumns(columns.map(col => 
-                          col.id === 'done' ? { ...col, limit: newLimit } : col
-                        ));
-                      }}
-                      sx={{ width: '80px' }}
-                      InputProps={{ inputProps: { min: 0 } }}
-                    />
-                  )}
                 </Box>
                 <Stack spacing={2}>
                   {column.tasks.map((task) => renderTask(task, column.id))}
@@ -1506,6 +1411,117 @@ function App() {
     );
   };
 
+  const updateColumnsWithTasks = (tasksByList: { [listId: string]: any[] }) => {
+    setColumns(prevColumns => {
+      return prevColumns.map(column => {
+        let columnTasks: Task[] = [];
+        
+        if (column.id === 'todo') {
+          // Get all uncompleted tasks from all lists
+          Object.values(tasksByList).forEach(tasks => {
+            const todoTasks = tasks
+              .filter(task => !task.completed && (!task.notes || !task.notes.includes('⚡ Active')))
+              .map(task => ({
+                id: task.id,
+                content: task.title,
+                dueDate: task.due ? new Date(task.due) : null,
+                isRecurring: task.recurrence ? true : false,
+                notes: task.notes || '',
+                color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
+                status: 'todo' as const,
+                accountEmail: task.accountEmail,
+                accountName: task.accountName,
+                accountPicture: task.accountPicture
+              }));
+            columnTasks = [...columnTasks, ...todoTasks];
+          });
+
+          // Sort by due date (if available) and then by title
+          columnTasks.sort((a, b) => {
+            if (a.dueDate && b.dueDate) {
+              return a.dueDate.getTime() - b.dueDate.getTime();
+            }
+            if (a.dueDate) return -1;
+            if (b.dueDate) return 1;
+            return a.content.localeCompare(b.content);
+          });
+
+          // Show all tasks in ToDo column
+          if (columnTasks.length === 0) {
+            columnTasks = [{
+              id: 'no-tasks',
+              content: 'No tasks to do',
+              status: 'todo' as const,
+              color: '#42A5F5'
+            }];
+          }
+        } else if (column.id === 'inProgress') {
+          // Get tasks with "Active" note from all lists
+          Object.values(tasksByList).forEach(tasks => {
+            const inProgressTasks = tasks
+              .filter(task => !task.completed && task.notes && task.notes.includes('⚡ Active'))
+              .map(task => ({
+                id: task.id,
+                content: task.title,
+                dueDate: task.due ? new Date(task.due) : null,
+                isRecurring: task.recurrence ? true : false,
+                notes: task.notes?.replace('⚡ Active', '').trim() || '',
+                color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#FFA726',
+                status: 'in-progress' as const,
+                accountEmail: task.accountEmail,
+                accountName: task.accountName,
+                accountPicture: task.accountPicture
+              }));
+            columnTasks = [...columnTasks, ...inProgressTasks];
+          });
+        } else if (column.id === 'done') {
+          // Get completed tasks from all lists
+          const allCompletedTasks: Task[] = [];
+          Object.values(tasksByList).forEach(tasks => {
+            const completedTasks = tasks
+              .filter(task => task.completed)
+              .map(task => ({
+                id: task.id,
+                content: task.title,
+                dueDate: task.due ? new Date(task.due) : null,
+                isRecurring: task.recurrence ? true : false,
+                notes: task.notes || '',
+                color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
+                status: 'completed' as const,
+                completedAt: task.completed ? new Date(task.completed) : null,
+                accountEmail: task.accountEmail,
+                accountName: task.accountName,
+                accountPicture: task.accountPicture
+              }));
+            allCompletedTasks.push(...completedTasks);
+          });
+          
+          // Sort by completion date (most recent first) and take last N tasks based on limit
+          columnTasks = allCompletedTasks
+            .sort((a, b) => {
+              if (!a.completedAt || !b.completedAt) return 0;
+              return b.completedAt.getTime() - a.completedAt.getTime();
+            })
+            .slice(0, column.limit ?? 3);
+
+          if (columnTasks.length === 0 || column.limit === 0) {
+            columnTasks = [{
+              id: 'no-tasks',
+              content: 'No completed tasks yet',
+              status: 'completed' as const,
+              color: '#66BB6A'
+            }];
+          }
+        }
+
+        return {
+          ...column,
+          tasks: columnTasks
+        };
+      });
+    });
+  };
+
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <Box sx={{ display: 'flex' }}>
@@ -1590,106 +1606,54 @@ function App() {
             </Box>
             <Box sx={{ flexGrow: 1 }} />
             {user && (
-              <TextField
-                size="small"
-                variant="outlined"
-                placeholder="Search tasks..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <Box sx={{ display: 'flex', alignItems: 'center', color: 'inherit', pl: 1 }}>
-                      <SearchIcon />
-                    </Box>
-                  ),
-                  endAdornment: searchQuery && (
-                    <IconButton
-                      size="small"
-                      onClick={() => setSearchQuery('')}
-                      sx={{ color: 'inherit' }}
-                    >
-                      <ClearIcon />
-                    </IconButton>
-                  ),
-                  sx: { 
-                    color: 'inherit',
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'rgba(255, 255, 255, 0.3)',
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'rgba(255, 255, 255, 0.5)',
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'primary.main',
+              <>
+                <TextField
+                  size="small"
+                  variant="outlined"
+                  placeholder="Search tasks..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <Box sx={{ display: 'flex', alignItems: 'center', color: 'inherit', pl: 1 }}>
+                        <SearchIcon />
+                      </Box>
+                    ),
+                    endAdornment: searchQuery && (
+                      <IconButton
+                        size="small"
+                        onClick={() => setSearchQuery('')}
+                        sx={{ color: 'inherit' }}
+                      >
+                        <ClearIcon />
+                      </IconButton>
+                    ),
+                    sx: { 
+                      color: 'inherit',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'rgba(255, 255, 255, 0.5)',
+                      },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'primary.main',
+                      }
                     }
-                  }
-                }}
-                sx={{ 
-                  mr: 2,
-                  width: 200,
-                  '& .MuiInputBase-root': {
-                    color: 'inherit'
-                  }
-                }}
-              />
+                  }}
+                  sx={{ 
+                    mr: 2,
+                    width: 200,
+                    '& .MuiInputBase-root': {
+                      color: 'inherit'
+                    }
+                  }}
+                />
+                {googleAccounts.length > 0 && <AccountSwitcher />}
+              </>
             )}
             {user ? (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                {googleTasksToken ? (
-                  <Button
-                    variant="contained"
-                    color="success"
-                    size="small"
-                    startIcon={
-                      user?.picture ? (
-                        <Avatar src={user.picture} alt={user.name} sx={{ width: 20, height: 20 }} />
-                      ) : (
-                        <img src="/check-circle.svg" alt="Google Tasks" style={{ width: 16, height: 16 }} />
-                      )
-                    }
-                    onClick={() => {
-                      setGoogleTasksToken(null);
-                      googleLogout();
-                    }}
-                    sx={{ 
-                      textTransform: 'none',
-                      minWidth: 'auto',
-                      px: 1,
-                      background: 'rgba(76, 175, 80, 0.9)',
-                      '&:hover': {
-                        background: 'rgba(76, 175, 80, 1)',
-                      }
-                    }}
-                  >
-                    Connected
-                  </Button>
-                ) : (
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    size="medium"
-                    startIcon={<img src="/check-circle.svg" alt="Google Tasks" style={{ width: 20, height: 20 }} />}
-                    onClick={() => {
-                      setGoogleTasksLoading(true);
-                      loginGoogleTasks();
-                    }}
-                    disabled={googleTasksLoading}
-                    sx={{ 
-                      textTransform: 'none',
-                      px: 2,
-                      py: 1,
-                      fontWeight: 'bold',
-                      boxShadow: '0 3px 5px 2px rgba(33, 150, 243, .3)',
-                      background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-                      '&:hover': {
-                        boxShadow: '0 5px 8px 2px rgba(33, 150, 243, .4)',
-                        background: 'linear-gradient(45deg, #1976D2 30%, #1E88E5 90%)',
-                      }
-                    }}
-                  >
-                    {googleTasksLoading ? 'Connecting...' : 'Connect Google Tasks'}
-                  </Button>
-                )}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 2 }}>
                 <Avatar 
                   src={user.picture} 
                   alt={user.name}
@@ -1740,9 +1704,16 @@ function App() {
           }}
         >
           {user ? (
-            googleTasksToken ? (
-              googleTasksLoading ? (
-                <Typography variant="h6">Loading Google Tasks...</Typography>
+            googleAccounts.length > 0 ? (
+              isInitialLoad || googleTasksLoading ? (
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  alignItems: 'center', 
+                  height: 'calc(100vh - 100px)'
+                }}>
+                  <Typography variant="h6">Loading Google Tasks...</Typography>
+                </Box>
               ) : (
                 <>
                   {viewMode === 'list' && renderListView()}
@@ -1893,7 +1864,6 @@ function App() {
               <GoogleLogin
                 onSuccess={handleGoogleSuccess}
                 onError={handleGoogleError}
-                useOneTap
               />
             </Box>
           )}
@@ -2006,6 +1976,47 @@ function App() {
             >
               Remove Date
             </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Dialog
+          open={selectedAccountForRemoval !== null}
+          onClose={() => setSelectedAccountForRemoval(null)}
+        >
+          <DialogTitle>Remove Account</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Are you sure you want to remove this Google Tasks account? This action cannot be undone.
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setSelectedAccountForRemoval(null)}>Cancel</Button>
+            <Button 
+              onClick={() => selectedAccountForRemoval !== null && handleRemoveAccount(selectedAccountForRemoval)} 
+              color="error" 
+              variant="contained"
+            >
+              Remove
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Dialog
+          open={openAccountDialog}
+          onClose={() => setOpenAccountDialog(false)}
+        >
+          <DialogTitle>Add Google Tasks Account</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Connect another Google account to manage its tasks.
+            </Typography>
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenAccountDialog(false)}>Cancel</Button>
           </DialogActions>
         </Dialog>
       </Box>
