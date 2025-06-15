@@ -564,7 +564,10 @@ function App() {
                       isRecurring: task.recurrence ? true : false,
                       notes: task.notes || '',
                       color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
-                      status: 'todo' as const
+                      status: 'todo' as const,
+                      accountEmail: task.accountEmail,
+                      accountName: task.accountName,
+                      accountPicture: task.accountPicture
                     }));
                   columnTasks = [...columnTasks, ...todoTasks];
                 });
@@ -585,7 +588,10 @@ function App() {
                     id: 'no-tasks',
                     content: 'No tasks to do',
                     status: 'todo' as const,
-                    color: '#42A5F5'
+                    color: '#42A5F5',
+                    accountEmail: '',
+                    accountName: '',
+                    accountPicture: ''
                   }];
                 }
               } else if (column.id === 'inProgress') {
@@ -600,7 +606,10 @@ function App() {
                       isRecurring: task.recurrence ? true : false,
                       notes: task.notes?.replace('⚡ Active', '').trim() || '',
                       color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#FFA726',
-                      status: 'in-progress' as const
+                      status: 'in-progress' as const,
+                      accountEmail: task.accountEmail,
+                      accountName: task.accountName,
+                      accountPicture: task.accountPicture
                     }));
                   columnTasks = [...columnTasks, ...inProgressTasks];
                 });
@@ -636,6 +645,9 @@ function App() {
                 // Apply limit if specified
                 if (column.limit && column.limit > 0) {
                   columnTasks = columnTasks.slice(0, column.limit);
+                } else if (column.limit === -1) {
+                  // Show all tasks if limit is -1
+                  columnTasks = columnTasks;
                 }
 
                 if (columnTasks.length === 0) {
@@ -643,7 +655,10 @@ function App() {
                     id: 'no-tasks',
                     content: 'No completed tasks yet',
                     status: 'completed' as const,
-                    color: '#66BB6A'
+                    color: '#66BB6A',
+                    accountEmail: '',
+                    accountName: '',
+                    accountPicture: ''
                   }];
                 }
               }
@@ -692,7 +707,10 @@ function App() {
               isDragging: false,
               status: targetColumnId === 'inProgress' ? 'in-progress' as const : 
                      targetColumnId === 'done' ? 'completed' as const : 'todo' as const,
-              completedAt: targetColumnId === 'done' ? new Date() : null
+              completedAt: targetColumnId === 'done' ? new Date() : null,
+              accountEmail: task.accountEmail,
+              accountName: task.accountName,
+              accountPicture: task.accountPicture
             };
             if (dragOverTaskIndex !== null) {
               const newTasks = [...column.tasks];
@@ -1125,18 +1143,20 @@ function App() {
                 sx={{
                   p: 2,
                   display: 'flex',
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   gap: 2,
                   borderLeft: `4px solid ${task.color || '#42A5F5'}`,
                   '&:hover': {
                     boxShadow: 2,
                   },
+                  minHeight: '100px',
+                  height: 'auto'
                 }}
               >
-                <Box sx={{ flex: 1 }}>
-                  <Typography variant="subtitle1">{task.content}</Typography>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="subtitle1" sx={{ wordBreak: 'break-word' }}>{task.content}</Typography>
                   {task.notes && (
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
                       {task.notes}
                     </Typography>
                   )}
@@ -1176,169 +1196,250 @@ function App() {
         <Typography variant="h5" gutterBottom>
           Today's Tasks
         </Typography>
-        <Stack spacing={2}>
+        <Stack spacing={1}>
           {filteredTasks.map((task) => (
-            <Paper
+            <Box
               key={task.id}
               sx={{
-                p: 2,
+                p: 1.5,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 2,
-                borderLeft: `4px solid ${task.color || '#42A5F5'}`,
+                gap: 1.5,
+                borderLeft: `3px solid ${task.color || '#42A5F5'}`,
                 '&:hover': {
-                  boxShadow: 2,
+                  bgcolor: 'rgba(0, 0, 0, 0.04)',
+                  transition: 'all 0.2s ease'
                 },
+                bgcolor: 'white',
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                cursor: 'pointer'
               }}
             >
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="subtitle1">{task.content}</Typography>
-                {task.notes && (
-                  <Typography variant="body2" color="text.secondary">
-                    {task.notes}
-                  </Typography>
-                )}
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ 
+                flex: 1, 
+                minWidth: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    wordBreak: 'break-word',
+                    fontWeight: 500,
+                    color: 'text.primary',
+                    flex: 1
+                  }}
+                >
+                  {task.content}
+                </Typography>
                 <Chip
                   label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
                   color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
                   size="small"
+                  sx={{ 
+                    fontWeight: 500,
+                    height: '24px',
+                    '& .MuiChip-label': {
+                      px: 1,
+                      fontSize: '0.75rem'
+                    }
+                  }}
                 />
               </Box>
-            </Paper>
+            </Box>
           ))}
-          {filteredTasks.length === 0 && (
-            <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-              No tasks scheduled for today
-            </Typography>
-          )}
         </Stack>
       </Box>
     );
   };
+
+  const handleLimitChange = (columnId: string, newLimit: number) => {
+    setColumns(prevColumns => {
+      const newColumns = prevColumns.map(col => {
+        if (col.id === columnId) {
+          // Get the original tasks from all Google Tasks accounts
+          let originalTasks: Task[] = [];
+          if (googleAccounts.length > 0) {
+            // Get tasks from all accounts
+            googleAccounts.forEach(account => {
+              Object.values(account.tasks).forEach(tasks => {
+                const completedTasks = tasks
+                  .filter(task => task.completed)
+                  .map(task => ({
+                    id: task.id,
+                    content: task.title,
+                    dueDate: task.due ? new Date(task.due) : null,
+                    isRecurring: task.recurrence ? true : false,
+                    notes: task.notes || '',
+                    color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
+                    status: 'completed' as const,
+                    completedAt: task.completed ? new Date(task.completed) : null,
+                    accountEmail: account.user.email,
+                    accountName: account.user.name,
+                    accountPicture: account.user.picture
+                  }));
+                originalTasks = [...originalTasks, ...completedTasks];
+              });
+            });
+            
+            // Sort by completion date (most recent first)
+            originalTasks.sort((a, b) => {
+              if (!a.completedAt || !b.completedAt) return 0;
+              return b.completedAt.getTime() - a.completedAt.getTime();
+            });
+          } else {
+            // If no Google Tasks, use the current tasks
+            originalTasks = [...col.tasks];
+          }
+
+          // Apply the new limit
+          let updatedTasks = originalTasks;
+          if (newLimit > 0) {
+            updatedTasks = originalTasks.slice(0, newLimit);
+          } else if (newLimit === -1) {
+            // Show all tasks
+            updatedTasks = originalTasks;
+          } else {
+            // Default to 3
+            updatedTasks = originalTasks.slice(0, 3);
+          }
+
+          return { ...col, limit: newLimit, tasks: updatedTasks };
+        }
+        return col;
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newColumns));
+      return newColumns;
+    });
+  };
+
+  const renderColumnHeader = (column: Column) => (
+    <Box sx={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'space-between', 
+      mb: 2,
+      p: 1.5,
+      borderRadius: 1,
+      bgcolor: 'action.hover',
+      position: 'sticky',
+      top: 0,
+      zIndex: 1,
+      borderBottom: '1px solid',
+      borderColor: 'divider',
+    }}>
+      <Typography variant="h6" sx={{ 
+        fontWeight: 'bold',
+        color: 'primary.main',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1
+      }}>
+        {column.title}
+        <Typography variant="caption" sx={{ 
+          bgcolor: 'primary.main',
+          color: 'white',
+          px: 1,
+          py: 0.5,
+          borderRadius: 1,
+          fontSize: '0.75rem'
+        }}>
+          {column.tasks.length}
+        </Typography>
+      </Typography>
+      {column.id === 'done' && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            Show:
+          </Typography>
+          <Select
+            size="small"
+            value={column.limit || 3}
+            onChange={(e) => handleLimitChange(column.id, Number(e.target.value))}
+            sx={{ 
+              fontSize: '0.75rem',
+              height: '28px',
+              '& .MuiSelect-select': {
+                py: 0.5
+              }
+            }}
+          >
+            <MenuItem value={3}>3</MenuItem>
+            <MenuItem value={5}>5</MenuItem>
+            <MenuItem value={10}>10</MenuItem>
+            <MenuItem value={20}>20</MenuItem>
+            <MenuItem value={50}>50</MenuItem>
+            <MenuItem value={100}>100</MenuItem>
+            <MenuItem value={-1}>All</MenuItem>
+          </Select>
+        </Box>
+      )}
+    </Box>
+  );
+
+  const renderColumn = (column: Column) => {
+    // Apply limit for done column
+    const displayTasks = column.id === 'done' ? 
+      (column.limit && column.limit > 0 ? column.tasks.slice(0, column.limit) : 
+       column.limit === -1 ? column.tasks : column.tasks.slice(0, 3)) : 
+      column.tasks;
+
+    return (
+      <Paper
+        key={column.id}
+        sx={{
+          p: 2,
+          minWidth: 300,
+          maxWidth: 'none',
+          flex: 1,
+          bgcolor: 'background.paper',
+          borderRadius: 2,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          height: 'fit-content',
+          minHeight: 'calc(100vh - 100px)',
+          overflow: 'auto',
+          position: 'relative',
+          transition: 'all 0.2s ease',
+          transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
+          boxShadow: column.id === dragOverColumn ? 3 : 1,
+          opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1,
+          border: '1px solid',
+          borderColor: 'divider',
+          '&:hover': {
+            boxShadow: 4,
+            borderColor: 'primary.light',
+          },
+        }}
+        onDragOver={(e) => handleDragOver(e, column.id)}
+        onDragLeave={handleDragLeave}
+        onDrop={() => handleDrop(column.id)}
+      >
+        {renderColumnHeader(column)}
+        <Stack spacing={2}>
+          {filterTasks(displayTasks).map((task, taskIndex) => (
+            renderTask(task, column.id)
+          ))}
+        </Stack>
+      </Paper>
+    );
+  };
+
+  const renderKanbanView = () => (
+    <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
+      {columns.map(column => renderColumn(column))}
+    </Box>
+  );
 
   const renderUltimateView = () => {
     return (
       <Box sx={{ display: 'flex', width: '100%' }}>
         <Box sx={{ flex: 1, minWidth: 0, mr: 2 }}>
           <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
-            {columns.map((column, index) => {
-              // Apply limit for done column
-              const displayTasks = column.id === 'done' ? 
-                (column.limit && column.limit > 0 ? column.tasks.slice(0, column.limit) : column.tasks) : 
-                column.tasks;
-
-              return (
-                <Paper
-                  key={column.id}
-                  sx={{
-                    p: 2,
-                    minWidth: 300,
-                    maxWidth: 'none',
-                    flex: 1,
-                    bgcolor: 'background.paper',
-                    borderRadius: 2,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 2,
-                    height: 'fit-content',
-                    minHeight: 'calc(100vh - 100px)',
-                    overflow: 'auto',
-                    position: 'relative',
-                    transition: 'all 0.2s ease',
-                    transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
-                    boxShadow: column.id === dragOverColumn ? 3 : 1,
-                    opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    '&:hover': {
-                      boxShadow: 4,
-                      borderColor: 'primary.light',
-                    },
-                  }}
-                  onDragOver={(e) => handleDragOver(e, column.id)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={() => handleDrop(column.id)}
-                >
-                  <Box sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between', 
-                    mb: 2,
-                    p: 1.5,
-                    borderRadius: 1,
-                    bgcolor: 'action.hover',
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 1,
-                    borderBottom: '1px solid',
-                    borderColor: 'divider',
-                  }}>
-                    <Typography variant="h6" sx={{ 
-                      fontWeight: 'bold',
-                      color: 'primary.main',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1
-                    }}>
-                      {column.title}
-                      <Typography variant="caption" sx={{ 
-                        bgcolor: 'primary.main',
-                        color: 'white',
-                        px: 1,
-                        py: 0.5,
-                        borderRadius: 1,
-                        fontSize: '0.75rem'
-                      }}>
-                        {column.tasks.length}
-                      </Typography>
-                    </Typography>
-                    {column.id === 'done' && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                          Show:
-                        </Typography>
-                        <Select
-                          size="small"
-                          value={column.limit || 3}
-                          onChange={(e) => {
-                            const newLimit = Number(e.target.value);
-                            const newColumns = columns.map(col => 
-                              col.id === column.id 
-                                ? { ...col, limit: newLimit }
-                                : col
-                            );
-                            setColumns(newColumns);
-                            localStorage.setItem(STORAGE_KEY, JSON.stringify(newColumns));
-                          }}
-                          sx={{ 
-                            fontSize: '0.75rem',
-                            height: '28px',
-                            '& .MuiSelect-select': {
-                              py: 0.5
-                            }
-                          }}
-                        >
-                          <MenuItem value={3}>3</MenuItem>
-                          <MenuItem value={5}>5</MenuItem>
-                          <MenuItem value={10}>10</MenuItem>
-                          <MenuItem value={20}>20</MenuItem>
-                          <MenuItem value={50}>50</MenuItem>
-                          <MenuItem value={100}>100</MenuItem>
-                          <MenuItem value={-1}>All</MenuItem>
-                        </Select>
-                      </Box>
-                    )}
-                  </Box>
-                  <Stack spacing={2}>
-                    {filterTasks(displayTasks).map((task, taskIndex) => (
-                      renderTask(task, column.id)
-                    ))}
-                  </Stack>
-                </Paper>
-              );
-            })}
+            {columns.map(column => renderColumn(column))}
           </Box>
         </Box>
         <Paper 
@@ -1349,7 +1450,20 @@ function App() {
             width: sidebarWidth,
             position: 'relative',
             transition: 'width 0.3s ease',
-            flexShrink: 0
+            flexShrink: 0,
+            bgcolor: '#f5f5f5',
+            borderLeft: '2px solid',
+            borderColor: 'primary.main',
+            boxShadow: '-8px 0 16px rgba(0, 0, 0, 0.15)',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '4px',
+              background: 'linear-gradient(90deg, #1976d2, #42a5f5)'
+            }
           }}
         >
           <Box sx={{ 
@@ -1382,45 +1496,80 @@ function App() {
             document.addEventListener('mouseup', handleMouseUp);
           }}
           />
-          <Typography variant="h6" gutterBottom>
+          <Typography 
+            variant="h6" 
+            gutterBottom
+            sx={{
+              color: 'primary.main',
+              fontWeight: 'bold',
+              pb: 2,
+              borderBottom: '2px solid',
+              borderColor: 'primary.main',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              fontSize: '1.1rem'
+            }}
+          >
             Today's Tasks
           </Typography>
-          <Stack spacing={2}>
+          <Stack spacing={1}>
             {columns.reduce((acc: Task[], column) => {
               const todayTasks = column.tasks.filter(task => 
                 task.dueDate && isToday(new Date(task.dueDate))
               );
               return [...acc, ...todayTasks];
             }, []).map((task) => (
-              <Paper
+              <Box
                 key={task.id}
                 sx={{
-                  p: 2,
+                  p: 1.5,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 2,
-                  borderLeft: `4px solid ${task.color || '#42A5F5'}`,
+                  gap: 1.5,
+                  borderLeft: `3px solid ${task.color || '#42A5F5'}`,
                   '&:hover': {
-                    boxShadow: 2,
+                    bgcolor: 'rgba(0, 0, 0, 0.04)',
+                    transition: 'all 0.2s ease'
                   },
+                  bgcolor: 'white',
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                  cursor: 'pointer'
                 }}
               >
-                <Box sx={{ flex: 1 }}>
-                  <Typography variant="subtitle1">{task.content}</Typography>
-                  {task.notes && (
-                    <Typography variant="body2" color="text.secondary">
-                      {task.notes}
-                    </Typography>
-                  )}
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ 
+                  flex: 1, 
+                  minWidth: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      wordBreak: 'break-word',
+                      fontWeight: 500,
+                      color: 'text.primary',
+                      flex: 1
+                    }}
+                  >
+                    {task.content}
+                  </Typography>
                   <Chip
                     label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
                     color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
                     size="small"
+                    sx={{ 
+                      fontWeight: 500,
+                      height: '24px',
+                      '& .MuiChip-label': {
+                        px: 1,
+                        fontSize: '0.75rem'
+                      }
+                    }}
                   />
                 </Box>
-              </Paper>
+              </Box>
             ))}
           </Stack>
         </Paper>
@@ -1445,7 +1594,10 @@ function App() {
                 isRecurring: task.recurrence ? true : false,
                 notes: task.notes || '',
                 color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
-                status: 'todo' as const
+                status: 'todo' as const,
+                accountEmail: task.accountEmail,
+                accountName: task.accountName,
+                accountPicture: task.accountPicture
               }));
             columnTasks = [...columnTasks, ...todoTasks];
           });
@@ -1466,7 +1618,10 @@ function App() {
               id: 'no-tasks',
               content: 'No tasks to do',
               status: 'todo' as const,
-              color: '#42A5F5'
+              color: '#42A5F5',
+              accountEmail: '',
+              accountName: '',
+              accountPicture: ''
             }];
           }
         } else if (column.id === 'inProgress') {
@@ -1481,7 +1636,10 @@ function App() {
                 isRecurring: task.recurrence ? true : false,
                 notes: task.notes?.replace('⚡ Active', '').trim() || '',
                 color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#FFA726',
-                status: 'in-progress' as const
+                status: 'in-progress' as const,
+                accountEmail: task.accountEmail,
+                accountName: task.accountName,
+                accountPicture: task.accountPicture
               }));
             columnTasks = [...columnTasks, ...inProgressTasks];
           });
@@ -1517,6 +1675,9 @@ function App() {
           // Apply limit if specified
           if (column.limit && column.limit > 0) {
             columnTasks = columnTasks.slice(0, column.limit);
+          } else if (column.limit === -1) {
+            // Show all tasks if limit is -1
+            columnTasks = columnTasks;
           }
 
           if (columnTasks.length === 0) {
@@ -1524,7 +1685,10 @@ function App() {
               id: 'no-tasks',
               content: 'No completed tasks yet',
               status: 'completed' as const,
-              color: '#66BB6A'
+              color: '#66BB6A',
+              accountEmail: '',
+              accountName: '',
+              accountPicture: ''
             }];
           }
         }
@@ -1735,126 +1899,7 @@ function App() {
                   {viewMode === 'calendar' && renderCalendarView()}
                   {viewMode === 'today' && renderTodayView()}
                   {viewMode === 'ultimate' && renderUltimateView()}
-                  {viewMode === 'kanban' && (
-                    <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
-                      {columns.map((column, index) => {
-                        // Apply limit for done column
-                        const displayTasks = column.id === 'done' ? 
-                          (column.limit && column.limit > 0 ? column.tasks.slice(0, column.limit) : column.tasks) : 
-                          column.tasks;
-
-                        return (
-                          <Paper
-                            key={column.id}
-                            sx={{
-                              p: 2,
-                              minWidth: 300,
-                              maxWidth: 'none',
-                              flex: 1,
-                              bgcolor: 'background.paper',
-                              borderRadius: 2,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 2,
-                              height: 'fit-content',
-                              minHeight: 'calc(100vh - 100px)',
-                              overflow: 'auto',
-                              position: 'relative',
-                              transition: 'all 0.2s ease',
-                              transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
-                              boxShadow: column.id === dragOverColumn ? 3 : 1,
-                              opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1,
-                              border: '1px solid',
-                              borderColor: 'divider',
-                              '&:hover': {
-                                boxShadow: 4,
-                                borderColor: 'primary.light',
-                              },
-                            }}
-                            onDragOver={(e) => handleDragOver(e, column.id)}
-                            onDragLeave={handleDragLeave}
-                            onDrop={() => handleDrop(column.id)}
-                          >
-                            <Box sx={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'space-between', 
-                              mb: 2,
-                              p: 1.5,
-                              borderRadius: 1,
-                              bgcolor: 'action.hover',
-                              position: 'sticky',
-                              top: 0,
-                              zIndex: 1,
-                              borderBottom: '1px solid',
-                              borderColor: 'divider',
-                            }}>
-                              <Typography variant="h6" sx={{ 
-                                fontWeight: 'bold',
-                                color: 'primary.main',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 1
-                              }}>
-                                {column.title}
-                                <Typography variant="caption" sx={{ 
-                                  bgcolor: 'primary.main',
-                                  color: 'white',
-                                  px: 1,
-                                  py: 0.5,
-                                  borderRadius: 1,
-                                  fontSize: '0.75rem'
-                                }}>
-                                  {column.tasks.length}
-                                </Typography>
-                              </Typography>
-                              {column.id === 'done' && (
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                                    Show:
-                                  </Typography>
-                                  <Select
-                                    size="small"
-                                    value={column.limit || 3}
-                                    onChange={(e) => {
-                                      const newLimit = Number(e.target.value);
-                                      const newColumns = columns.map(col => 
-                                        col.id === column.id 
-                                          ? { ...col, limit: newLimit }
-                                          : col
-                                      );
-                                      setColumns(newColumns);
-                                      localStorage.setItem(STORAGE_KEY, JSON.stringify(newColumns));
-                                    }}
-                                    sx={{ 
-                                      fontSize: '0.75rem',
-                                      height: '28px',
-                                      '& .MuiSelect-select': {
-                                        py: 0.5
-                                      }
-                                    }}
-                                  >
-                                    <MenuItem value={3}>3</MenuItem>
-                                    <MenuItem value={5}>5</MenuItem>
-                                    <MenuItem value={10}>10</MenuItem>
-                                    <MenuItem value={20}>20</MenuItem>
-                                    <MenuItem value={50}>50</MenuItem>
-                                    <MenuItem value={100}>100</MenuItem>
-                                    <MenuItem value={-1}>All</MenuItem>
-                                  </Select>
-                                </Box>
-                              )}
-                            </Box>
-                            <Stack spacing={2}>
-                              {filterTasks(displayTasks).map((task, taskIndex) => (
-                                renderTask(task, column.id)
-                              ))}
-                            </Stack>
-                          </Paper>
-                        );
-                      })}
-                    </Box>
-                  )}
+                  {viewMode === 'kanban' && renderKanbanView()}
                 </>
               )
             ) : (
