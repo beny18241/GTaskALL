@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid } from '@mui/material';
+import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid, Checkbox } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -22,6 +22,9 @@ import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ClearIcon from '@mui/icons-material/Clear';
 import ListIcon from '@mui/icons-material/List';
+import EditIcon from '@mui/icons-material/Edit';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import { CircularProgress } from '@mui/material';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -71,6 +74,9 @@ const GOOGLE_CLIENT_ID = "251184335563-bdf3sv4vc1sr4v2itciiepd7fllvshec.apps.goo
 
 // Add new view mode type
 type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate';
+
+// Add this type at the top with other interfaces
+type Timeout = ReturnType<typeof setTimeout>;
 
 function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -128,7 +134,14 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [openTaskDialog, setOpenTaskDialog] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingTask, setEditingTask] = useState<{ task: Task; columnId: string } | null>(null);
+  const [editTaskForm, setEditTaskForm] = useState<Partial<Task>>({
+    content: '',
+    notes: '',
+    color: '#1976d2',
+    dueDate: null,
+    isRecurring: false
+  });
   const [newTask, setNewTask] = useState<Partial<Task>>({
     content: '',
     dueDate: null,
@@ -139,6 +152,9 @@ function App() {
   });
   const [sidebarWidth, setSidebarWidth] = useState(400);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+  const [refreshInterval, setRefreshInterval] = useState<Timeout | null>(null);
 
   // Add effect to restore user session on mount
   useEffect(() => {
@@ -837,6 +853,184 @@ function App() {
     );
   };
 
+  const handleEditTask = async (task: Task, columnId: string) => {
+    setEditingTask({ task, columnId });
+    setEditTaskForm({
+      content: task.content,
+      notes: task.notes || '',
+      color: task.color || '#1976d2',
+      dueDate: task.dueDate,
+      isRecurring: task.isRecurring || false
+    });
+  };
+
+  const handleSaveTaskEdit = async () => {
+    if (!editingTask) return;
+
+    const { task, columnId } = editingTask;
+
+    // Update local state first
+    setColumns(prevColumns => {
+      return prevColumns.map(column => {
+        if (column.id === columnId) {
+          return {
+            ...column,
+            tasks: column.tasks.map(t => 
+              t.id === task.id 
+                ? { 
+                    ...t, 
+                    content: editTaskForm.content || t.content,
+                    notes: editTaskForm.notes,
+                    color: editTaskForm.color,
+                    dueDate: editTaskForm.dueDate,
+                    isRecurring: editTaskForm.isRecurring
+                  }
+                : t
+            )
+          };
+        }
+        return column;
+      });
+    });
+
+    // Sync with Google Tasks if connected
+    if (googleAccounts.length > 0) {
+      try {
+        // Find the task in Google Tasks
+        let taskListId = '';
+        let taskId = '';
+        
+        // Search through all task lists to find the task
+        for (const [listId, tasks] of Object.entries(googleAccounts[activeAccountIndex].tasks)) {
+          const foundTask = tasks.find(t => t.title === task.content);
+          if (foundTask) {
+            taskListId = listId;
+            taskId = foundTask.id;
+            break;
+          }
+        }
+
+        if (taskListId && taskId) {
+          // Prepare the update
+          const update: any = {
+            title: editTaskForm.content,
+            notes: editTaskForm.notes || '',
+            due: editTaskForm.dueDate ? editTaskForm.dueDate.toISOString() : null
+          };
+
+          // Add color to notes if specified
+          if (editTaskForm.color) {
+            const colorHex = editTaskForm.color.replace('#', '');
+            // Remove any existing color from notes
+            const notesWithoutColor = update.notes.replace(/#[A-Fa-f0-9]{6}/g, '').trim();
+            update.notes = `${notesWithoutColor}\n#${colorHex}`;
+          }
+
+          // Add recurring status to notes
+          if (editTaskForm.isRecurring) {
+            if (!update.notes.includes('🔄 Recurring')) {
+              update.notes = `${update.notes}\n🔄 Recurring`;
+            }
+          } else {
+            update.notes = update.notes.replace('🔄 Recurring', '').trim();
+          }
+
+          // Update the task in Google Tasks
+          const response = await axios.patch(
+            `https://www.googleapis.com/tasks/v1/lists/${taskListId}/tasks/${taskId}`,
+            update,
+            {
+              headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` }
+            }
+          );
+
+          // Update the local Google Tasks state with the response data
+          setGoogleAccounts(prevAccounts => {
+            const newAccounts = [...prevAccounts];
+            if (newAccounts[activeAccountIndex].tasks[taskListId]) {
+              newAccounts[activeAccountIndex].tasks[taskListId] = newAccounts[activeAccountIndex].tasks[taskListId].map(t => 
+                t.id === taskId 
+                  ? { ...t, ...response.data }
+                  : t
+              );
+            }
+            return newAccounts;
+          });
+
+          // Refresh the tasks data to ensure everything is in sync
+          const taskListsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
+            headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` }
+          });
+
+          const taskLists = taskListsResponse.data.items || [];
+          const tasksPromises = taskLists.map(async (list: any) => {
+            let allTasks: any[] = [];
+            let pageToken: string | undefined;
+            
+            do {
+              const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
+                headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` },
+                params: {
+                  showCompleted: true,
+                  showHidden: true,
+                  maxResults: 100,
+                  pageToken: pageToken
+                }
+              });
+              
+              const tasks = response.data.items || [];
+              allTasks = [...allTasks, ...tasks];
+              pageToken = response.data.nextPageToken;
+            } while (pageToken);
+
+            return { listId: list.id, tasks: allTasks };
+          });
+
+          const results = await Promise.all(tasksPromises);
+          const tasksByList: { [listId: string]: any[] } = {};
+          results.forEach(({ listId, tasks }) => {
+            tasksByList[listId] = tasks;
+          });
+
+          // Update Google Tasks state
+          setGoogleAccounts(prevAccounts => {
+            const newAccounts = [...prevAccounts];
+            newAccounts[activeAccountIndex].tasks = tasksByList;
+            return newAccounts;
+          });
+
+          // Update columns with fresh data
+          updateColumnsWithTasks(tasksByList);
+        }
+      } catch (error) {
+        console.error('Error updating task in Google Tasks:', error);
+        // Revert local state if Google Tasks update fails
+        setColumns(prevColumns => {
+          return prevColumns.map(column => {
+            if (column.id === columnId) {
+              return {
+                ...column,
+                tasks: column.tasks.map(t => 
+                  t.id === task.id ? task : t
+                )
+              };
+            }
+            return column;
+          });
+        });
+      }
+    }
+
+    setEditingTask(null);
+    setEditTaskForm({
+      content: '',
+      notes: '',
+      color: '#1976d2',
+      dueDate: null,
+      isRecurring: false
+    });
+  };
+
   const renderTask = (task: Task, columnId: string) => {
     const isNoTask = task.id === 'no-tasks';
     const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed';
@@ -1034,6 +1228,38 @@ function App() {
             </Stack>
           </Box>
         </Box>
+        <IconButton
+          size="small"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleEditTask(task, columnId);
+          }}
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: task.accountPicture ? 40 : 8,
+            opacity: 1,
+            transition: 'all 0.3s ease',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            '&:hover': {
+              backgroundColor: 'primary.main',
+              color: 'white',
+              transform: 'scale(1.1) rotate(5deg)',
+              boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+            },
+            '& .MuiSvgIcon-root': {
+              fontSize: '1rem',
+            },
+            zIndex: 2,
+            width: '28px',
+            height: '28px',
+            border: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
+          <EditIcon fontSize="small" />
+        </IconButton>
       </Paper>
     );
   };
@@ -1701,6 +1927,84 @@ function App() {
     });
   };
 
+  const refreshTasks = async () => {
+    if (googleAccounts.length === 0 || isRefreshing) return;
+
+    try {
+      setIsRefreshing(true);
+      const taskListsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
+        headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` }
+      });
+
+      const taskLists = taskListsResponse.data.items || [];
+      const tasksPromises = taskLists.map(async (list: any) => {
+        let allTasks: any[] = [];
+        let pageToken: string | undefined;
+        
+        do {
+          const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
+            headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` },
+            params: {
+              showCompleted: true,
+              showHidden: true,
+              maxResults: 100,
+              pageToken: pageToken
+            }
+          });
+          
+          const tasks = response.data.items || [];
+          // Add account info to each task
+          const tasksWithAccount = tasks.map((task: any) => ({
+            ...task,
+            accountEmail: googleAccounts[activeAccountIndex].user.email,
+            accountName: googleAccounts[activeAccountIndex].user.name,
+            accountPicture: googleAccounts[activeAccountIndex].user.picture
+          }));
+          allTasks = [...allTasks, ...tasksWithAccount];
+          pageToken = response.data.nextPageToken;
+        } while (pageToken);
+
+        return { listId: list.id, tasks: allTasks };
+      });
+
+      const results = await Promise.all(tasksPromises);
+      const tasksByList: { [listId: string]: any[] } = {};
+      results.forEach(({ listId, tasks }) => {
+        tasksByList[listId] = tasks;
+      });
+
+      // Update Google Tasks state
+      setGoogleAccounts(prevAccounts => {
+        const newAccounts = [...prevAccounts];
+        newAccounts[activeAccountIndex].tasks = tasksByList;
+        return newAccounts;
+      });
+
+      // Update columns with fresh data
+      updateColumnsWithTasks(tasksByList);
+      setLastRefreshTime(new Date());
+    } catch (error) {
+      console.error('Error refreshing tasks:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Update the useEffect for auto-refresh with a shorter interval
+  useEffect(() => {
+    if (googleAccounts.length > 0) {
+      // Set up auto-refresh every 15 seconds
+      const interval = setInterval(refreshTasks, 15000);
+      setRefreshInterval(interval);
+
+      return () => {
+        if (interval) {
+          clearInterval(interval);
+        }
+      };
+    }
+  }, [googleAccounts.length, activeAccountIndex]);
+
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <Box sx={{ display: 'flex' }}>
@@ -1870,6 +2174,76 @@ function App() {
                 onError={handleGoogleError}
               />
             )}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2 }}>
+              <IconButton
+                onClick={refreshTasks}
+                disabled={isRefreshing}
+                sx={{
+                  color: 'inherit',
+                  transition: 'all 0.3s ease',
+                  position: 'relative',
+                  '&:hover': {
+                    transform: 'rotate(180deg)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  },
+                  '&.Mui-disabled': {
+                    color: 'rgba(255, 255, 255, 0.3)',
+                  },
+                  '&::after': {
+                    content: '""',
+                    position: 'absolute',
+                    top: -2,
+                    left: -2,
+                    right: -2,
+                    bottom: -2,
+                    borderRadius: '50%',
+                    border: '2px solid',
+                    borderColor: 'transparent',
+                    transition: 'all 0.3s ease',
+                  },
+                  '&:hover::after': {
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                  }
+                }}
+              >
+                {isRefreshing ? (
+                  <CircularProgress 
+                    size={24} 
+                    color="inherit"
+                    sx={{
+                      animation: 'spin 1s linear infinite',
+                      '@keyframes spin': {
+                        '0%': { transform: 'rotate(0deg)' },
+                        '100%': { transform: 'rotate(360deg)' }
+                      }
+                    }}
+                  />
+                ) : (
+                  <RefreshIcon />
+                )}
+              </IconButton>
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5
+                }}
+              >
+                <Box 
+                  component="span" 
+                  sx={{ 
+                    width: 8, 
+                    height: 8, 
+                    borderRadius: '50%', 
+                    bgcolor: isRefreshing ? 'warning.main' : 'success.main',
+                    transition: 'all 0.3s ease'
+                  }} 
+                />
+                Last refresh: {format(lastRefreshTime, 'HH:mm:ss')}
+              </Typography>
+            </Box>
           </Toolbar>
         </AppBar>
         
@@ -2076,6 +2450,69 @@ function App() {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setOpenAccountDialog(false)}>Cancel</Button>
+          </DialogActions>
+        </Dialog>
+
+        <Dialog
+          open={!!editingTask}
+          onClose={() => setEditingTask(null)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Edit Task</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                label="Task Title"
+                value={editTaskForm.content}
+                onChange={(e) => setEditTaskForm(prev => ({ ...prev, content: e.target.value }))}
+                fullWidth
+                multiline
+                rows={2}
+              />
+              <TextField
+                label="Notes"
+                value={editTaskForm.notes}
+                onChange={(e) => setEditTaskForm(prev => ({ ...prev, notes: e.target.value }))}
+                fullWidth
+                multiline
+                rows={4}
+              />
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <DatePicker
+                  label="Due Date"
+                  value={editTaskForm.dueDate}
+                  onChange={(date) => setEditTaskForm(prev => ({ ...prev, dueDate: date }))}
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                    },
+                  }}
+                />
+              </LocalizationProvider>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Typography variant="body2">Color:</Typography>
+                <input
+                  type="color"
+                  value={editTaskForm.color}
+                  onChange={(e) => setEditTaskForm(prev => ({ ...prev, color: e.target.value }))}
+                  style={{ width: '50px', height: '30px' }}
+                />
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Checkbox
+                  checked={editTaskForm.isRecurring}
+                  onChange={(e) => setEditTaskForm(prev => ({ ...prev, isRecurring: e.target.checked }))}
+                />
+                <Typography variant="body2">Recurring Task</Typography>
+              </Box>
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setEditingTask(null)}>Cancel</Button>
+            <Button onClick={handleSaveTaskEdit} variant="contained" color="primary">
+              Save Changes
+            </Button>
           </DialogActions>
         </Dialog>
       </Box>
