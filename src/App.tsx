@@ -78,6 +78,14 @@ type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate';
 // Add this type at the top with other interfaces
 type Timeout = ReturnType<typeof setTimeout>;
 
+interface EditTaskForm {
+  content: string;
+  notes: string;
+  color: string;
+  dueDate: Date | null;
+  isRecurring: boolean;
+}
+
 function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDrawerExpanded, setIsDrawerExpanded] = useState(true);
@@ -135,7 +143,7 @@ function App() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [openTaskDialog, setOpenTaskDialog] = useState(false);
   const [editingTask, setEditingTask] = useState<{ task: Task; columnId: string } | null>(null);
-  const [editTaskForm, setEditTaskForm] = useState<Partial<Task>>({
+  const [editTaskForm, setEditTaskForm] = useState<EditTaskForm>({
     content: '',
     notes: '',
     color: '#1976d2',
@@ -854,14 +862,19 @@ function App() {
   };
 
   const handleEditTask = async (task: Task, columnId: string) => {
-    setEditingTask({ task, columnId });
+    if (!task || task.id === 'no-tasks') return;
+    
+    // Initialize the edit form with the current task data
     setEditTaskForm({
-      content: task.content,
+      content: task.content || '',
       notes: task.notes || '',
       color: task.color || '#1976d2',
-      dueDate: task.dueDate,
+      dueDate: task.dueDate || null,
       isRecurring: task.isRecurring || false
     });
+    
+    // Set the editing task after form is initialized
+    setEditingTask({ task, columnId });
   };
 
   const handleSaveTaskEdit = async () => {
@@ -2455,7 +2468,16 @@ function App() {
 
         <Dialog
           open={!!editingTask}
-          onClose={() => setEditingTask(null)}
+          onClose={() => {
+            setEditingTask(null);
+            setEditTaskForm({
+              content: '',
+              notes: '',
+              color: '#1976d2',
+              dueDate: null,
+              isRecurring: false
+            });
+          }}
           maxWidth="sm"
           fullWidth
         >
@@ -2469,6 +2491,9 @@ function App() {
                 fullWidth
                 multiline
                 rows={2}
+                error={!editTaskForm.content.trim()}
+                helperText={!editTaskForm.content.trim() ? "Task title is required" : ""}
+                autoFocus
               />
               <TextField
                 label="Notes"
@@ -2509,8 +2534,26 @@ function App() {
             </Stack>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setEditingTask(null)}>Cancel</Button>
-            <Button onClick={handleSaveTaskEdit} variant="contained" color="primary">
+            <Button 
+              onClick={() => {
+                setEditingTask(null);
+                setEditTaskForm({
+                  content: '',
+                  notes: '',
+                  color: '#1976d2',
+                  dueDate: null,
+                  isRecurring: false
+                });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveTaskEdit} 
+              variant="contained" 
+              color="primary"
+              disabled={!editTaskForm.content.trim()}
+            >
               Save Changes
             </Button>
           </DialogActions>
