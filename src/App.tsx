@@ -12,7 +12,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { format, addDays, isToday, isSameDay, startOfDay, endOfDay } from 'date-fns';
+import { format, addDays, isToday, isSameDay, startOfDay, endOfDay, isYesterday, isTomorrow, differenceInDays, startOfWeek, endOfWeek, isThisWeek, addWeeks } from 'date-fns';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { useGoogleLogin, googleLogout } from '@react-oauth/google';
 import { GoogleLogin } from '@react-oauth/google';
@@ -86,10 +86,19 @@ interface EditTaskForm {
   isRecurring: boolean;
 }
 
+interface DateSection {
+  id: string;
+  title: string;
+  tasks: Task[];
+  date: Date | null;
+  type: 'today' | 'tomorrow' | 'this-week' | 'next-week' | 'overdue' | 'no-date' | 'future';
+}
+
 function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDrawerExpanded, setIsDrawerExpanded] = useState(true);
   const [doneTasksLimit, setDoneTasksLimit] = useState(3);
+  const [dateGroupingEnabled, setDateGroupingEnabled] = useState(false);
   const [columns, setColumns] = useState<Column[]>(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
@@ -1554,6 +1563,164 @@ function App() {
     });
   };
 
+  // Helper function to get date section for a task
+  const getDateSection = (task: Task): DateSection => {
+    if (!task.dueDate) {
+      return {
+        id: 'no-date',
+        title: 'No Due Date',
+        tasks: [],
+        date: null,
+        type: 'no-date'
+      };
+    }
+
+    const dueDate = new Date(task.dueDate);
+    const today = new Date();
+    const daysDiff = differenceInDays(dueDate, today);
+
+    if (daysDiff < 0) {
+      return {
+        id: 'overdue',
+        title: 'Overdue',
+        tasks: [],
+        date: dueDate,
+        type: 'overdue'
+      };
+    } else if (isToday(dueDate)) {
+      return {
+        id: 'today',
+        title: 'Today',
+        tasks: [],
+        date: dueDate,
+        type: 'today'
+      };
+    } else if (isTomorrow(dueDate)) {
+      return {
+        id: 'tomorrow',
+        title: 'Tomorrow',
+        tasks: [],
+        date: dueDate,
+        type: 'tomorrow'
+      };
+    } else if (isThisWeek(dueDate)) {
+      return {
+        id: 'this-week',
+        title: 'This Week',
+        tasks: [],
+        date: dueDate,
+        type: 'this-week'
+      };
+    } else if (daysDiff <= 14) {
+      return {
+        id: 'next-week',
+        title: 'Next Week',
+        tasks: [],
+        date: dueDate,
+        type: 'next-week'
+      };
+    } else {
+      return {
+        id: 'future',
+        title: 'Future',
+        tasks: [],
+        date: dueDate,
+        type: 'future'
+      };
+    }
+  };
+
+  // Helper function to group tasks by date sections
+  const groupTasksByDate = (tasks: Task[]): DateSection[] => {
+    const sections: { [key: string]: DateSection } = {};
+    
+    tasks.forEach(task => {
+      const section = getDateSection(task);
+      if (!sections[section.id]) {
+        sections[section.id] = { ...section, tasks: [] };
+      }
+      sections[section.id].tasks.push(task);
+    });
+
+    // Sort sections in order: overdue, today, tomorrow, this-week, next-week, future, no-date
+    const sectionOrder = ['overdue', 'today', 'tomorrow', 'this-week', 'next-week', 'future', 'no-date'];
+    
+    return sectionOrder
+      .map(id => sections[id])
+      .filter(section => section && section.tasks.length > 0);
+  };
+
+  // Helper function to render date section header
+  const renderDateSectionHeader = (section: DateSection) => {
+    const getSectionColor = (type: DateSection['type']) => {
+      switch (type) {
+        case 'overdue': return 'error.main';
+        case 'today': return 'success.main';
+        case 'tomorrow': return 'warning.main';
+        case 'this-week': return 'info.main';
+        case 'next-week': return 'primary.main';
+        case 'future': return 'grey.600';
+        case 'no-date': return 'grey.500';
+        default: return 'grey.500';
+      }
+    };
+
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          p: 1,
+          mb: 1,
+          borderRadius: 1,
+          bgcolor: `${getSectionColor(section.type)}15`,
+          border: `1px solid ${getSectionColor(section.type)}30`,
+          position: 'sticky',
+          top: 0,
+          zIndex: 2,
+        }}
+      >
+        <Typography
+          variant="subtitle2"
+          sx={{
+            fontWeight: 600,
+            color: getSectionColor(section.type),
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
+          }}
+        >
+          {section.title}
+          <Typography
+            variant="caption"
+            sx={{
+              bgcolor: getSectionColor(section.type),
+              color: 'white',
+              px: 0.5,
+              py: 0.25,
+              borderRadius: 0.5,
+              fontSize: '0.7rem'
+            }}
+          >
+            {section.tasks.length}
+          </Typography>
+        </Typography>
+        {section.date && (
+          <Typography
+            variant="caption"
+            sx={{
+              color: 'text.secondary',
+              fontSize: '0.7rem'
+            }}
+          >
+            {format(section.date, 'MMM d')}
+          </Typography>
+        )}
+      </Box>
+    );
+  };
+
   const renderColumnHeader = (column: Column) => (
     <Box sx={{ 
       display: 'flex', 
@@ -1588,33 +1755,51 @@ function App() {
           {column.tasks.length}
         </Typography>
       </Typography>
-      {column.id === 'done' && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            Show:
-          </Typography>
-          <Select
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        {(column.id === 'todo' || column.id === 'inProgress') && (
+          <IconButton
             size="small"
-            value={column.limit || 3}
-            onChange={(e) => handleLimitChange(column.id, Number(e.target.value))}
-            sx={{ 
-              fontSize: '0.75rem',
-              height: '28px',
-              '& .MuiSelect-select': {
-                py: 0.5
-              }
+            onClick={() => setDateGroupingEnabled(!dateGroupingEnabled)}
+            sx={{
+              color: dateGroupingEnabled ? 'primary.main' : 'text.secondary',
+              '&:hover': {
+                backgroundColor: 'primary.light',
+                color: 'white',
+              },
             }}
+            title={dateGroupingEnabled ? 'Disable date grouping' : 'Enable date grouping'}
           >
-            <MenuItem value={3}>3</MenuItem>
-            <MenuItem value={5}>5</MenuItem>
-            <MenuItem value={10}>10</MenuItem>
-            <MenuItem value={20}>20</MenuItem>
-            <MenuItem value={50}>50</MenuItem>
-            <MenuItem value={100}>100</MenuItem>
-            <MenuItem value={-1}>All</MenuItem>
-          </Select>
-        </Box>
-      )}
+            <CalendarTodayIcon fontSize="small" />
+          </IconButton>
+        )}
+        {column.id === 'done' && (
+          <>
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              Show:
+            </Typography>
+            <Select
+              size="small"
+              value={column.limit || 3}
+              onChange={(e) => handleLimitChange(column.id, Number(e.target.value))}
+              sx={{ 
+                fontSize: '0.75rem',
+                height: '28px',
+                '& .MuiSelect-select': {
+                  py: 0.5
+                }
+              }}
+            >
+              <MenuItem value={3}>3</MenuItem>
+              <MenuItem value={5}>5</MenuItem>
+              <MenuItem value={10}>10</MenuItem>
+              <MenuItem value={20}>20</MenuItem>
+              <MenuItem value={50}>50</MenuItem>
+              <MenuItem value={100}>100</MenuItem>
+              <MenuItem value={-1}>All</MenuItem>
+            </Select>
+          </>
+        )}
+      </Box>
     </Box>
   );
 
@@ -1624,6 +1809,8 @@ function App() {
       (column.limit && column.limit > 0 ? column.tasks.slice(0, column.limit) : 
        column.limit === -1 ? column.tasks : column.tasks.slice(0, 3)) : 
       column.tasks;
+
+    const filteredTasks = filterTasks(displayTasks);
 
     return (
       <Paper
@@ -1658,11 +1845,27 @@ function App() {
         onDrop={() => handleDrop(column.id)}
       >
         {renderColumnHeader(column)}
-        <Stack spacing={2}>
-          {filterTasks(displayTasks).map((task, taskIndex) => (
-            renderTask(task, column.id)
-          ))}
-        </Stack>
+        
+        {dateGroupingEnabled && column.id !== 'done' ? (
+          // Render with date sections
+          <Stack spacing={2}>
+            {groupTasksByDate(filteredTasks).map((section) => (
+              <Box key={section.id}>
+                {renderDateSectionHeader(section)}
+                <Stack spacing={1} sx={{ pl: 1 }}>
+                  {section.tasks.map((task) => renderTask(task, column.id))}
+                </Stack>
+              </Box>
+            ))}
+          </Stack>
+        ) : (
+          // Render without date sections (original behavior)
+          <Stack spacing={2}>
+            {filteredTasks.map((task, taskIndex) => (
+              renderTask(task, column.id)
+            ))}
+          </Stack>
+        )}
       </Paper>
     );
   };
