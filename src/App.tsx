@@ -98,7 +98,7 @@ function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDrawerExpanded, setIsDrawerExpanded] = useState(true);
   const [doneTasksLimit, setDoneTasksLimit] = useState(3);
-  const [dateGroupingEnabled, setDateGroupingEnabled] = useState(false);
+  const [dateGroupingEnabled, setDateGroupingEnabled] = useState(true);
   const [columns, setColumns] = useState<Column[]>(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
@@ -172,6 +172,15 @@ function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
   const [refreshInterval, setRefreshInterval] = useState<Timeout | null>(null);
+  const [openNewTaskDialog, setOpenNewTaskDialog] = useState(false);
+  const [newTaskForm, setNewTaskForm] = useState<EditTaskForm>({
+    content: '',
+    notes: '',
+    color: '#1976d2',
+    dueDate: null,
+    isRecurring: false
+  });
+  const [selectedListForNewTask, setSelectedListForNewTask] = useState<string>('');
 
   // Add effect to restore user session on mount
   useEffect(() => {
@@ -1051,6 +1060,130 @@ function App() {
       dueDate: null,
       isRecurring: false
     });
+  };
+
+  const handleCreateNewTask = async () => {
+    if (!newTaskForm.content.trim() || !selectedListForNewTask) return;
+
+    try {
+      // Create task in Google Tasks
+      if (googleAccounts.length > 0) {
+        // Prepare the task data
+        const taskData: any = {
+          title: newTaskForm.content,
+          notes: newTaskForm.notes || '',
+          due: newTaskForm.dueDate ? newTaskForm.dueDate.toISOString() : null
+        };
+
+        // Add color to notes if specified
+        if (newTaskForm.color) {
+          const colorHex = newTaskForm.color.replace('#', '');
+          taskData.notes = `${taskData.notes}\n#${colorHex}`;
+        }
+
+        // Add recurring status to notes
+        if (newTaskForm.isRecurring) {
+          taskData.notes = `${taskData.notes}\n🔄 Recurring`;
+        }
+
+        // Create the task in Google Tasks
+        const response = await axios.post(
+          `https://www.googleapis.com/tasks/v1/lists/${selectedListForNewTask}/tasks`,
+          taskData,
+          {
+            headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` }
+          }
+        );
+
+        // Add account info to the new task
+        const newTaskWithAccount = {
+          ...response.data,
+          accountEmail: googleAccounts[activeAccountIndex].user.email,
+          accountName: googleAccounts[activeAccountIndex].user.name,
+          accountPicture: googleAccounts[activeAccountIndex].user.picture
+        };
+
+        // Update the local Google Tasks state
+        setGoogleAccounts(prevAccounts => {
+          const newAccounts = [...prevAccounts];
+          if (newAccounts[activeAccountIndex].tasks[selectedListForNewTask]) {
+            newAccounts[activeAccountIndex].tasks[selectedListForNewTask] = [
+              ...newAccounts[activeAccountIndex].tasks[selectedListForNewTask],
+              newTaskWithAccount
+            ];
+          } else {
+            newAccounts[activeAccountIndex].tasks[selectedListForNewTask] = [newTaskWithAccount];
+          }
+          return newAccounts;
+        });
+
+        // Refresh the tasks data to ensure everything is in sync
+        const taskListsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
+          headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` }
+        });
+
+        const taskLists = taskListsResponse.data.items || [];
+        const tasksPromises = taskLists.map(async (list: any) => {
+          let allTasks: any[] = [];
+          let pageToken: string | undefined;
+          
+          do {
+            const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
+              headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` },
+              params: {
+                showCompleted: true,
+                showHidden: true,
+                maxResults: 100,
+                pageToken: pageToken
+              }
+            });
+            
+            const tasks = response.data.items || [];
+            // Add account info to each task
+            const tasksWithAccount = tasks.map((task: any) => ({
+              ...task,
+              accountEmail: googleAccounts[activeAccountIndex].user.email,
+              accountName: googleAccounts[activeAccountIndex].user.name,
+              accountPicture: googleAccounts[activeAccountIndex].user.picture
+            }));
+            allTasks = [...allTasks, ...tasksWithAccount];
+            pageToken = response.data.nextPageToken;
+          } while (pageToken);
+
+          return { listId: list.id, tasks: allTasks };
+        });
+
+        const results = await Promise.all(tasksPromises);
+        const tasksByList: { [listId: string]: any[] } = {};
+        results.forEach(({ listId, tasks }) => {
+          tasksByList[listId] = tasks;
+        });
+
+        // Update Google Tasks state
+        setGoogleAccounts(prevAccounts => {
+          const newAccounts = [...prevAccounts];
+          newAccounts[activeAccountIndex].tasks = tasksByList;
+          return newAccounts;
+        });
+
+        // Update columns with fresh data
+        updateColumnsWithTasks(tasksByList);
+      }
+
+      // Reset form and close dialog
+      setNewTaskForm({
+        content: '',
+        notes: '',
+        color: '#1976d2',
+        dueDate: null,
+        isRecurring: false
+      });
+      setSelectedListForNewTask('');
+      setOpenNewTaskDialog(false);
+    } catch (error) {
+      console.error('Error creating new task:', error);
+      alert('Failed to create new task. Please try again.');
+    }
   };
 
   const renderTask = (task: Task, columnId: string) => {
@@ -2019,6 +2152,7 @@ function App() {
     );
   };
 
+  // Helper function to update columns with tasks from Google Tasks
   const updateColumnsWithTasks = (tasksByList: { [listId: string]: any[] }) => {
     setColumns(prevColumns => {
       return prevColumns.map(column => {
@@ -2518,6 +2652,22 @@ function App() {
           )}
         </Box>
 
+        {/* Floating Action Button to add new task */}
+        {user && googleAccounts.length > 0 && (
+          <Box sx={{ position: 'fixed', bottom: 32, right: 32, zIndex: 2000 }}>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              sx={{ borderRadius: '50%', minWidth: 64, minHeight: 64, fontSize: 32, boxShadow: 6 }}
+              onClick={() => setOpenNewTaskDialog(true)}
+              title="Add New Task"
+            >
+              {/* Hide text for round FAB */}
+            </Button>
+          </Box>
+        )}
+
         <Dialog open={openNewColumnDialog} onClose={() => setOpenNewColumnDialog(false)}>
           <DialogTitle>Add New Column</DialogTitle>
           <DialogContent>
@@ -2758,6 +2908,94 @@ function App() {
               disabled={!editTaskForm.content.trim()}
             >
               Save Changes
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Add New Task Dialog */}
+        <Dialog
+          open={openNewTaskDialog}
+          onClose={() => setOpenNewTaskDialog(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Add New Task</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                label="Task Title"
+                value={newTaskForm.content}
+                onChange={(e) => setNewTaskForm(prev => ({ ...prev, content: e.target.value }))}
+                fullWidth
+                multiline
+                rows={2}
+                error={!newTaskForm.content.trim()}
+                helperText={!newTaskForm.content.trim() ? "Task title is required" : ""}
+                autoFocus
+              />
+              <TextField
+                label="Notes"
+                value={newTaskForm.notes}
+                onChange={(e) => setNewTaskForm(prev => ({ ...prev, notes: e.target.value }))}
+                fullWidth
+                multiline
+                rows={4}
+              />
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <DatePicker
+                  label="Due Date"
+                  value={newTaskForm.dueDate}
+                  onChange={(date) => setNewTaskForm(prev => ({ ...prev, dueDate: date }))}
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                    },
+                  }}
+                />
+              </LocalizationProvider>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Typography variant="body2">Color:</Typography>
+                <input
+                  type="color"
+                  value={newTaskForm.color}
+                  onChange={(e) => setNewTaskForm(prev => ({ ...prev, color: e.target.value }))}
+                  style={{ width: '50px', height: '30px' }}
+                />
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Checkbox
+                  checked={newTaskForm.isRecurring}
+                  onChange={(e) => setNewTaskForm(prev => ({ ...prev, isRecurring: e.target.checked }))}
+                />
+                <Typography variant="body2">Recurring Task</Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" sx={{ mb: 1 }}>Task List:</Typography>
+                <Select
+                  value={selectedListForNewTask}
+                  onChange={(e) => setSelectedListForNewTask(e.target.value)}
+                  fullWidth
+                  displayEmpty
+                >
+                  <MenuItem value="" disabled>Select a list</MenuItem>
+                  {googleAccounts[activeAccountIndex]?.taskLists?.map((list: any) => (
+                    <MenuItem key={list.id} value={list.id}>{list.title}</MenuItem>
+                  ))}
+                </Select>
+              </Box>
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenNewTaskDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateNewTask}
+              variant="contained"
+              color="primary"
+              disabled={!newTaskForm.content.trim() || !selectedListForNewTask}
+            >
+              Add Task
             </Button>
           </DialogActions>
         </Dialog>
