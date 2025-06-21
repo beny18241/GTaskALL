@@ -1628,7 +1628,7 @@ function App() {
     const filteredTasks = filterTasks(todayTasks);
 
     return (
-      <Box sx={{ p: 2, maxWidth: '900px', mx: 'auto' }}>
+      <Box sx={{ p: 2, maxWidth: '1000px', mx: 'auto' }}>
         <Box sx={{ 
           mb: 2, 
           textAlign: 'center',
@@ -1647,7 +1647,7 @@ function App() {
         </Box>
 
         {filteredTasks.length === 0 ? (
-          <Paper sx={{ 
+          <Box sx={{ 
             p: 3, 
             textAlign: 'center',
             background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
@@ -1659,191 +1659,184 @@ function App() {
             <Typography variant="body2" color="text.secondary">
               You're all caught up. Enjoy your day!
             </Typography>
-          </Paper>
+          </Box>
         ) : (
-          <Stack spacing={1}>
-            {filteredTasks.map((task) => (
-              <Paper
+          <Box sx={{ 
+            bgcolor: 'white', 
+            borderRadius: 1.5,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            overflow: 'hidden'
+          }}>
+            {filteredTasks.map((task, index) => (
+              <Box
                 key={task.id}
-                className="task-card"
                 sx={{
-                  p: 2,
-                  borderLeft: `3px solid ${task.color || '#42A5F5'}`,
-                  borderRadius: 1.5,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 1,
+                  p: 1.5,
+                  borderBottom: index < filteredTasks.length - 1 ? '1px solid' : 'none',
+                  borderColor: 'divider',
                   transition: 'all 0.2s ease',
                   '&:hover': {
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-                    transform: 'translateY(-1px)'
+                    bgcolor: 'action.hover',
                   },
-                  position: 'relative',
-                  overflow: 'hidden',
-                  '&::before': {
-                    content: '""',
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: '1px',
-                    background: `linear-gradient(90deg, ${task.color || '#42A5F5'} 0%, ${task.color || '#42A5F5'}80 100%)`
+                  '&:last-child': {
+                    borderBottom: 'none'
                   }
                 }}
               >
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-                  {/* Checkbox */}
-                  <Box sx={{ pt: 0.25 }}>
-                    <input
-                      type="checkbox"
-                      checked={task.status === 'completed'}
-                      onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
-                      className="task-completion-checkbox"
-                      style={{
-                        width: '18px',
-                        height: '18px',
-                        cursor: 'pointer',
-                        accentColor: task.color || '#42A5F5',
-                        borderRadius: '3px',
-                        border: `2px solid ${task.color || '#42A5F5'}`,
-                        transition: 'all 0.2s ease'
-                      }}
-                    />
-                  </Box>
+                {/* Checkbox */}
+                <Box sx={{ pt: 0.25, flexShrink: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={task.status === 'completed'}
+                    onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
+                    className="task-completion-checkbox"
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      cursor: 'pointer',
+                      accentColor: task.color || '#42A5F5',
+                      borderRadius: '2px',
+                      border: `1.5px solid ${task.color || '#42A5F5'}`,
+                      transition: 'all 0.2s ease'
+                    }}
+                  />
+                </Box>
 
-                  {/* Task Content */}
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                {/* Task Content */}
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      wordBreak: 'break-word',
+                      fontWeight: 500,
+                      color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
+                      textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                      mb: task.notes ? 0.25 : 0,
+                      transition: 'all 0.2s ease',
+                      fontSize: '0.9rem',
+                      lineHeight: 1.3
+                    }}
+                  >
+                    {task.content}
+                  </Typography>
+                  
+                  {/* Task Notes/Description - Compact */}
+                  {task.notes && (
                     <Typography 
-                      variant="subtitle1" 
+                      variant="caption" 
+                      color="text.secondary"
                       sx={{ 
                         wordBreak: 'break-word',
-                        fontWeight: 600,
-                        color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
-                        textDecoration: task.status === 'completed' ? 'line-through' : 'none',
-                        mb: task.notes ? 0.5 : 0,
-                        transition: 'all 0.2s ease',
-                        fontSize: '0.95rem',
-                        lineHeight: 1.3
+                        whiteSpace: 'pre-wrap',
+                        lineHeight: 1.3,
+                        mb: 0.5,
+                        fontStyle: 'italic',
+                        opacity: task.status === 'completed' ? 0.4 : 0.6,
+                        fontSize: '0.75rem',
+                        display: 'block'
                       }}
                     >
-                      {task.content}
+                      {task.notes}
                     </Typography>
-                    
-                    {/* Task Notes/Description */}
-                    {task.notes && (
-                      <Typography 
-                        variant="body2" 
-                        color="text.secondary"
-                        sx={{ 
-                          wordBreak: 'break-word',
-                          whiteSpace: 'pre-wrap',
-                          lineHeight: 1.4,
-                          mb: 1,
-                          fontStyle: 'italic',
-                          opacity: task.status === 'completed' ? 0.5 : 0.7,
-                          fontSize: '0.8rem'
-                        }}
-                      >
-                        {task.notes}
-                      </Typography>
-                    )}
+                  )}
 
-                    {/* Task Metadata - Compact Layout */}
-                    <Box sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 0.75, 
-                      flexWrap: 'wrap',
-                      mt: 0.5
-                    }}>
-                      {/* Status Badge */}
+                  {/* Task Metadata - Inline Compact */}
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 0.5, 
+                    flexWrap: 'wrap',
+                    mt: 0.25
+                  }}>
+                    {/* Status Badge */}
+                    <Chip
+                      label={task.status === 'in-progress' ? 'Active' : task.status === 'completed' ? 'Done' : 'To Do'}
+                      color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
+                      size="small"
+                      sx={{ 
+                        fontWeight: 500,
+                        height: '16px',
+                        '& .MuiChip-label': {
+                          px: 0.5,
+                          fontSize: '0.65rem'
+                        }
+                      }}
+                    />
+
+                    {/* Account Badge */}
+                    {task.accountName && (
                       <Chip
-                        label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
-                        color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
+                        label={task.accountName}
                         size="small"
                         sx={{ 
-                          fontWeight: 500,
-                          height: '20px',
+                          bgcolor: 'grey.600',
+                          color: 'white',
+                          height: '16px',
                           '& .MuiChip-label': {
-                            px: 0.75,
-                            fontSize: '0.7rem'
+                            px: 0.5,
+                            fontSize: '0.65rem'
                           }
                         }}
                       />
+                    )}
 
-                      {/* Account Badge */}
-                      {task.accountName && (
-                        <Chip
-                          label={task.accountName}
-                          size="small"
-                          sx={{ 
-                            bgcolor: 'grey.700',
-                            color: 'white',
-                            height: '20px',
-                            '& .MuiChip-label': {
-                              px: 0.75,
-                              fontSize: '0.7rem'
-                            }
-                          }}
-                        />
-                      )}
+                    {/* Recurring Badge */}
+                    {task.isRecurring && (
+                      <Box sx={{ 
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                        px: 0.5,
+                        py: 0.25,
+                        borderRadius: 0.5,
+                        fontSize: '0.65rem',
+                        height: '16px'
+                      }}>
+                        🔄
+                      </Box>
+                    )}
 
-                      {/* Recurring Badge */}
-                      {task.isRecurring && (
-                        <Chip
-                          label="🔄"
-                          size="small"
-                          sx={{ 
-                            bgcolor: 'primary.main',
-                            color: 'white',
-                            height: '20px',
-                            minWidth: '20px',
-                            '& .MuiChip-label': {
-                              px: 0.25,
-                              fontSize: '0.7rem'
-                            }
-                          }}
-                        />
-                      )}
-
-                      {/* Due Time (if available) */}
-                      {task.dueDate && (
-                        <Box sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: 0.25,
-                          color: 'text.secondary',
-                          fontSize: '0.7rem'
-                        }}>
-                          <EventIcon sx={{ fontSize: '0.7rem' }} />
-                          {format(new Date(task.dueDate), 'h:mm a')}
-                        </Box>
-                      )}
-                    </Box>
+                    {/* Due Time (if available) */}
+                    {task.dueDate && (
+                      <Box sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 0.25,
+                        color: 'text.secondary',
+                        fontSize: '0.65rem'
+                      }}>
+                        <EventIcon sx={{ fontSize: '0.6rem' }} />
+                        {format(new Date(task.dueDate), 'h:mm a')}
+                      </Box>
+                    )}
                   </Box>
-
-                  {/* Completion Animation */}
-                  {task.status === 'completed' && (
-                    <Box sx={{ 
-                      position: 'absolute',
-                      top: '50%',
-                      right: 12,
-                      transform: 'translateY(-50%)',
-                      color: 'success.main',
-                      fontSize: '1.5rem',
-                      animation: 'fadeInScale 0.3s ease-out'
-                    }}>
-                      ✓
-                    </Box>
-                  )}
                 </Box>
-              </Paper>
+
+                {/* Completion Indicator */}
+                {task.status === 'completed' && (
+                  <Box sx={{ 
+                    color: 'success.main',
+                    fontSize: '1rem',
+                    animation: 'fadeInScale 0.2s ease-out',
+                    flexShrink: 0,
+                    pt: 0.25
+                  }}>
+                    ✓
+                  </Box>
+                )}
+              </Box>
             ))}
-          </Stack>
+          </Box>
         )}
 
         {/* Progress Summary - Compact */}
         {filteredTasks.length > 0 && (
-          <Paper sx={{ 
-            mt: 2, 
+          <Box sx={{ 
+            mt: 1.5, 
             p: 1.5,
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
@@ -1871,7 +1864,7 @@ function App() {
                 transition: 'width 0.3s ease'
               }} />
             </Box>
-          </Paper>
+          </Box>
         )}
       </Box>
     );
