@@ -2891,48 +2891,71 @@ function App() {
                 }
               }
             }}>
-              <IconButton 
-                className={viewMode === 'kanban' ? 'active' : ''}
-                onClick={() => setViewMode('kanban')}
-                title="Kanban View"
+              <Select
+                value={viewMode}
+                onChange={(e) => setViewMode(e.target.value as ViewMode)}
+                sx={{
+                  minWidth: 140,
+                  color: 'white',
+                  '& .MuiSelect-icon': {
+                    color: 'white'
+                  },
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'white',
+                  },
+                  '& .MuiSelect-select': {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    py: 1
+                  }
+                }}
+                MenuProps={{
+                  PaperProps: {
+                    sx: {
+                      mt: 1,
+                      '& .MuiMenuItem-root': {
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.5,
+                        py: 1.5,
+                        px: 2
+                      }
+                    }
+                  }
+                }}
               >
-                <DashboardIcon />
-              </IconButton>
-              <IconButton 
-                className={viewMode === 'list' ? 'active' : ''}
-                onClick={() => setViewMode('list')}
-                title="List View"
-              >
-                <ListIcon />
-              </IconButton>
-              <IconButton 
-                className={viewMode === 'calendar' ? 'active' : ''}
-                onClick={() => setViewMode('calendar')}
-                title="Calendar View"
-              >
-                <CalendarTodayIcon />
-              </IconButton>
-              <IconButton 
-                className={viewMode === 'today' ? 'active' : ''}
-                onClick={() => setViewMode('today')}
-                title="Today's Tasks"
-              >
-                <EventIcon />
-              </IconButton>
-              <IconButton 
-                className={viewMode === 'ultimate' ? 'active' : ''}
-                onClick={() => setViewMode('ultimate')}
-                title="Ultimate Board"
-              >
-                <StarIcon />
-              </IconButton>
-              <IconButton 
-                className={viewMode === 'upcoming' ? 'active' : ''}
-                onClick={() => setViewMode('upcoming')}
-                title="Upcoming Tasks"
-              >
-                <ScheduleIcon />
-              </IconButton>
+                <MenuItem value="kanban">
+                  <DashboardIcon fontSize="small" />
+                  Kanban View
+                </MenuItem>
+                <MenuItem value="list">
+                  <ListIcon fontSize="small" />
+                  List View
+                </MenuItem>
+                <MenuItem value="calendar">
+                  <CalendarTodayIcon fontSize="small" />
+                  Calendar View
+                </MenuItem>
+                <MenuItem value="today">
+                  <EventIcon fontSize="small" />
+                  Today's Tasks
+                </MenuItem>
+                <MenuItem value="ultimate">
+                  <StarIcon fontSize="small" />
+                  Ultimate Board
+                </MenuItem>
+                <MenuItem value="upcoming">
+                  <ScheduleIcon fontSize="small" />
+                  Upcoming Tasks
+                </MenuItem>
+              </Select>
             </Box>
             <Box sx={{ flexGrow: 1 }} />
             {user && (
@@ -2946,7 +2969,7 @@ function App() {
                   InputProps={{
                     startAdornment: (
                       <Box sx={{ display: 'flex', alignItems: 'center', color: 'inherit', pl: 1 }}>
-                        <SearchIcon />
+                        <SearchIcon fontSize="small" />
                       </Box>
                     ),
                     endAdornment: searchQuery && (
@@ -2955,11 +2978,12 @@ function App() {
                         onClick={() => setSearchQuery('')}
                         sx={{ color: 'inherit' }}
                       >
-                        <ClearIcon />
+                        <ClearIcon fontSize="small" />
                       </IconButton>
                     ),
                     sx: { 
                       color: 'inherit',
+                      fontSize: '0.875rem',
                       '& .MuiOutlinedInput-notchedOutline': {
                         borderColor: 'rgba(255, 255, 255, 0.3)',
                       },
@@ -2967,13 +2991,12 @@ function App() {
                         borderColor: 'rgba(255, 255, 255, 0.5)',
                       },
                       '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                        borderColor: 'primary.main',
+                        borderColor: 'white',
                       }
                     }
                   }}
                   sx={{ 
-                    mr: 2,
-                    width: 200,
+                    width: 180,
                     '& .MuiInputBase-root': {
                       color: 'inherit'
                     }
@@ -2983,20 +3006,26 @@ function App() {
               </>
             )}
             {user ? (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 2 }}>
                 <Avatar 
                   src={user.picture} 
                   alt={user.name}
                   sx={{
+                    width: 32,
+                    height: 32,
                     border: '2px solid rgba(255, 255, 255, 0.3)',
-                    boxShadow: '0 0 10px rgba(255, 255, 255, 0.2)'
+                    boxShadow: '0 0 8px rgba(255, 255, 255, 0.2)'
                   }}
                 />
                 <Typography 
-                  variant="body1"
+                  variant="body2"
                   sx={{
                     fontWeight: 500,
-                    textShadow: '0 1px 2px rgba(0, 0, 0, 0.2)'
+                    textShadow: '0 1px 2px rgba(0, 0, 0, 0.2)',
+                    maxWidth: 120,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   {user.name}
@@ -3004,6 +3033,7 @@ function App() {
                 <IconButton 
                   color="inherit" 
                   onClick={handleLogout}
+                  size="small"
                   sx={{
                     '&:hover': {
                       background: 'rgba(255, 255, 255, 0.1)',
@@ -3011,8 +3041,9 @@ function App() {
                       transition: 'all 0.3s ease'
                     }
                   }}
+                  title="Logout"
                 >
-                  <LogoutIcon />
+                  <LogoutIcon fontSize="small" />
                 </IconButton>
               </Box>
             ) : (
@@ -3025,10 +3056,10 @@ function App() {
               <IconButton
                 onClick={refreshTasks}
                 disabled={isRefreshing}
+                size="small"
                 sx={{
                   color: 'inherit',
                   transition: 'all 0.3s ease',
-                  position: 'relative',
                   '&:hover': {
                     transform: 'rotate(180deg)',
                     backgroundColor: 'rgba(255, 255, 255, 0.1)',
