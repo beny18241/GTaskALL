@@ -1818,16 +1818,56 @@ function App() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        overflow: 'hidden',
+                        border: `2px solid ${accountColor}`,
+                        boxShadow: `0 2px 4px ${accountColor}40`
+                      }}>
+                        {task.accountPicture ? (
+                          <img 
+                            src={task.accountPicture} 
+                            alt={task.accountName || task.accountEmail}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                        ) : (
+                          <Box sx={{
+                            width: '100%',
+                            height: '100%',
+                            bgcolor: accountColor,
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.7rem',
+                            fontWeight: 'bold'
+                          }}>
+                            {(task.accountName || task.accountEmail).charAt(0).toUpperCase()}
+                          </Box>
+                        )}
+                      </Box>
+                    )}
+
+                    {/* Recurring Task Indicator */}
+                    {task.isRecurring && (
+                      <Box sx={{ 
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                         width: '20px',
                         height: '20px',
                         borderRadius: '50%',
-                        bgcolor: accountColor,
+                        bgcolor: 'orange',
                         color: 'white',
                         fontSize: '0.7rem',
-                        fontWeight: 'bold',
-                        boxShadow: `0 2px 4px ${accountColor}40`
+                        boxShadow: '0 2px 4px rgba(255, 152, 0, 0.4)'
                       }}>
-                        {accountIcon}
+                        🔄
                       </Box>
                     )}
 
