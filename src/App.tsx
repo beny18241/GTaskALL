@@ -7,6 +7,7 @@ import StarIcon from '@mui/icons-material/Star';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EventIcon from '@mui/icons-material/Event';
+import ScheduleIcon from '@mui/icons-material/Schedule';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -75,7 +76,7 @@ const GOOGLE_ACCOUNTS_KEY = 'google-accounts';
 const GOOGLE_CLIENT_ID = "251184335563-bdf3sv4vc1sr4v2itciiepd7fllvshec.apps.googleusercontent.com";
 
 // Add new view mode type
-type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate';
+type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate' | 'upcoming';
 
 // Add this type at the top with other interfaces
 type Timeout = ReturnType<typeof setTimeout>;
@@ -1916,6 +1917,201 @@ function App() {
     );
   };
 
+  const renderUpcomingView = () => {
+    // Get all tasks from all columns
+    const allTasks = columns.reduce((acc: Task[], column) => {
+      return [...acc, ...column.tasks];
+    }, []);
+
+    // Filter tasks that have due dates and are not completed
+    const upcomingTasks = allTasks.filter(task => 
+      task.dueDate && 
+      task.status !== 'completed' &&
+      new Date(task.dueDate) >= startOfDay(new Date())
+    );
+
+    // Group tasks by due date
+    const tasksByDate = upcomingTasks.reduce((acc: { [key: string]: Task[] }, task) => {
+      const dateKey = format(new Date(task.dueDate!), 'yyyy-MM-dd');
+      if (!acc[dateKey]) {
+        acc[dateKey] = [];
+      }
+      acc[dateKey].push(task);
+      return acc;
+    }, {});
+
+    // Create date columns for the next 7 days
+    const dateColumns: { id: string; title: string; date: Date; tasks: Task[] }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const date = addDays(new Date(), i);
+      const dateKey = format(date, 'yyyy-MM-dd');
+      const tasks = tasksByDate[dateKey] || [];
+      
+      dateColumns.push({
+        id: dateKey,
+        title: format(date, 'EEE, MMM d'),
+        date,
+        tasks: tasks.sort((a, b) => a.content.localeCompare(b.content))
+      });
+    }
+
+    return (
+      <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
+        {dateColumns.map((dateColumn) => (
+          <Paper
+            key={dateColumn.id}
+            sx={{
+              minWidth: 300,
+              maxWidth: 350,
+              height: 'calc(100vh - 120px)',
+              display: 'flex',
+              flexDirection: 'column',
+              bgcolor: isToday(dateColumn.date) ? '#fff3e0' : '#fafafa',
+              border: isToday(dateColumn.date) ? '2px solid #ff9800' : '1px solid #e0e0e0',
+              borderRadius: 2,
+              overflow: 'hidden'
+            }}
+          >
+            {/* Column Header */}
+            <Box
+              sx={{
+                p: 2,
+                bgcolor: isToday(dateColumn.date) ? '#ff9800' : '#f5f5f5',
+                color: isToday(dateColumn.date) ? 'white' : 'text.primary',
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 'bold',
+                  fontSize: '1rem',
+                  textTransform: 'capitalize'
+                }}
+              >
+                {dateColumn.title}
+              </Typography>
+              <Chip
+                label={dateColumn.tasks.length}
+                size="small"
+                sx={{
+                  bgcolor: isToday(dateColumn.date) ? 'rgba(255,255,255,0.2)' : 'primary.main',
+                  color: isToday(dateColumn.date) ? 'white' : 'white',
+                  fontWeight: 'bold'
+                }}
+              />
+            </Box>
+
+            {/* Tasks Container */}
+            <Box
+              sx={{
+                flex: 1,
+                overflow: 'auto',
+                p: 1
+              }}
+            >
+              {dateColumn.tasks.length === 0 ? (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100px',
+                    color: 'text.secondary',
+                    fontStyle: 'italic'
+                  }}
+                >
+                  No tasks
+                </Box>
+              ) : (
+                <Stack spacing={1}>
+                  {dateColumn.tasks.map((task) => (
+                    <Paper
+                      key={task.id}
+                      sx={{
+                        p: 1.5,
+                        cursor: 'pointer',
+                        borderLeft: `4px solid ${task.color || '#42A5F5'}`,
+                        bgcolor: 'white',
+                        '&:hover': {
+                          boxShadow: 2,
+                          transform: 'translateY(-1px)',
+                          transition: 'all 0.2s ease'
+                        }
+                      }}
+                      onClick={() => handleEditTask(task, 'upcoming')}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                        <Checkbox
+                          checked={task.status === 'completed'}
+                          onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
+                          size="small"
+                          sx={{ mt: 0.5 }}
+                        />
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 500,
+                              textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                              color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
+                              wordBreak: 'break-word'
+                            }}
+                          >
+                            {task.content}
+                          </Typography>
+                          {task.notes && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: 'text.secondary',
+                                display: 'block',
+                                mt: 0.5,
+                                wordBreak: 'break-word'
+                              }}
+                            >
+                              {task.notes}
+                            </Typography>
+                          )}
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                            <Chip
+                              label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
+                              color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
+                              size="small"
+                              sx={{ height: '20px', fontSize: '0.7rem' }}
+                            />
+                            {task.accountEmail && (
+                              <Avatar
+                                src={task.accountPicture}
+                                alt={task.accountName}
+                                sx={{
+                                  width: 20,
+                                  height: 20,
+                                  fontSize: '0.7rem',
+                                  bgcolor: getAccountColor(task.accountEmail)
+                                }}
+                              >
+                                {task.accountName?.charAt(0)}
+                              </Avatar>
+                            )}
+                          </Box>
+                        </Box>
+                      </Box>
+                    </Paper>
+                  ))}
+                </Stack>
+              )}
+            </Box>
+          </Paper>
+        ))}
+      </Box>
+    );
+  };
+
   // Helper function to update columns with tasks from Google Tasks
   const updateColumnsWithTasks = (tasksByList: { [listId: string]: any[] }) => {
     setColumns(prevColumns => {
@@ -2730,6 +2926,13 @@ function App() {
               >
                 <StarIcon />
               </IconButton>
+              <IconButton 
+                className={viewMode === 'upcoming' ? 'active' : ''}
+                onClick={() => setViewMode('upcoming')}
+                title="Upcoming Tasks"
+              >
+                <ScheduleIcon />
+              </IconButton>
             </Box>
             <Box sx={{ flexGrow: 1 }} />
             {user && (
@@ -2918,6 +3121,7 @@ function App() {
                   {viewMode === 'today' && renderTodayView()}
                   {viewMode === 'ultimate' && renderUltimateView()}
                   {viewMode === 'kanban' && renderKanbanView()}
+                  {viewMode === 'upcoming' && renderUpcomingView()}
                 </>
               )
             ) : (
