@@ -25,6 +25,7 @@ import ListIcon from '@mui/icons-material/List';
 import EditIcon from '@mui/icons-material/Edit';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { CircularProgress } from '@mui/material';
+import { apiService } from './api';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -195,12 +196,53 @@ function App() {
           picture: decoded.picture,
         };
         setUser(userData);
+        localStorage.setItem('google-credential', savedCredential);
+        
+        // Load saved Google Tasks connections from database
+        loadSavedConnections(userData.email);
       } catch (error) {
         console.error('Error restoring user session:', error);
         localStorage.removeItem('google-credential');
       }
     }
   }, []);
+
+  // Function to load saved connections from database
+  const loadSavedConnections = async (mainUserEmail: string) => {
+    try {
+      const connections = await apiService.getConnections(mainUserEmail);
+      
+      if (connections.length > 0) {
+        // Convert saved connections to GoogleAccount format
+        const savedAccounts: GoogleAccount[] = [];
+        
+        for (const connection of connections) {
+          // Try to get the stored token
+          const token = await apiService.getToken(mainUserEmail, connection.gtask_account_email);
+          
+          if (token) {
+            savedAccounts.push({
+              user: {
+                name: connection.gtask_account_name,
+                email: connection.gtask_account_email,
+                picture: connection.gtask_account_picture
+              },
+              token: token,
+              taskLists: [],
+              tasks: {}
+            });
+          }
+        }
+        
+        if (savedAccounts.length > 0) {
+          setGoogleAccounts(savedAccounts);
+          setActiveAccountIndex(0);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading saved connections:', error);
+    }
+  };
 
   // Save user data to localStorage whenever it changes
   useEffect(() => {
@@ -358,6 +400,19 @@ function App() {
           tasks: {}
         };
 
+        // Save connection to database
+        try {
+          await apiService.addConnection(
+            user.email,
+            user.email,
+            user.name,
+            user.picture,
+            tokenResponse.access_token
+          );
+        } catch (error) {
+          console.error('Error saving connection to database:', error);
+        }
+
         setGoogleAccounts(prevAccounts => [...prevAccounts, newAccount]);
         setActiveAccountIndex(googleAccounts.length);
         setGoogleTasksLoading(false);
@@ -381,12 +436,29 @@ function App() {
           throw new Error('No user data available');
         }
 
+        if (!user) {
+          throw new Error('Main user not logged in');
+        }
+
         const newAccount: GoogleAccount = {
           user: tempUserData,
           token: tokenResponse.access_token,
           taskLists: [],
           tasks: {}
         };
+
+        // Save connection to database
+        try {
+          await apiService.addConnection(
+            user.email, // main user email
+            tempUserData.email, // Google Tasks account email
+            tempUserData.name,
+            tempUserData.picture,
+            tokenResponse.access_token
+          );
+        } catch (error) {
+          console.error('Error saving connection to database:', error);
+        }
 
         setGoogleAccounts(prevAccounts => [...prevAccounts, newAccount]);
         setActiveAccountIndex(googleAccounts.length);
@@ -407,7 +479,18 @@ function App() {
     flow: 'implicit',
   });
 
-  const handleRemoveAccount = (index: number) => {
+  const handleRemoveAccount = async (index: number) => {
+    if (!user) return;
+
+    const accountToRemove = googleAccounts[index];
+    
+    try {
+      // Remove from database
+      await apiService.removeConnection(user.email, accountToRemove.user.email);
+    } catch (error) {
+      console.error('Error removing connection from database:', error);
+    }
+
     setGoogleAccounts(prevAccounts => prevAccounts.filter((_, i) => i !== index));
     if (activeAccountIndex >= index) {
       setActiveAccountIndex(Math.max(0, activeAccountIndex - 1));
