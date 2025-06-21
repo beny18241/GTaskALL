@@ -28,6 +28,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { CircularProgress } from '@mui/material';
 import { apiService } from './api';
 import TaskRow from './TaskRow.tsx';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -2879,6 +2880,18 @@ function App() {
             }}>
               ✓
             </Box>
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                color: 'white',
+                fontWeight: 600,
+                letterSpacing: 1,
+                textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                mr: 3
+              }}
+            >
+              GTask ALL
+            </Typography>
 
             {/* View Mode Buttons */}
             <Box sx={{ 
@@ -2943,56 +2956,128 @@ function App() {
                 <ScheduleIcon fontSize="small" />
               </IconButton>
             </Box>
+
+            {/* Spacer before search */}
             <Box sx={{ flexGrow: 1 }} />
-            {user && (
-              <>
-                <TextField
-                  size="small"
-                  variant="outlined"
-                  placeholder="Search tasks..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <Box sx={{ display: 'flex', alignItems: 'center', color: 'inherit', pl: 1 }}>
-                        <SearchIcon fontSize="small" />
-                      </Box>
-                    ),
-                    endAdornment: searchQuery && (
-                      <IconButton
-                        size="small"
-                        onClick={() => setSearchQuery('')}
-                        sx={{ color: 'inherit' }}
-                      >
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    ),
-                    sx: { 
-                      color: 'inherit',
-                      fontSize: '0.875rem',
-                      '& .MuiOutlinedInput-notchedOutline': {
-                        borderColor: 'rgba(255, 255, 255, 0.3)',
-                      },
-                      '&:hover .MuiOutlinedInput-notchedOutline': {
-                        borderColor: 'rgba(255, 255, 255, 0.5)',
-                      },
-                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                        borderColor: 'white',
-                      }
-                    }
-                  }}
-                  sx={{ 
-                    width: 250,
-                    '& .MuiInputBase-root': {
-                      color: 'inherit'
-                    }
-                  }}
-                />
-                {googleAccounts.length > 0 && <AccountSwitcher />}
-              </>
+
+            {/* Centered Search Field */}
+            <TextField
+              size="small"
+              variant="outlined"
+              placeholder="Search tasks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <Box sx={{ display: 'flex', alignItems: 'center', color: 'inherit', pl: 1 }}>
+                    <SearchIcon fontSize="small" />
+                  </Box>
+                ),
+                endAdornment: searchQuery && (
+                  <IconButton
+                    size="small"
+                    onClick={() => setSearchQuery('')}
+                    sx={{ color: 'inherit' }}
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                ),
+                sx: { 
+                  color: 'inherit',
+                  fontSize: '0.95rem',
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'white',
+                  }
+                }
+              }}
+              sx={{ 
+                width: 400,
+                mx: 3,
+                '& .MuiInputBase-root': {
+                  color: 'inherit'
+                }
+              }}
+            />
+
+            {/* Spacer after search */}
+            <Box sx={{ flexGrow: 1 }} />
+
+            {/* Google Tasks Accounts Section */}
+            {googleAccounts.length > 0 && (
+              <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                bgcolor: 'rgba(255,255,255,0.08)',
+                px: 1.5,
+                py: 0.5,
+                borderRadius: 2,
+                boxShadow: 1,
+                ml: 2,
+                mr: 2,
+                border: '1px solid',
+                borderColor: 'rgba(255,255,255,0.15)'
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
+                  <AccountCircleIcon sx={{ color: 'primary.light', fontSize: 22, mr: 0.5 }} />
+                  <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', fontWeight: 500, letterSpacing: 0.5 }}>Accounts</span>
+                </Box>
+                <AccountSwitcher />
+              </Box>
             )}
+
+            {/* Divider between accounts and user */}
+            <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: 'rgba(255,255,255,0.15)' }} />
+
+            {/* User/Login Section */}
             {user ? (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 1 }}>
+                <IconButton
+                  onClick={refreshTasks}
+                  disabled={isRefreshing}
+                  size="small"
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    bgcolor: isRefreshing ? 'warning.main' : 'success.main',
+                    color: 'white',
+                    transition: 'all 0.3s ease',
+                    boxShadow: '0 0 8px rgba(255, 255, 255, 0.3)',
+                    '&:hover': {
+                      transform: 'rotate(180deg)',
+                      backgroundColor: isRefreshing ? 'warning.dark' : 'success.dark',
+                      boxShadow: '0 0 12px rgba(255, 255, 255, 0.5)',
+                    },
+                    '&.Mui-disabled': {
+                      bgcolor: 'rgba(255, 255, 255, 0.2)',
+                      color: 'rgba(255, 255, 255, 0.5)',
+                    }
+                  }}
+                  title="Refresh Tasks"
+                >
+                  {isRefreshing ? (
+                    <CircularProgress 
+                      size={16} 
+                      color="inherit"
+                      sx={{
+                        animation: 'spin 1s linear infinite',
+                        '@keyframes spin': {
+                          '0%': { transform: 'rotate(0deg)' },
+                          '100%': { transform: 'rotate(360deg)' }
+                        }
+                      }}
+                    />
+                  ) : (
+                    <RefreshIcon fontSize="small" />
+                  )}
+                </IconButton>
                 <Avatar 
                   src={user.picture} 
                   alt={user.name}
@@ -3026,63 +3111,6 @@ function App() {
                 onError={handleGoogleError}
               />
             )}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2 }}>
-              <IconButton
-                onClick={refreshTasks}
-                disabled={isRefreshing}
-                size="small"
-                sx={{
-                  color: 'inherit',
-                  transition: 'all 0.3s ease',
-                  '&:hover': {
-                    transform: 'rotate(180deg)',
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  },
-                  '&.Mui-disabled': {
-                    color: 'rgba(255, 255, 255, 0.3)',
-                  }
-                }}
-                title="Refresh Tasks"
-              >
-                {isRefreshing ? (
-                  <CircularProgress 
-                    size={20} 
-                    color="inherit"
-                    sx={{
-                      animation: 'spin 1s linear infinite',
-                      '@keyframes spin': {
-                        '0%': { transform: 'rotate(0deg)' },
-                        '100%': { transform: 'rotate(360deg)' }
-                      }
-                    }}
-                  />
-                ) : (
-                  <RefreshIcon fontSize="small" />
-                )}
-              </IconButton>
-              <Typography 
-                variant="caption" 
-                sx={{ 
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5,
-                  fontSize: '0.7rem'
-                }}
-              >
-                <Box 
-                  component="span" 
-                  sx={{ 
-                    width: 6, 
-                    height: 6, 
-                    borderRadius: '50%', 
-                    bgcolor: isRefreshing ? 'warning.main' : 'success.main',
-                    transition: 'all 0.3s ease'
-                  }} 
-                />
-                {format(lastRefreshTime, 'HH:mm')}
-              </Typography>
-            </Box>
           </Toolbar>
         </AppBar>
         
