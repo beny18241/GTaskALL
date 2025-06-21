@@ -1628,30 +1628,30 @@ function App() {
     const filteredTasks = filterTasks(todayTasks);
 
     return (
-      <Box sx={{ p: 3, maxWidth: '800px', mx: 'auto' }}>
+      <Box sx={{ p: 2, maxWidth: '900px', mx: 'auto' }}>
         <Box sx={{ 
-          mb: 4, 
+          mb: 2, 
           textAlign: 'center',
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          borderRadius: 3,
-          p: 3,
+          borderRadius: 2,
+          p: 2,
           color: 'white',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+          boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
         }}>
-          <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', mb: 1 }}>
+          <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 0.5 }}>
             Today's Tasks
           </Typography>
-          <Typography variant="body1" sx={{ opacity: 0.9 }}>
+          <Typography variant="body2" sx={{ opacity: 0.9 }}>
             {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} for today
           </Typography>
         </Box>
 
         {filteredTasks.length === 0 ? (
           <Paper sx={{ 
-            p: 4, 
+            p: 3, 
             textAlign: 'center',
             background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-            borderRadius: 3
+            borderRadius: 2
           }}>
             <Typography variant="h6" color="text.secondary" gutterBottom>
               🎉 No tasks for today!
@@ -1661,20 +1661,20 @@ function App() {
             </Typography>
           </Paper>
         ) : (
-          <Stack spacing={2}>
+          <Stack spacing={1}>
             {filteredTasks.map((task) => (
               <Paper
                 key={task.id}
                 className="task-card"
                 sx={{
-                  p: 3,
-                  borderLeft: `4px solid ${task.color || '#42A5F5'}`,
-                  borderRadius: 2,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-                  transition: 'all 0.3s ease',
+                  p: 2,
+                  borderLeft: `3px solid ${task.color || '#42A5F5'}`,
+                  borderRadius: 1.5,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                  transition: 'all 0.2s ease',
                   '&:hover': {
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                    transform: 'translateY(-2px)'
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+                    transform: 'translateY(-1px)'
                   },
                   position: 'relative',
                   overflow: 'hidden',
@@ -1684,27 +1684,27 @@ function App() {
                     top: 0,
                     left: 0,
                     right: 0,
-                    height: '2px',
+                    height: '1px',
                     background: `linear-gradient(90deg, ${task.color || '#42A5F5'} 0%, ${task.color || '#42A5F5'}80 100%)`
                   }
                 }}
               >
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
                   {/* Checkbox */}
-                  <Box sx={{ pt: 0.5 }}>
+                  <Box sx={{ pt: 0.25 }}>
                     <input
                       type="checkbox"
                       checked={task.status === 'completed'}
                       onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
                       className="task-completion-checkbox"
                       style={{
-                        width: '20px',
-                        height: '20px',
+                        width: '18px',
+                        height: '18px',
                         cursor: 'pointer',
                         accentColor: task.color || '#42A5F5',
-                        borderRadius: '4px',
+                        borderRadius: '3px',
                         border: `2px solid ${task.color || '#42A5F5'}`,
-                        transition: 'all 0.3s ease'
+                        transition: 'all 0.2s ease'
                       }}
                     />
                   </Box>
@@ -1712,14 +1712,16 @@ function App() {
                   {/* Task Content */}
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography 
-                      variant="h6" 
+                      variant="subtitle1" 
                       sx={{ 
                         wordBreak: 'break-word',
                         fontWeight: 600,
                         color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
                         textDecoration: task.status === 'completed' ? 'line-through' : 'none',
-                        mb: task.notes ? 1 : 0,
-                        transition: 'all 0.2s ease'
+                        mb: task.notes ? 0.5 : 0,
+                        transition: 'all 0.2s ease',
+                        fontSize: '0.95rem',
+                        lineHeight: 1.3
                       }}
                     >
                       {task.content}
@@ -1733,23 +1735,24 @@ function App() {
                         sx={{ 
                           wordBreak: 'break-word',
                           whiteSpace: 'pre-wrap',
-                          lineHeight: 1.5,
-                          mb: 2,
+                          lineHeight: 1.4,
+                          mb: 1,
                           fontStyle: 'italic',
-                          opacity: task.status === 'completed' ? 0.6 : 0.8
+                          opacity: task.status === 'completed' ? 0.5 : 0.7,
+                          fontSize: '0.8rem'
                         }}
                       >
                         {task.notes}
                       </Typography>
                     )}
 
-                    {/* Task Metadata */}
+                    {/* Task Metadata - Compact Layout */}
                     <Box sx={{ 
                       display: 'flex', 
                       alignItems: 'center', 
-                      gap: 1, 
+                      gap: 0.75, 
                       flexWrap: 'wrap',
-                      mt: 1
+                      mt: 0.5
                     }}>
                       {/* Status Badge */}
                       <Chip
@@ -1758,10 +1761,10 @@ function App() {
                         size="small"
                         sx={{ 
                           fontWeight: 500,
-                          height: '24px',
+                          height: '20px',
                           '& .MuiChip-label': {
-                            px: 1,
-                            fontSize: '0.75rem'
+                            px: 0.75,
+                            fontSize: '0.7rem'
                           }
                         }}
                       />
@@ -1774,10 +1777,10 @@ function App() {
                           sx={{ 
                             bgcolor: 'grey.700',
                             color: 'white',
-                            height: '24px',
+                            height: '20px',
                             '& .MuiChip-label': {
-                              px: 1,
-                              fontSize: '0.75rem'
+                              px: 0.75,
+                              fontSize: '0.7rem'
                             }
                           }}
                         />
@@ -1786,15 +1789,16 @@ function App() {
                       {/* Recurring Badge */}
                       {task.isRecurring && (
                         <Chip
-                          label="🔄 Recurring"
+                          label="🔄"
                           size="small"
                           sx={{ 
                             bgcolor: 'primary.main',
                             color: 'white',
-                            height: '24px',
+                            height: '20px',
+                            minWidth: '20px',
                             '& .MuiChip-label': {
-                              px: 1,
-                              fontSize: '0.75rem'
+                              px: 0.25,
+                              fontSize: '0.7rem'
                             }
                           }}
                         />
@@ -1805,11 +1809,11 @@ function App() {
                         <Box sx={{ 
                           display: 'flex', 
                           alignItems: 'center', 
-                          gap: 0.5,
+                          gap: 0.25,
                           color: 'text.secondary',
-                          fontSize: '0.75rem'
+                          fontSize: '0.7rem'
                         }}>
-                          <EventIcon sx={{ fontSize: '0.8rem' }} />
+                          <EventIcon sx={{ fontSize: '0.7rem' }} />
                           {format(new Date(task.dueDate), 'h:mm a')}
                         </Box>
                       )}
@@ -1821,11 +1825,11 @@ function App() {
                     <Box sx={{ 
                       position: 'absolute',
                       top: '50%',
-                      right: 16,
+                      right: 12,
                       transform: 'translateY(-50%)',
                       color: 'success.main',
-                      fontSize: '2rem',
-                      animation: 'fadeInScale 0.5s ease-out'
+                      fontSize: '1.5rem',
+                      animation: 'fadeInScale 0.3s ease-out'
                     }}>
                       ✓
                     </Box>
@@ -1836,35 +1840,35 @@ function App() {
           </Stack>
         )}
 
-        {/* Progress Summary */}
+        {/* Progress Summary - Compact */}
         {filteredTasks.length > 0 && (
           <Paper sx={{ 
-            mt: 3, 
-            p: 2,
+            mt: 2, 
+            p: 1.5,
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
-            borderRadius: 2
+            borderRadius: 1.5
           }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2">
+              <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
                 Progress: {filteredTasks.filter(t => t.status === 'completed').length} of {filteredTasks.length} completed
               </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+              <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
                 {Math.round((filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100)}%
               </Typography>
             </Box>
             <Box sx={{ 
-              mt: 1, 
-              height: 4, 
+              mt: 0.75, 
+              height: 3, 
               bgcolor: 'rgba(255,255,255,0.2)', 
-              borderRadius: 2,
+              borderRadius: 1.5,
               overflow: 'hidden'
             }}>
               <Box sx={{ 
                 height: '100%', 
                 bgcolor: 'white',
                 width: `${(filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100}%`,
-                transition: 'width 0.5s ease'
+                transition: 'width 0.3s ease'
               }} />
             </Box>
           </Paper>
