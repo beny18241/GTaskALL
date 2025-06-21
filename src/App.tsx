@@ -183,6 +183,7 @@ function App() {
   });
   const [selectedListForNewTask, setSelectedListForNewTask] = useState<string>('');
   const [tempUserData, setTempUserData] = useState<User | null>(null);
+  const [calendarShowAll, setCalendarShowAll] = useState(false);
 
   // Add effect to restore user session on mount
   useEffect(() => {
@@ -1555,62 +1556,132 @@ function App() {
       <Box sx={{ p: 2 }}>
         <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h5">Calendar View</Typography>
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <DatePicker
-              value={selectedDate}
-              onChange={(newDate) => newDate && setSelectedDate(newDate)}
-              slotProps={{
-                textField: {
-                  variant: 'outlined',
-                  size: 'small',
-                },
-              }}
-            />
-          </LocalizationProvider>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+            <Button
+              variant={calendarShowAll ? 'contained' : 'outlined'}
+              color="primary"
+              size="small"
+              onClick={() => setCalendarShowAll(true)}
+            >
+              All
+            </Button>
+            <Button
+              variant={!calendarShowAll ? 'contained' : 'outlined'}
+              color="primary"
+              size="small"
+              onClick={() => setCalendarShowAll(false)}
+            >
+              Day
+            </Button>
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <DatePicker
+                value={selectedDate}
+                onChange={(newDate) => newDate && setSelectedDate(newDate)}
+                slotProps={{
+                  textField: {
+                    variant: 'outlined',
+                    size: 'small',
+                  },
+                }}
+                disabled={calendarShowAll}
+              />
+            </LocalizationProvider>
+          </Box>
         </Box>
         <Paper sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            {format(selectedDate, 'MMMM d, yyyy')}
-          </Typography>
-          <Stack spacing={2}>
-            {tasksByDate[format(selectedDate, 'yyyy-MM-dd')]?.map((task) => (
-              <Paper
-                key={task.id}
-                sx={{
-                  p: 2,
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 2,
-                  borderLeft: `4px solid ${task.color || '#42A5F5'}`,
-                  '&:hover': {
-                    boxShadow: 2,
-                  },
-                  minHeight: '100px',
-                  height: 'auto'
-                }}
-              >
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="subtitle1" sx={{ wordBreak: 'break-word' }}>{task.content}</Typography>
-                  {task.notes && (
-                    <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-                      {task.notes}
-                    </Typography>
-                  )}
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Chip
-                    label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
-                    color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
-                    size="small"
-                  />
-                </Box>
-              </Paper>
-            )) || (
-              <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                No tasks scheduled for this date
+          {calendarShowAll ? (
+            <>
+              <Typography variant="h6" gutterBottom>
+                All Tasks
               </Typography>
-            )}
-          </Stack>
+              <Stack spacing={2}>
+                {filteredTasks.length === 0 ? (
+                  <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                    No tasks scheduled
+                  </Typography>
+                ) : (
+                  filteredTasks.map((task) => (
+                    <Paper
+                      key={task.id}
+                      sx={{
+                        p: 2,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 2,
+                        borderLeft: `4px solid ${task.color || '#42A5F5'}`,
+                        '&:hover': {
+                          boxShadow: 2,
+                        },
+                        minHeight: '100px',
+                        height: 'auto'
+                      }}
+                    >
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle1" sx={{ wordBreak: 'break-word' }}>{task.content}</Typography>
+                        {task.notes && (
+                          <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                            {task.notes}
+                          </Typography>
+                        )}
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip
+                          label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
+                          color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
+                          size="small"
+                        />
+                      </Box>
+                    </Paper>
+                  ))
+                )}
+              </Stack>
+            </>
+          ) : (
+            <>
+              <Typography variant="h6" gutterBottom>
+                {format(selectedDate, 'MMMM d, yyyy')}
+              </Typography>
+              <Stack spacing={2}>
+                {tasksByDate[format(selectedDate, 'yyyy-MM-dd')]?.map((task) => (
+                  <Paper
+                    key={task.id}
+                    sx={{
+                      p: 2,
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 2,
+                      borderLeft: `4px solid ${task.color || '#42A5F5'}`,
+                      '&:hover': {
+                        boxShadow: 2,
+                      },
+                      minHeight: '100px',
+                      height: 'auto'
+                    }}
+                  >
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="subtitle1" sx={{ wordBreak: 'break-word' }}>{task.content}</Typography>
+                      {task.notes && (
+                        <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                          {task.notes}
+                        </Typography>
+                      )}
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Chip
+                        label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
+                        color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
+                        size="small"
+                      />
+                    </Box>
+                  </Paper>
+                )) || (
+                  <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                    No tasks scheduled for this date
+                  </Typography>
+                )}
+              </Stack>
+            </>
+          )}
         </Paper>
       </Box>
     );
@@ -1818,16 +1889,38 @@ function App() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        width: '20px',
-                        height: '20px',
+                        width: '24px',
+                        height: '24px',
                         borderRadius: '50%',
-                        bgcolor: accountColor,
-                        color: 'white',
-                        fontSize: '0.7rem',
-                        fontWeight: 'bold',
+                        overflow: 'hidden',
+                        border: `2px solid ${accountColor}`,
                         boxShadow: `0 2px 4px ${accountColor}40`
                       }}>
-                        {accountIcon}
+                        {task.accountPicture ? (
+                          <img 
+                            src={task.accountPicture} 
+                            alt={task.accountName || task.accountEmail}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                        ) : (
+                          <Box sx={{
+                            width: '100%',
+                            height: '100%',
+                            bgcolor: accountColor,
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.7rem',
+                            fontWeight: 'bold'
+                          }}>
+                            {(task.accountName || task.accountEmail).charAt(0).toUpperCase()}
+                          </Box>
+                        )}
                       </Box>
                     )}
 
