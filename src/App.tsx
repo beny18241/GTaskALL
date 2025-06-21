@@ -1627,6 +1627,28 @@ function App() {
 
     const filteredTasks = filterTasks(todayTasks);
 
+    // Color coding for different accounts
+    const getAccountColor = (accountEmail: string) => {
+      switch (accountEmail) {
+        case 'beny18241@gmail.com':
+          return '#2196F3'; // Blue
+        case 'pindelaMaciej@gmail.com':
+          return '#E91E63'; // Pink
+        case 'maciejpindela@whitehatgmiang':
+          return '#4CAF50'; // Green
+        default:
+          return '#9C27B0'; // Purple for any other accounts
+      }
+    };
+
+    // Get account icon based on email
+    const getAccountIcon = (accountEmail: string) => {
+      if (accountEmail.includes('beny18241')) return '👨‍💻';
+      if (accountEmail.includes('pindelaMaciej')) return '👨‍💼';
+      if (accountEmail.includes('whitehatgmiang')) return '🎯';
+      return '👤'; // Default icon
+    };
+
     return (
       <Box sx={{ p: 2, maxWidth: '1000px', mx: 'auto' }}>
         <Box sx={{ 
@@ -1667,89 +1689,113 @@ function App() {
             boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
             overflow: 'hidden'
           }}>
-            {filteredTasks.map((task, index) => (
-              <Box
-                key={task.id}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 1,
-                  p: 1.5,
-                  borderBottom: index < filteredTasks.length - 1 ? '1px solid' : 'none',
-                  borderColor: 'divider',
-                  transition: 'all 0.2s ease',
-                  '&:hover': {
-                    bgcolor: 'action.hover',
-                  },
-                  '&:last-child': {
-                    borderBottom: 'none'
-                  }
-                }}
-              >
-                {/* Checkbox */}
-                <Box sx={{ pt: 0.25, flexShrink: 0 }}>
-                  <input
-                    type="checkbox"
-                    checked={task.status === 'completed'}
-                    onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
-                    className="task-completion-checkbox"
-                    style={{
-                      width: '16px',
-                      height: '16px',
-                      cursor: 'pointer',
-                      accentColor: task.color || '#42A5F5',
-                      borderRadius: '2px',
-                      border: `1.5px solid ${task.color || '#42A5F5'}`,
-                      transition: 'all 0.2s ease'
-                    }}
-                  />
-                </Box>
+            {filteredTasks.map((task, index) => {
+              const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
+              const accountIcon = task.accountEmail ? getAccountIcon(task.accountEmail) : '👤';
+              
+              return (
+                <Box
+                  key={task.id}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 1,
+                    p: 1.5,
+                    borderBottom: index < filteredTasks.length - 1 ? '1px solid' : 'none',
+                    borderColor: 'divider',
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      bgcolor: 'action.hover',
+                    },
+                    '&:last-child': {
+                      borderBottom: 'none'
+                    },
+                    borderLeft: `3px solid ${accountColor}`,
+                    position: 'relative'
+                  }}
+                >
+                  {/* Checkbox */}
+                  <Box sx={{ pt: 0.25, flexShrink: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={task.status === 'completed'}
+                      onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
+                      className="task-completion-checkbox"
+                      style={{
+                        width: '16px',
+                        height: '16px',
+                        cursor: 'pointer',
+                        accentColor: accountColor,
+                        borderRadius: '2px',
+                        border: `1.5px solid ${accountColor}`,
+                        transition: 'all 0.2s ease'
+                      }}
+                    />
+                  </Box>
 
-                {/* Task Content */}
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      wordBreak: 'break-word',
-                      fontWeight: 500,
-                      color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
-                      textDecoration: task.status === 'completed' ? 'line-through' : 'none',
-                      mb: task.notes ? 0.25 : 0,
-                      transition: 'all 0.2s ease',
-                      fontSize: '0.9rem',
-                      lineHeight: 1.3
-                    }}
-                  >
-                    {task.content}
-                  </Typography>
-                  
-                  {/* Task Notes/Description - Compact */}
-                  {task.notes && (
+                  {/* Task Content */}
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography 
-                      variant="caption" 
-                      color="text.secondary"
+                      variant="body2" 
                       sx={{ 
                         wordBreak: 'break-word',
-                        whiteSpace: 'pre-wrap',
-                        lineHeight: 1.3,
-                        mb: 0.5,
-                        fontStyle: 'italic',
-                        opacity: task.status === 'completed' ? 0.4 : 0.6,
-                        fontSize: '0.75rem',
-                        display: 'block'
+                        fontWeight: 500,
+                        color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
+                        textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                        mb: task.notes ? 0.25 : 0,
+                        transition: 'all 0.2s ease',
+                        fontSize: '0.9rem',
+                        lineHeight: 1.3
                       }}
                     >
-                      {task.notes}
+                      {task.content}
                     </Typography>
-                  )}
+                    
+                    {/* Task Notes/Description - Compact */}
+                    {task.notes && (
+                      <Typography 
+                        variant="caption" 
+                        color="text.secondary"
+                        sx={{ 
+                          wordBreak: 'break-word',
+                          whiteSpace: 'pre-wrap',
+                          lineHeight: 1.3,
+                          mb: 0.5,
+                          fontStyle: 'italic',
+                          opacity: task.status === 'completed' ? 0.4 : 0.6,
+                          fontSize: '0.75rem',
+                          display: 'block'
+                        }}
+                      >
+                        {task.notes}
+                      </Typography>
+                    )}
 
-                  {/* Task Metadata - Inline Compact */}
+                    {/* Recurring Badge - Only if task is recurring */}
+                    {task.isRecurring && (
+                      <Box sx={{ 
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                        px: 0.5,
+                        py: 0.25,
+                        borderRadius: 0.5,
+                        fontSize: '0.65rem',
+                        height: '16px',
+                        mt: 0.25
+                      }}>
+                        🔄
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* Right side elements */}
                   <Box sx={{ 
                     display: 'flex', 
                     alignItems: 'center', 
-                    gap: 0.5, 
-                    flexWrap: 'wrap',
-                    mt: 0.25
+                    gap: 0.75,
+                    flexShrink: 0
                   }}>
                     {/* Status Badge */}
                     <Chip
@@ -1766,70 +1812,41 @@ function App() {
                       }}
                     />
 
-                    {/* Account Badge */}
-                    {task.accountName && (
-                      <Chip
-                        label={task.accountName}
-                        size="small"
-                        sx={{ 
-                          bgcolor: 'grey.600',
-                          color: 'white',
-                          height: '16px',
-                          '& .MuiChip-label': {
-                            px: 0.5,
-                            fontSize: '0.65rem'
-                          }
-                        }}
-                      />
-                    )}
-
-                    {/* Recurring Badge */}
-                    {task.isRecurring && (
+                    {/* Account Icon */}
+                    {task.accountEmail && (
                       <Box sx={{ 
-                        display: 'inline-flex',
+                        display: 'flex',
                         alignItems: 'center',
-                        bgcolor: 'primary.main',
+                        justifyContent: 'center',
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        bgcolor: accountColor,
                         color: 'white',
-                        px: 0.5,
-                        py: 0.25,
-                        borderRadius: 0.5,
-                        fontSize: '0.65rem',
-                        height: '16px'
+                        fontSize: '0.7rem',
+                        fontWeight: 'bold',
+                        boxShadow: `0 2px 4px ${accountColor}40`
                       }}>
-                        🔄
+                        {accountIcon}
                       </Box>
                     )}
 
-                    {/* Due Time (if available) */}
-                    {task.dueDate && (
+                    {/* Completion Indicator */}
+                    {task.status === 'completed' && (
                       <Box sx={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: 0.25,
-                        color: 'text.secondary',
-                        fontSize: '0.65rem'
+                        color: 'success.main',
+                        fontSize: '1rem',
+                        animation: 'fadeInScale 0.2s ease-out',
+                        display: 'flex',
+                        alignItems: 'center'
                       }}>
-                        <EventIcon sx={{ fontSize: '0.6rem' }} />
-                        {format(new Date(task.dueDate), 'h:mm a')}
+                        ✓
                       </Box>
                     )}
                   </Box>
                 </Box>
-
-                {/* Completion Indicator */}
-                {task.status === 'completed' && (
-                  <Box sx={{ 
-                    color: 'success.main',
-                    fontSize: '1rem',
-                    animation: 'fadeInScale 0.2s ease-out',
-                    flexShrink: 0,
-                    pt: 0.25
-                  }}>
-                    ✓
-                  </Box>
-                )}
-              </Box>
-            ))}
+              );
+            })}
           </Box>
         )}
 
