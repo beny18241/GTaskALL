@@ -337,13 +337,8 @@ function App() {
       };
       setUser(userData);
       localStorage.setItem('google-credential', credentialResponse.credential);
-      
-      // Automatically trigger Google Tasks connection after successful login
-      setGoogleTasksLoading(true);
-      await loginGoogleTasks();
     } catch (error) {
       console.error('Error during login:', error);
-      setGoogleTasksLoading(false);
     }
   };
 
@@ -388,6 +383,17 @@ function App() {
   // Add this new component for the account switcher
   const AccountSwitcher = () => (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Chip
+        avatar={<Avatar src={user?.picture} alt={user?.name} />}
+        label={`Main: ${user?.name}`}
+        color="secondary"
+        variant="outlined"
+        sx={{
+          fontWeight: 'bold',
+          borderWidth: 2,
+        }}
+      />
+      <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
       {googleAccounts.map((account, index) => (
         <Chip
           key={account.user.email}
@@ -414,6 +420,7 @@ function App() {
             color: 'white'
           }
         }}
+        title="Add Google Tasks Account"
       >
         <AddIcon />
       </IconButton>
@@ -2627,27 +2634,125 @@ function App() {
                 </>
               )
             ) : (
-              <Box sx={{ textAlign: 'center', py: 4 }}>
-                <Typography variant="h5" gutterBottom>
-                  Connect your Google Tasks account
+              <Box sx={{ 
+                textAlign: 'center', 
+                py: 8,
+                maxWidth: 600,
+                mx: 'auto'
+              }}>
+                <Typography variant="h4" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+                  Welcome, {user.name}!
                 </Typography>
-                <Typography color="text.secondary" paragraph>
-                  To start managing your tasks, please connect your Google Tasks account.
+                <Typography variant="h6" color="text.secondary" paragraph sx={{ mb: 4 }}>
+                  You're successfully logged in to GTaskALL
                 </Typography>
+                
+                <Paper sx={{ p: 4, mb: 3, bgcolor: 'background.paper' }}>
+                  <Typography variant="h6" gutterBottom sx={{ color: 'primary.main' }}>
+                    Connect Your Google Tasks
+                  </Typography>
+                  <Typography color="text.secondary" paragraph sx={{ mb: 3 }}>
+                    To start managing your tasks, connect your first Google Tasks account. 
+                    You can add multiple accounts later.
+                  </Typography>
+                  
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    size="large"
+                    onClick={() => {
+                      setGoogleTasksLoading(true);
+                      loginGoogleTasks();
+                    }}
+                    disabled={googleTasksLoading}
+                    startIcon={googleTasksLoading ? <CircularProgress size={20} color="inherit" /> : <AddIcon />}
+                    sx={{
+                      px: 4,
+                      py: 1.5,
+                      fontSize: '1.1rem',
+                      borderRadius: 2,
+                      boxShadow: 3,
+                      '&:hover': {
+                        boxShadow: 6,
+                        transform: 'translateY(-2px)',
+                      },
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    {googleTasksLoading ? 'Connecting...' : 'Connect Google Tasks'}
+                  </Button>
+                </Paper>
+
+                <Paper sx={{ p: 3, bgcolor: 'grey.50' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>How it works:</strong>
+                  </Typography>
+                  <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+                    <Typography component="li" variant="body2" color="text.secondary">
+                      Connect your Google Tasks account to sync your tasks
+                    </Typography>
+                    <Typography component="li" variant="body2" color="text.secondary">
+                      Add multiple Google accounts to manage tasks from different accounts
+                    </Typography>
+                    <Typography component="li" variant="body2" color="text.secondary">
+                      Use the kanban board, list view, or calendar view to organize your tasks
+                    </Typography>
+                  </Box>
+                </Paper>
               </Box>
             )
           ) : (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography variant="h5" gutterBottom>
+            <Box sx={{ 
+              textAlign: 'center', 
+              py: 8,
+              maxWidth: 600,
+              mx: 'auto'
+            }}>
+              <Typography variant="h3" gutterBottom sx={{ 
+                color: 'primary.main', 
+                fontWeight: 'bold',
+                mb: 3
+              }}>
                 Welcome to GTaskALL
               </Typography>
-              <Typography color="text.secondary" paragraph>
-                Sign in to manage your tasks
+              <Typography variant="h6" color="text.secondary" paragraph sx={{ mb: 4 }}>
+                Your ultimate task management solution for Google Tasks
               </Typography>
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={handleGoogleError}
-              />
+              
+              <Paper sx={{ p: 4, mb: 3, bgcolor: 'background.paper' }}>
+                <Typography variant="h6" gutterBottom sx={{ color: 'primary.main' }}>
+                  Get Started
+                </Typography>
+                <Typography color="text.secondary" paragraph sx={{ mb: 3 }}>
+                  Sign in with your Google account to start managing your tasks. 
+                  This will be your main account for managing other Google Tasks accounts.
+                </Typography>
+                
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                />
+              </Paper>
+
+              <Paper sx={{ p: 3, bgcolor: 'grey.50' }}>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Features:</strong>
+                </Typography>
+                <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+                  <Typography component="li" variant="body2" color="text.secondary">
+                    Multiple Google Tasks accounts support
+                  </Typography>
+                  <Typography component="li" variant="body2" color="text.secondary">
+                    Kanban board, list, and calendar views
+                  </Typography>
+                  <Typography component="li" variant="body2" color="text.secondary">
+                    Real-time synchronization with Google Tasks
+                  </Typography>
+                  <Typography component="li" variant="body2" color="text.secondary">
+                    Task organization with colors, notes, and due dates
+                  </Typography>
+                </Box>
+              </Paper>
             </Box>
           )}
         </Box>
@@ -2804,10 +2909,13 @@ function App() {
           open={openAccountDialog}
           onClose={() => setOpenAccountDialog(false)}
         >
-          <DialogTitle>Add Google Tasks Account</DialogTitle>
+          <DialogTitle>Add Additional Google Tasks Account</DialogTitle>
           <DialogContent>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Connect another Google account to manage its tasks.
+              Connect another Google account to manage its tasks alongside your existing accounts.
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              You'll be prompted to sign in to the additional Google account and grant access to its tasks.
             </Typography>
             <GoogleLogin
               onSuccess={handleGoogleSuccess}
