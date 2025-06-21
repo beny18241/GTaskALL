@@ -1248,6 +1248,7 @@ function App() {
     return (
       <Paper 
         key={task.id}
+        className="task-card"
         sx={{ 
           p: 1.5,
           cursor: 'grab',
@@ -1627,441 +1628,250 @@ function App() {
     const filteredTasks = filterTasks(todayTasks);
 
     return (
-      <Box sx={{ p: 2 }}>
-        <Typography variant="h5" gutterBottom>
-          Today's Tasks
-        </Typography>
-        <Stack spacing={1}>
-          {filteredTasks.map((task) => (
-            <Box
-              key={task.id}
-              sx={{
-                p: 1.5,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-                borderLeft: `3px solid ${task.color || '#42A5F5'}`,
-                '&:hover': {
-                  bgcolor: 'rgba(0, 0, 0, 0.04)',
-                  transition: 'all 0.2s ease'
-                },
-                bgcolor: 'white',
-                borderBottom: '1px solid',
-                borderColor: 'divider',
-                cursor: 'pointer'
-              }}
-            >
-              <Box sx={{ 
-                flex: 1, 
-                minWidth: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1
-              }}>
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    wordBreak: 'break-word',
-                    fontWeight: 500,
-                    color: 'text.primary',
-                    flex: 1
-                  }}
-                >
-                  {task.content}
-                </Typography>
-                <Chip
-                  label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
-                  color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
-                  size="small"
-                  sx={{ 
-                    fontWeight: 500,
-                    height: '24px',
-                    '& .MuiChip-label': {
-                      px: 1,
-                      fontSize: '0.75rem'
-                    }
-                  }}
-                />
-              </Box>
-            </Box>
-          ))}
-        </Stack>
-      </Box>
-    );
-  };
-
-  const handleLimitChange = (columnId: string, newLimit: number) => {
-    setColumns(prevColumns => {
-      const newColumns = prevColumns.map(col => {
-        if (col.id === columnId) {
-          // Get the original tasks from all Google Tasks accounts
-          let originalTasks: Task[] = [];
-          if (googleAccounts.length > 0) {
-            // Get tasks from all accounts
-            googleAccounts.forEach(account => {
-              Object.values(account.tasks).forEach(tasks => {
-                const completedTasks = tasks
-                  .filter(task => task.completed)
-                  .map(task => ({
-                    id: task.id,
-                    content: task.title,
-                    dueDate: task.due ? new Date(task.due) : null,
-                    isRecurring: task.recurrence ? true : false,
-                    notes: task.notes || '',
-                    color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
-                    status: 'completed' as const,
-                    completedAt: task.completed ? new Date(task.completed) : null,
-                    accountEmail: account.user.email,
-                    accountName: account.user.name,
-                    accountPicture: account.user.picture
-                  }));
-                originalTasks = [...originalTasks, ...completedTasks];
-              });
-            });
-            
-            // Sort by completion date (most recent first)
-            originalTasks.sort((a, b) => {
-              if (!a.completedAt || !b.completedAt) return 0;
-              return b.completedAt.getTime() - a.completedAt.getTime();
-            });
-          } else {
-            // If no Google Tasks, use the current tasks
-            originalTasks = [...col.tasks];
-          }
-
-          // Apply the new limit
-          let updatedTasks = originalTasks;
-          if (newLimit > 0) {
-            updatedTasks = originalTasks.slice(0, newLimit);
-          } else if (newLimit === -1) {
-            // Show all tasks
-            updatedTasks = originalTasks;
-          } else {
-            // Default to 3
-            updatedTasks = originalTasks.slice(0, 3);
-          }
-
-          return { ...col, limit: newLimit, tasks: updatedTasks };
-        }
-        return col;
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newColumns));
-      return newColumns;
-    });
-  };
-
-  // Helper function to get date section for a task
-  const getDateSection = (task: Task): DateSection => {
-    if (!task.dueDate) {
-      return {
-        id: 'no-date',
-        title: 'No Due Date',
-        tasks: [],
-        date: null,
-        type: 'no-date'
-      };
-    }
-
-    const dueDate = new Date(task.dueDate);
-    const today = new Date();
-    const daysDiff = differenceInDays(dueDate, today);
-
-    if (daysDiff < 0) {
-      return {
-        id: 'overdue',
-        title: 'Overdue',
-        tasks: [],
-        date: dueDate,
-        type: 'overdue'
-      };
-    } else if (isToday(dueDate)) {
-      return {
-        id: 'today',
-        title: 'Today',
-        tasks: [],
-        date: dueDate,
-        type: 'today'
-      };
-    } else if (isTomorrow(dueDate)) {
-      return {
-        id: 'tomorrow',
-        title: 'Tomorrow',
-        tasks: [],
-        date: dueDate,
-        type: 'tomorrow'
-      };
-    } else if (isThisWeek(dueDate)) {
-      return {
-        id: 'this-week',
-        title: 'This Week',
-        tasks: [],
-        date: dueDate,
-        type: 'this-week'
-      };
-    } else if (daysDiff <= 14) {
-      return {
-        id: 'next-week',
-        title: 'Next Week',
-        tasks: [],
-        date: dueDate,
-        type: 'next-week'
-      };
-    } else {
-      return {
-        id: 'future',
-        title: 'Future',
-        tasks: [],
-        date: dueDate,
-        type: 'future'
-      };
-    }
-  };
-
-  // Helper function to group tasks by date sections
-  const groupTasksByDate = (tasks: Task[]): DateSection[] => {
-    const sections: { [key: string]: DateSection } = {};
-    
-    tasks.forEach(task => {
-      const section = getDateSection(task);
-      if (!sections[section.id]) {
-        sections[section.id] = { ...section, tasks: [] };
-      }
-      sections[section.id].tasks.push(task);
-    });
-
-    // Sort sections in order: overdue, today, tomorrow, this-week, next-week, future, no-date
-    const sectionOrder = ['overdue', 'today', 'tomorrow', 'this-week', 'next-week', 'future', 'no-date'];
-    
-    return sectionOrder
-      .map(id => sections[id])
-      .filter(section => section && section.tasks.length > 0);
-  };
-
-  // Helper function to render date section header
-  const renderDateSectionHeader = (section: DateSection) => {
-    const getSectionColor = (type: DateSection['type']) => {
-      switch (type) {
-        case 'overdue': return 'error.main';
-        case 'today': return 'success.main';
-        case 'tomorrow': return 'warning.main';
-        case 'this-week': return 'info.main';
-        case 'next-week': return 'primary.main';
-        case 'future': return 'grey.600';
-        case 'no-date': return 'grey.500';
-        default: return 'grey.500';
-      }
-    };
-
-    return (
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          p: 1,
-          mb: 1,
-          borderRadius: 1,
-          bgcolor: `${getSectionColor(section.type)}15`,
-          border: `1px solid ${getSectionColor(section.type)}30`,
-          position: 'sticky',
-          top: 0,
-          zIndex: 2,
-        }}
-      >
-        <Typography
-          variant="subtitle2"
-          sx={{
-            fontWeight: 600,
-            color: getSectionColor(section.type),
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1
-          }}
-        >
-          {section.title}
-          <Typography
-            variant="caption"
-            sx={{
-              bgcolor: getSectionColor(section.type),
-              color: 'white',
-              px: 0.5,
-              py: 0.25,
-              borderRadius: 0.5,
-              fontSize: '0.7rem'
-            }}
-          >
-            {section.tasks.length}
-          </Typography>
-        </Typography>
-        {section.date && (
-          <Typography
-            variant="caption"
-            sx={{
-              color: 'text.secondary',
-              fontSize: '0.7rem'
-            }}
-          >
-            {format(section.date, 'MMM d')}
-          </Typography>
-        )}
-      </Box>
-    );
-  };
-
-  const renderColumnHeader = (column: Column) => (
-    <Box sx={{ 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'space-between', 
-      mb: 2,
-      p: 1.5,
-      borderRadius: 1,
-      bgcolor: 'action.hover',
-      position: 'sticky',
-      top: 0,
-      zIndex: 1,
-      borderBottom: '1px solid',
-      borderColor: 'divider',
-    }}>
-      <Typography variant="h6" sx={{ 
-        fontWeight: 'bold',
-        color: 'primary.main',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 1
-      }}>
-        {column.title}
-        <Typography variant="caption" sx={{ 
-          bgcolor: 'primary.main',
+      <Box sx={{ p: 3, maxWidth: '800px', mx: 'auto' }}>
+        <Box sx={{ 
+          mb: 4, 
+          textAlign: 'center',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          borderRadius: 3,
+          p: 3,
           color: 'white',
-          px: 1,
-          py: 0.5,
-          borderRadius: 1,
-          fontSize: '0.75rem'
+          boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
         }}>
-          {column.tasks.length}
-        </Typography>
-      </Typography>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {(column.id === 'todo' || column.id === 'inProgress') && (
-          <IconButton
-            size="small"
-            onClick={() => setDateGroupingEnabled(!dateGroupingEnabled)}
-            sx={{
-              color: dateGroupingEnabled ? 'primary.main' : 'text.secondary',
-              '&:hover': {
-                backgroundColor: 'primary.light',
-                color: 'white',
-              },
-            }}
-            title={dateGroupingEnabled ? 'Disable date grouping' : 'Enable date grouping'}
-          >
-            <CalendarTodayIcon fontSize="small" />
-          </IconButton>
-        )}
-        {column.id === 'done' && (
-          <>
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              Show:
+          <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', mb: 1 }}>
+            Today's Tasks
+          </Typography>
+          <Typography variant="body1" sx={{ opacity: 0.9 }}>
+            {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} for today
+          </Typography>
+        </Box>
+
+        {filteredTasks.length === 0 ? (
+          <Paper sx={{ 
+            p: 4, 
+            textAlign: 'center',
+            background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+            borderRadius: 3
+          }}>
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              🎉 No tasks for today!
             </Typography>
-            <Select
-              size="small"
-              value={column.limit || 3}
-              onChange={(e) => handleLimitChange(column.id, Number(e.target.value))}
-              sx={{ 
-                fontSize: '0.75rem',
-                height: '28px',
-                '& .MuiSelect-select': {
-                  py: 0.5
-                }
-              }}
-            >
-              <MenuItem value={3}>3</MenuItem>
-              <MenuItem value={5}>5</MenuItem>
-              <MenuItem value={10}>10</MenuItem>
-              <MenuItem value={20}>20</MenuItem>
-              <MenuItem value={50}>50</MenuItem>
-              <MenuItem value={100}>100</MenuItem>
-              <MenuItem value={-1}>All</MenuItem>
-            </Select>
-          </>
+            <Typography variant="body2" color="text.secondary">
+              You're all caught up. Enjoy your day!
+            </Typography>
+          </Paper>
+        ) : (
+          <Stack spacing={2}>
+            {filteredTasks.map((task) => (
+              <Paper
+                key={task.id}
+                className="task-card"
+                sx={{
+                  p: 3,
+                  borderLeft: `4px solid ${task.color || '#42A5F5'}`,
+                  borderRadius: 2,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    transform: 'translateY(-2px)'
+                  },
+                  position: 'relative',
+                  overflow: 'hidden',
+                  '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: '2px',
+                    background: `linear-gradient(90deg, ${task.color || '#42A5F5'} 0%, ${task.color || '#42A5F5'}80 100%)`
+                  }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                  {/* Checkbox */}
+                  <Box sx={{ pt: 0.5 }}>
+                    <input
+                      type="checkbox"
+                      checked={task.status === 'completed'}
+                      onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
+                      className="task-completion-checkbox"
+                      style={{
+                        width: '20px',
+                        height: '20px',
+                        cursor: 'pointer',
+                        accentColor: task.color || '#42A5F5',
+                        borderRadius: '4px',
+                        border: `2px solid ${task.color || '#42A5F5'}`,
+                        transition: 'all 0.3s ease'
+                      }}
+                    />
+                  </Box>
+
+                  {/* Task Content */}
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography 
+                      variant="h6" 
+                      sx={{ 
+                        wordBreak: 'break-word',
+                        fontWeight: 600,
+                        color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
+                        textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                        mb: task.notes ? 1 : 0,
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {task.content}
+                    </Typography>
+                    
+                    {/* Task Notes/Description */}
+                    {task.notes && (
+                      <Typography 
+                        variant="body2" 
+                        color="text.secondary"
+                        sx={{ 
+                          wordBreak: 'break-word',
+                          whiteSpace: 'pre-wrap',
+                          lineHeight: 1.5,
+                          mb: 2,
+                          fontStyle: 'italic',
+                          opacity: task.status === 'completed' ? 0.6 : 0.8
+                        }}
+                      >
+                        {task.notes}
+                      </Typography>
+                    )}
+
+                    {/* Task Metadata */}
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 1, 
+                      flexWrap: 'wrap',
+                      mt: 1
+                    }}>
+                      {/* Status Badge */}
+                      <Chip
+                        label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
+                        color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
+                        size="small"
+                        sx={{ 
+                          fontWeight: 500,
+                          height: '24px',
+                          '& .MuiChip-label': {
+                            px: 1,
+                            fontSize: '0.75rem'
+                          }
+                        }}
+                      />
+
+                      {/* Account Badge */}
+                      {task.accountName && (
+                        <Chip
+                          label={task.accountName}
+                          size="small"
+                          sx={{ 
+                            bgcolor: 'grey.700',
+                            color: 'white',
+                            height: '24px',
+                            '& .MuiChip-label': {
+                              px: 1,
+                              fontSize: '0.75rem'
+                            }
+                          }}
+                        />
+                      )}
+
+                      {/* Recurring Badge */}
+                      {task.isRecurring && (
+                        <Chip
+                          label="🔄 Recurring"
+                          size="small"
+                          sx={{ 
+                            bgcolor: 'primary.main',
+                            color: 'white',
+                            height: '24px',
+                            '& .MuiChip-label': {
+                              px: 1,
+                              fontSize: '0.75rem'
+                            }
+                          }}
+                        />
+                      )}
+
+                      {/* Due Time (if available) */}
+                      {task.dueDate && (
+                        <Box sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: 0.5,
+                          color: 'text.secondary',
+                          fontSize: '0.75rem'
+                        }}>
+                          <EventIcon sx={{ fontSize: '0.8rem' }} />
+                          {format(new Date(task.dueDate), 'h:mm a')}
+                        </Box>
+                      )}
+                    </Box>
+                  </Box>
+
+                  {/* Completion Animation */}
+                  {task.status === 'completed' && (
+                    <Box sx={{ 
+                      position: 'absolute',
+                      top: '50%',
+                      right: 16,
+                      transform: 'translateY(-50%)',
+                      color: 'success.main',
+                      fontSize: '2rem',
+                      animation: 'fadeInScale 0.5s ease-out'
+                    }}>
+                      ✓
+                    </Box>
+                  )}
+                </Box>
+              </Paper>
+            ))}
+          </Stack>
+        )}
+
+        {/* Progress Summary */}
+        {filteredTasks.length > 0 && (
+          <Paper sx={{ 
+            mt: 3, 
+            p: 2,
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            borderRadius: 2
+          }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2">
+                Progress: {filteredTasks.filter(t => t.status === 'completed').length} of {filteredTasks.length} completed
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                {Math.round((filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100)}%
+              </Typography>
+            </Box>
+            <Box sx={{ 
+              mt: 1, 
+              height: 4, 
+              bgcolor: 'rgba(255,255,255,0.2)', 
+              borderRadius: 2,
+              overflow: 'hidden'
+            }}>
+              <Box sx={{ 
+                height: '100%', 
+                bgcolor: 'white',
+                width: `${(filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100}%`,
+                transition: 'width 0.5s ease'
+              }} />
+            </Box>
+          </Paper>
         )}
       </Box>
-    </Box>
-  );
-
-  const renderColumn = (column: Column) => {
-    // Apply limit for done column
-    const displayTasks = column.id === 'done' ? 
-      (column.limit && column.limit > 0 ? column.tasks.slice(0, column.limit) : 
-       column.limit === -1 ? column.tasks : column.tasks.slice(0, 3)) : 
-      column.tasks;
-
-    const filteredTasks = filterTasks(displayTasks);
-
-    return (
-      <Paper
-        key={column.id}
-        sx={{
-          p: 2,
-          minWidth: 300,
-          maxWidth: 'none',
-          flex: 1,
-          bgcolor: 'background.paper',
-          borderRadius: 2,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2,
-          height: 'fit-content',
-          minHeight: 'calc(100vh - 100px)',
-          overflow: 'auto',
-          position: 'relative',
-          transition: 'all 0.2s ease',
-          transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
-          boxShadow: column.id === dragOverColumn ? 3 : 1,
-          opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1,
-          border: '1px solid',
-          borderColor: 'divider',
-          '&:hover': {
-            boxShadow: 4,
-            borderColor: 'primary.light',
-          },
-        }}
-        onDragOver={(e) => handleDragOver(e, column.id)}
-        onDragLeave={handleDragLeave}
-        onDrop={() => handleDrop(column.id)}
-      >
-        {renderColumnHeader(column)}
-        
-        {dateGroupingEnabled && column.id !== 'done' ? (
-          // Render with date sections
-          <Stack spacing={2}>
-            {groupTasksByDate(filteredTasks).map((section) => (
-              <Box key={section.id}>
-                {renderDateSectionHeader(section)}
-                <Stack spacing={1} sx={{ pl: 1 }}>
-                  {section.tasks.map((task) => renderTask(task, column.id))}
-                </Stack>
-              </Box>
-            ))}
-          </Stack>
-        ) : (
-          // Render without date sections (original behavior)
-          <Stack spacing={2}>
-            {filteredTasks.map((task, taskIndex) => (
-              renderTask(task, column.id)
-            ))}
-          </Stack>
-        )}
-      </Paper>
     );
   };
-
-  const renderKanbanView = () => (
-    <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
-      {columns.map(column => renderColumn(column))}
-    </Box>
-  );
 
   const renderUltimateView = () => {
     return (
@@ -2476,6 +2286,468 @@ function App() {
       };
     }
   }, [googleAccounts.length, activeAccountIndex]);
+
+  const handleTaskCompletionToggle = async (task: Task, isCompleted: boolean) => {
+    // Update local state first
+    setColumns(prevColumns => {
+      return prevColumns.map(column => {
+        return {
+          ...column,
+          tasks: column.tasks.map(t => 
+            t.id === task.id 
+              ? { 
+                  ...t, 
+                  status: isCompleted ? 'completed' as const : 'todo' as const,
+                  completedAt: isCompleted ? new Date() : null
+                }
+              : t
+          )
+        };
+      });
+    });
+
+    // Sync with Google Tasks if connected
+    if (googleAccounts.length > 0) {
+      try {
+        // Find the task in Google Tasks
+        let taskListId = '';
+        let taskId = '';
+        
+        // Search through all task lists to find the task
+        for (const [listId, tasks] of Object.entries(googleAccounts[activeAccountIndex].tasks)) {
+          const foundTask = tasks.find(t => t.id === task.id);
+          if (foundTask) {
+            taskListId = listId;
+            taskId = foundTask.id;
+            break;
+          }
+        }
+
+        if (taskListId && taskId) {
+          // Prepare the update
+          const update: any = {};
+          
+          if (isCompleted) {
+            // Mark as completed
+            update.completed = new Date().toISOString();
+            update.status = 'completed';
+          } else {
+            // Mark as not completed
+            update.completed = null;
+            update.status = 'needsAction';
+          }
+
+          // Update the task in Google Tasks
+          const response = await axios.patch(
+            `https://www.googleapis.com/tasks/v1/lists/${taskListId}/tasks/${taskId}`,
+            update,
+            {
+              headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` }
+            }
+          );
+
+          // Update the local Google Tasks state with the response data
+          setGoogleAccounts(prevAccounts => {
+            const newAccounts = [...prevAccounts];
+            if (newAccounts[activeAccountIndex].tasks[taskListId]) {
+              newAccounts[activeAccountIndex].tasks[taskListId] = newAccounts[activeAccountIndex].tasks[taskListId].map(t => 
+                t.id === taskId 
+                  ? { ...t, ...response.data }
+                  : t
+              );
+            }
+            return newAccounts;
+          });
+        }
+      } catch (error) {
+        console.error('Error updating task completion in Google Tasks:', error);
+        // Revert local state if Google Tasks update fails
+        setColumns(prevColumns => {
+          return prevColumns.map(column => {
+            return {
+              ...column,
+              tasks: column.tasks.map(t => 
+                t.id === task.id ? task : t
+              )
+            };
+          });
+        });
+      }
+    }
+  };
+
+  const handleLimitChange = (columnId: string, newLimit: number) => {
+    setColumns(prevColumns => {
+      const newColumns = prevColumns.map(col => {
+        if (col.id === columnId) {
+          // Get the original tasks from all Google Tasks accounts
+          let originalTasks: Task[] = [];
+          if (googleAccounts.length > 0) {
+            // Get tasks from all accounts
+            googleAccounts.forEach(account => {
+              Object.values(account.tasks).forEach(tasks => {
+                const completedTasks = tasks
+                  .filter(task => task.completed)
+                  .map(task => ({
+                    id: task.id,
+                    content: task.title,
+                    dueDate: task.due ? new Date(task.due) : null,
+                    isRecurring: task.recurrence ? true : false,
+                    notes: task.notes || '',
+                    color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
+                    status: 'completed' as const,
+                    completedAt: task.completed ? new Date(task.completed) : null,
+                    accountEmail: account.user.email,
+                    accountName: account.user.name,
+                    accountPicture: account.user.picture
+                  }));
+                originalTasks = [...originalTasks, ...completedTasks];
+              });
+            });
+            
+            // Sort by completion date (most recent first)
+            originalTasks.sort((a, b) => {
+              if (!a.completedAt || !b.completedAt) return 0;
+              return b.completedAt.getTime() - a.completedAt.getTime();
+            });
+          } else {
+            // If no Google Tasks, use the current tasks
+            originalTasks = [...col.tasks];
+          }
+
+          // Apply the new limit
+          let updatedTasks = originalTasks;
+          if (newLimit > 0) {
+            updatedTasks = originalTasks.slice(0, newLimit);
+          } else if (newLimit === -1) {
+            // Show all tasks
+            updatedTasks = originalTasks;
+          } else {
+            // Default to 3
+            updatedTasks = originalTasks.slice(0, 3);
+          }
+
+          return { ...col, limit: newLimit, tasks: updatedTasks };
+        }
+        return col;
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newColumns));
+      return newColumns;
+    });
+  };
+
+  // Helper function to get date section for a task
+  const getDateSection = (task: Task): DateSection => {
+    if (!task.dueDate) {
+      return {
+        id: 'no-date',
+        title: 'No Due Date',
+        tasks: [],
+        date: null,
+        type: 'no-date'
+      };
+    }
+
+    const dueDate = new Date(task.dueDate);
+    const today = new Date();
+    const daysDiff = differenceInDays(dueDate, today);
+
+    if (daysDiff < 0) {
+      return {
+        id: 'overdue',
+        title: 'Overdue',
+        tasks: [],
+        date: dueDate,
+        type: 'overdue'
+      };
+    } else if (isToday(dueDate)) {
+      return {
+        id: 'today',
+        title: 'Today',
+        tasks: [],
+        date: dueDate,
+        type: 'today'
+      };
+    } else if (isTomorrow(dueDate)) {
+      return {
+        id: 'tomorrow',
+        title: 'Tomorrow',
+        tasks: [],
+        date: dueDate,
+        type: 'tomorrow'
+      };
+    } else if (isThisWeek(dueDate)) {
+      return {
+        id: 'this-week',
+        title: 'This Week',
+        tasks: [],
+        date: dueDate,
+        type: 'this-week'
+      };
+    } else if (daysDiff <= 14) {
+      return {
+        id: 'next-week',
+        title: 'Next Week',
+        tasks: [],
+        date: dueDate,
+        type: 'next-week'
+      };
+    } else {
+      return {
+        id: 'future',
+        title: 'Future',
+        tasks: [],
+        date: dueDate,
+        type: 'future'
+      };
+    }
+  };
+
+  // Helper function to group tasks by date sections
+  const groupTasksByDate = (tasks: Task[]): DateSection[] => {
+    const sections: { [key: string]: DateSection } = {};
+    
+    tasks.forEach(task => {
+      const section = getDateSection(task);
+      if (!sections[section.id]) {
+        sections[section.id] = { ...section, tasks: [] };
+      }
+      sections[section.id].tasks.push(task);
+    });
+
+    // Sort sections in order: overdue, today, tomorrow, this-week, next-week, future, no-date
+    const sectionOrder = ['overdue', 'today', 'tomorrow', 'this-week', 'next-week', 'future', 'no-date'];
+    
+    return sectionOrder
+      .map(id => sections[id])
+      .filter(section => section && section.tasks.length > 0);
+  };
+
+  // Helper function to render date section header
+  const renderDateSectionHeader = (section: DateSection) => {
+    const getSectionColor = (type: DateSection['type']) => {
+      switch (type) {
+        case 'overdue': return 'error.main';
+        case 'today': return 'success.main';
+        case 'tomorrow': return 'warning.main';
+        case 'this-week': return 'info.main';
+        case 'next-week': return 'primary.main';
+        case 'future': return 'grey.600';
+        case 'no-date': return 'grey.500';
+        default: return 'grey.500';
+      }
+    };
+
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          p: 1,
+          mb: 1,
+          borderRadius: 1,
+          bgcolor: `${getSectionColor(section.type)}15`,
+          border: `1px solid ${getSectionColor(section.type)}30`,
+          position: 'sticky',
+          top: 0,
+          zIndex: 2,
+        }}
+      >
+        <Typography
+          variant="subtitle2"
+          sx={{
+            fontWeight: 600,
+            color: getSectionColor(section.type),
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
+          }}
+        >
+          {section.title}
+          <Typography
+            variant="caption"
+            sx={{
+              bgcolor: getSectionColor(section.type),
+              color: 'white',
+              px: 0.5,
+              py: 0.25,
+              borderRadius: 0.5,
+              fontSize: '0.7rem'
+            }}
+          >
+            {section.tasks.length}
+          </Typography>
+        </Typography>
+        {section.date && (
+          <Typography
+            variant="caption"
+            sx={{
+              color: 'text.secondary',
+              fontSize: '0.7rem'
+            }}
+          >
+            {format(section.date, 'MMM d')}
+          </Typography>
+        )}
+      </Box>
+    );
+  };
+
+  const renderColumnHeader = (column: Column) => (
+    <Box sx={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'space-between', 
+      mb: 2,
+      p: 1.5,
+      borderRadius: 1,
+      bgcolor: 'action.hover',
+      position: 'sticky',
+      top: 0,
+      zIndex: 1,
+      borderBottom: '1px solid',
+      borderColor: 'divider',
+    }}>
+      <Typography variant="h6" sx={{ 
+        fontWeight: 'bold',
+        color: 'primary.main',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1
+      }}>
+        {column.title}
+        <Typography variant="caption" sx={{ 
+          bgcolor: 'primary.main',
+          color: 'white',
+          px: 1,
+          py: 0.5,
+          borderRadius: 1,
+          fontSize: '0.75rem'
+        }}>
+          {column.tasks.length}
+        </Typography>
+      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        {(column.id === 'todo' || column.id === 'inProgress') && (
+          <IconButton
+            size="small"
+            onClick={() => setDateGroupingEnabled(!dateGroupingEnabled)}
+            sx={{
+              color: dateGroupingEnabled ? 'primary.main' : 'text.secondary',
+              '&:hover': {
+                backgroundColor: 'primary.light',
+                color: 'white',
+              },
+            }}
+            title={dateGroupingEnabled ? 'Disable date grouping' : 'Enable date grouping'}
+          >
+            <CalendarTodayIcon fontSize="small" />
+          </IconButton>
+        )}
+        {column.id === 'done' && (
+          <>
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              Show:
+            </Typography>
+            <Select
+              size="small"
+              value={column.limit || 3}
+              onChange={(e) => handleLimitChange(column.id, Number(e.target.value))}
+              sx={{ 
+                fontSize: '0.75rem',
+                height: '28px',
+                '& .MuiSelect-select': {
+                  py: 0.5
+                }
+              }}
+            >
+              <MenuItem value={3}>3</MenuItem>
+              <MenuItem value={5}>5</MenuItem>
+              <MenuItem value={10}>10</MenuItem>
+              <MenuItem value={20}>20</MenuItem>
+              <MenuItem value={50}>50</MenuItem>
+              <MenuItem value={100}>100</MenuItem>
+              <MenuItem value={-1}>All</MenuItem>
+            </Select>
+          </>
+        )}
+      </Box>
+    </Box>
+  );
+
+  const renderColumn = (column: Column) => {
+    // Apply limit for done column
+    const displayTasks = column.id === 'done' ? 
+      (column.limit && column.limit > 0 ? column.tasks.slice(0, column.limit) : 
+       column.limit === -1 ? column.tasks : column.tasks.slice(0, 3)) : 
+      column.tasks;
+
+    const filteredTasks = filterTasks(displayTasks);
+
+    return (
+      <Paper
+        key={column.id}
+        sx={{
+          p: 2,
+          minWidth: 300,
+          maxWidth: 'none',
+          flex: 1,
+          bgcolor: 'background.paper',
+          borderRadius: 2,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          height: 'fit-content',
+          minHeight: 'calc(100vh - 100px)',
+          overflow: 'auto',
+          position: 'relative',
+          transition: 'all 0.2s ease',
+          transform: column.id === dragOverColumn ? 'scale(1.02)' : 'scale(1)',
+          boxShadow: column.id === dragOverColumn ? 3 : 1,
+          opacity: draggedTask && draggedTask.sourceColumnId === column.id ? 0.5 : 1,
+          border: '1px solid',
+          borderColor: 'divider',
+          '&:hover': {
+            boxShadow: 4,
+            borderColor: 'primary.light',
+          },
+        }}
+        onDragOver={(e) => handleDragOver(e, column.id)}
+        onDragLeave={handleDragLeave}
+        onDrop={() => handleDrop(column.id)}
+      >
+        {renderColumnHeader(column)}
+        
+        {dateGroupingEnabled && column.id !== 'done' ? (
+          // Render with date sections
+          <Stack spacing={2}>
+            {groupTasksByDate(filteredTasks).map((section) => (
+              <Box key={section.id}>
+                {renderDateSectionHeader(section)}
+                <Stack spacing={1} sx={{ pl: 1 }}>
+                  {section.tasks.map((task) => renderTask(task, column.id))}
+                </Stack>
+              </Box>
+            ))}
+          </Stack>
+        ) : (
+          // Render without date sections (original behavior)
+          <Stack spacing={2}>
+            {filteredTasks.map((task, taskIndex) => (
+              renderTask(task, column.id)
+            ))}
+          </Stack>
+        )}
+      </Paper>
+    );
+  };
+
+  const renderKanbanView = () => (
+    <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
+      {columns.map(column => renderColumn(column))}
+    </Box>
+  );
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
