@@ -203,7 +203,11 @@ function App() {
       } catch (error) {
         console.error('Error restoring user session:', error);
         localStorage.removeItem('google-credential');
+        setIsInitialLoad(false);
       }
+    } else {
+      // No saved credential, set initial load to false immediately
+      setIsInitialLoad(false);
     }
   }, []);
 
@@ -253,10 +257,18 @@ function App() {
         if (savedAccounts.length > 0) {
           setGoogleAccounts(savedAccounts);
           setActiveAccountIndex(0);
+        } else {
+          // No valid connections found, set initial load to false
+          setIsInitialLoad(false);
         }
+      } else {
+        // No connections found, set initial load to false
+        setIsInitialLoad(false);
       }
     } catch (error) {
       console.error('Error loading saved connections:', error);
+      // Set initial load to false even if there's an error
+      setIsInitialLoad(false);
     }
   };
 
@@ -396,8 +408,12 @@ function App() {
       };
       setUser(userData);
       localStorage.setItem('google-credential', credentialResponse.credential);
+      
+      // Load saved Google Tasks connections from database
+      await loadSavedConnections(userData.email);
     } catch (error) {
       console.error('Error during login:', error);
+      setIsInitialLoad(false);
     }
   };
 
