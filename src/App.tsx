@@ -2341,56 +2341,93 @@ function App() {
 
     try {
       setIsRefreshing(true);
-      const taskListsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
-        headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` }
-      });
 
-      const taskLists = taskListsResponse.data.items || [];
-      const tasksPromises = taskLists.map(async (list: any) => {
-        let allTasks: any[] = [];
-        let pageToken: string | undefined;
+      // Fetch tasks for all accounts (not just the active one)
+      const allTasksPromises = googleAccounts.map(async (account, index) => {
+        // Fetch task lists
+        const listsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
+          headers: { Authorization: `Bearer ${account.token}` }
+        });
         
-        do {
-          const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
-            headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` },
-            params: {
-              showCompleted: true,
-              showHidden: true,
-              maxResults: 100,
-              pageToken: pageToken
-            }
-          });
+        const taskLists = listsResponse.data.items || [];
+        
+        // Update the account with new task lists
+        setGoogleAccounts(prevAccounts => {
+          const newAccounts = [...prevAccounts];
+          newAccounts[index] = {
+            ...newAccounts[index],
+            taskLists
+          };
+          return newAccounts;
+        });
+
+        // Fetch tasks for each list with proper pagination
+        const tasksPromises = taskLists.map(async (list: any) => {
+          let allTasks: any[] = [];
+          let pageToken: string | undefined;
           
-          const tasks = response.data.items || [];
-          // Add account info to each task
-          const tasksWithAccount = tasks.map((task: any) => ({
-            ...task,
-            accountEmail: googleAccounts[activeAccountIndex].user.email,
-            accountName: googleAccounts[activeAccountIndex].user.name,
-            accountPicture: googleAccounts[activeAccountIndex].user.picture
-          }));
-          allTasks = [...allTasks, ...tasksWithAccount];
-          pageToken = response.data.nextPageToken;
-        } while (pageToken);
+          do {
+            const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
+              headers: { Authorization: `Bearer ${account.token}` },
+              params: {
+                showCompleted: true,
+                showHidden: true,
+                maxResults: 100,
+                pageToken: pageToken
+              }
+            });
+            
+            const tasks = response.data.items || [];
+            // Add account info to each task
+            const tasksWithAccount = tasks.map((task: any) => ({
+              ...task,
+              accountEmail: account.user.email,
+              accountName: account.user.name,
+              accountPicture: account.user.picture
+            }));
+            allTasks = [...allTasks, ...tasksWithAccount];
+            pageToken = response.data.nextPageToken;
+          } while (pageToken);
 
-        return { listId: list.id, tasks: allTasks };
+          return { listId: list.id, tasks: allTasks };
+        });
+
+        const results = await Promise.all(tasksPromises);
+        const tasksByList: { [listId: string]: any[] } = {};
+        results.forEach(({ listId, tasks }) => {
+          tasksByList[listId] = tasks;
+        });
+
+        return { accountIndex: index, tasksByList };
       });
 
-      const results = await Promise.all(tasksPromises);
-      const tasksByList: { [listId: string]: any[] } = {};
-      results.forEach(({ listId, tasks }) => {
-        tasksByList[listId] = tasks;
-      });
-
-      // Update Google Tasks state
+      const allResults = await Promise.all(allTasksPromises);
+      
+      // Update all accounts with their tasks
       setGoogleAccounts(prevAccounts => {
         const newAccounts = [...prevAccounts];
-        newAccounts[activeAccountIndex].tasks = tasksByList;
+        allResults.forEach(({ accountIndex, tasksByList }) => {
+          newAccounts[accountIndex] = {
+            ...newAccounts[accountIndex],
+            tasks: tasksByList
+          };
+        });
         return newAccounts;
       });
 
-      // Update columns with fresh data
-      updateColumnsWithTasks(tasksByList);
+      // Combine tasks from all accounts
+      const combinedTasksByList: { [listId: string]: any[] } = {};
+      allResults.forEach(({ tasksByList }) => {
+        Object.entries(tasksByList).forEach(([listId, tasks]) => {
+          if (!combinedTasksByList[listId]) {
+            combinedTasksByList[listId] = [];
+          }
+          combinedTasksByList[listId] = [...combinedTasksByList[listId], ...tasks];
+        });
+      });
+
+      // Update columns with the combined tasks
+      updateColumnsWithTasks(combinedTasksByList);
       setLastRefreshTime(new Date());
     } catch (error) {
       console.error('Error refreshing tasks:', error);
