@@ -2982,7 +2982,7 @@ function App() {
                     }
                   }}
                   sx={{ 
-                    width: 180,
+                    width: 250,
                     '& .MuiInputBase-root': {
                       color: 'inherit'
                     }
