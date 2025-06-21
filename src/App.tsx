@@ -7,6 +7,7 @@ import StarIcon from '@mui/icons-material/Star';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EventIcon from '@mui/icons-material/Event';
+import ScheduleIcon from '@mui/icons-material/Schedule';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -27,6 +28,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { CircularProgress } from '@mui/material';
 import { apiService } from './api';
 import TaskRow from './TaskRow.tsx';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -75,7 +77,7 @@ const GOOGLE_ACCOUNTS_KEY = 'google-accounts';
 const GOOGLE_CLIENT_ID = "251184335563-bdf3sv4vc1sr4v2itciiepd7fllvshec.apps.googleusercontent.com";
 
 // Add new view mode type
-type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate';
+type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate' | 'upcoming';
 
 // Add this type at the top with other interfaces
 type Timeout = ReturnType<typeof setTimeout>;
@@ -550,33 +552,44 @@ function App() {
   const AccountSwitcher = () => (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
       {googleAccounts.map((account, index) => (
-        <Chip
+        <Avatar
           key={account.user.email}
-          avatar={<Avatar src={account.user.picture} alt={account.user.name} />}
-          label={account.user.name}
+          src={account.user.picture}
+          alt={account.user.name}
           onClick={() => setActiveAccountIndex(index)}
-          onDelete={() => setSelectedAccountForRemoval(index)}
-          color={index === activeAccountIndex ? 'primary' : 'default'}
           sx={{
+            width: 28,
+            height: 28,
+            cursor: 'pointer',
+            border: index === activeAccountIndex ? '2px solid #fff' : '2px solid rgba(255, 255, 255, 0.3)',
             '&:hover': {
-              opacity: 0.8
+              opacity: 0.8,
+              transform: 'scale(1.1)',
+              transition: 'all 0.2s ease'
             }
           }}
+          title={`${account.user.name} (${account.user.email})`}
         />
       ))}
       <IconButton
+        size="small"
         color="primary"
         onClick={() => setOpenAccountDialog(true)}
         sx={{
+          width: 28,
+          height: 28,
           border: '1px dashed',
-          borderColor: 'primary.main',
+          borderColor: 'rgba(255, 255, 255, 0.5)',
+          color: 'rgba(255, 255, 255, 0.8)',
           '&:hover': {
-            backgroundColor: 'primary.light',
-            color: 'white'
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            color: 'white',
+            borderColor: 'white'
           }
         }}
+        title="Add Account"
       >
-        <AddIcon />
+        <AddIcon fontSize="small" />
       </IconButton>
     </Box>
   );
@@ -1916,6 +1929,201 @@ function App() {
     );
   };
 
+  const renderUpcomingView = () => {
+    // Get all tasks from all columns
+    const allTasks = columns.reduce((acc: Task[], column) => {
+      return [...acc, ...column.tasks];
+    }, []);
+
+    // Filter tasks that have due dates and are not completed
+    const upcomingTasks = allTasks.filter(task => 
+      task.dueDate && 
+      task.status !== 'completed' &&
+      new Date(task.dueDate) >= startOfDay(new Date())
+    );
+
+    // Group tasks by due date
+    const tasksByDate = upcomingTasks.reduce((acc: { [key: string]: Task[] }, task) => {
+      const dateKey = format(new Date(task.dueDate!), 'yyyy-MM-dd');
+      if (!acc[dateKey]) {
+        acc[dateKey] = [];
+      }
+      acc[dateKey].push(task);
+      return acc;
+    }, {});
+
+    // Create date columns for the next 7 days
+    const dateColumns: { id: string; title: string; date: Date; tasks: Task[] }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const date = addDays(new Date(), i);
+      const dateKey = format(date, 'yyyy-MM-dd');
+      const tasks = tasksByDate[dateKey] || [];
+      
+      dateColumns.push({
+        id: dateKey,
+        title: format(date, 'EEE, MMM d'),
+        date,
+        tasks: tasks.sort((a, b) => a.content.localeCompare(b.content))
+      });
+    }
+
+    return (
+      <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
+        {dateColumns.map((dateColumn) => (
+          <Paper
+            key={dateColumn.id}
+            sx={{
+              minWidth: 300,
+              maxWidth: 350,
+              height: 'calc(100vh - 120px)',
+              display: 'flex',
+              flexDirection: 'column',
+              bgcolor: isToday(dateColumn.date) ? '#fff3e0' : '#fafafa',
+              border: isToday(dateColumn.date) ? '2px solid #ff9800' : '1px solid #e0e0e0',
+              borderRadius: 2,
+              overflow: 'hidden'
+            }}
+          >
+            {/* Column Header */}
+            <Box
+              sx={{
+                p: 2,
+                bgcolor: isToday(dateColumn.date) ? '#ff9800' : '#f5f5f5',
+                color: isToday(dateColumn.date) ? 'white' : 'text.primary',
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 'bold',
+                  fontSize: '1rem',
+                  textTransform: 'capitalize'
+                }}
+              >
+                {dateColumn.title}
+              </Typography>
+              <Chip
+                label={dateColumn.tasks.length}
+                size="small"
+                sx={{
+                  bgcolor: isToday(dateColumn.date) ? 'rgba(255,255,255,0.2)' : 'primary.main',
+                  color: isToday(dateColumn.date) ? 'white' : 'white',
+                  fontWeight: 'bold'
+                }}
+              />
+            </Box>
+
+            {/* Tasks Container */}
+            <Box
+              sx={{
+                flex: 1,
+                overflow: 'auto',
+                p: 1
+              }}
+            >
+              {dateColumn.tasks.length === 0 ? (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100px',
+                    color: 'text.secondary',
+                    fontStyle: 'italic'
+                  }}
+                >
+                  No tasks
+                </Box>
+              ) : (
+                <Stack spacing={1}>
+                  {dateColumn.tasks.map((task) => (
+                    <Paper
+                      key={task.id}
+                      sx={{
+                        p: 1.5,
+                        cursor: 'pointer',
+                        borderLeft: `4px solid ${task.color || '#42A5F5'}`,
+                        bgcolor: 'white',
+                        '&:hover': {
+                          boxShadow: 2,
+                          transform: 'translateY(-1px)',
+                          transition: 'all 0.2s ease'
+                        }
+                      }}
+                      onClick={() => handleEditTask(task, 'upcoming')}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                        <Checkbox
+                          checked={task.status === 'completed'}
+                          onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
+                          size="small"
+                          sx={{ mt: 0.5 }}
+                        />
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 500,
+                              textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                              color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
+                              wordBreak: 'break-word'
+                            }}
+                          >
+                            {task.content}
+                          </Typography>
+                          {task.notes && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: 'text.secondary',
+                                display: 'block',
+                                mt: 0.5,
+                                wordBreak: 'break-word'
+                              }}
+                            >
+                              {task.notes}
+                            </Typography>
+                          )}
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                            <Chip
+                              label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
+                              color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
+                              size="small"
+                              sx={{ height: '20px', fontSize: '0.7rem' }}
+                            />
+                            {task.accountEmail && (
+                              <Avatar
+                                src={task.accountPicture}
+                                alt={task.accountName}
+                                sx={{
+                                  width: 20,
+                                  height: 20,
+                                  fontSize: '0.7rem',
+                                  bgcolor: getAccountColor(task.accountEmail)
+                                }}
+                              >
+                                {task.accountName?.charAt(0)}
+                              </Avatar>
+                            )}
+                          </Box>
+                        </Box>
+                      </Box>
+                    </Paper>
+                  ))}
+                </Stack>
+              )}
+            </Box>
+          </Paper>
+        ))}
+      </Box>
+    );
+  };
+
   // Helper function to update columns with tasks from Google Tasks
   const updateColumnsWithTasks = (tasksByList: { [listId: string]: any[] }) => {
     setColumns(prevColumns => {
@@ -2662,27 +2870,37 @@ function App() {
           }}
         >
           <Toolbar>
-            <Typography 
-              variant="h6" 
-              noWrap 
-              component="div" 
-              sx={{ 
-                mr: 4,
-                fontWeight: 'bold',
-                letterSpacing: '0.5px',
-                background: 'linear-gradient(45deg, #fff 30%, #e3f2fd 90%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent'
-              }}
-            >
-              Task Manager
-            </Typography>
+            {/* Logo and Title */}
             <Box sx={{ 
               display: 'flex', 
-              gap: 1,
+              alignItems: 'center',
+              mr: 3,
+              color: '#4CAF50',
+              fontSize: '2rem'
+            }}>
+              ✓
+            </Box>
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                color: 'white',
+                fontWeight: 600,
+                letterSpacing: 1,
+                textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                mr: 3
+              }}
+            >
+              GTask ALL
+            </Typography>
+
+            {/* View Mode Buttons */}
+            <Box sx={{ 
+              display: 'flex', 
+              gap: 0.5,
               '& .MuiIconButton-root': {
                 color: 'rgba(255, 255, 255, 0.8)',
                 transition: 'all 0.3s ease',
+                padding: '8px',
                 '&:hover': {
                   color: '#fff',
                   transform: 'translateY(-2px)',
@@ -2700,107 +2918,181 @@ function App() {
                 onClick={() => setViewMode('kanban')}
                 title="Kanban View"
               >
-                <DashboardIcon />
+                <DashboardIcon fontSize="small" />
               </IconButton>
               <IconButton 
                 className={viewMode === 'list' ? 'active' : ''}
                 onClick={() => setViewMode('list')}
                 title="List View"
               >
-                <ListIcon />
+                <ListIcon fontSize="small" />
               </IconButton>
               <IconButton 
                 className={viewMode === 'calendar' ? 'active' : ''}
                 onClick={() => setViewMode('calendar')}
                 title="Calendar View"
               >
-                <CalendarTodayIcon />
+                <CalendarTodayIcon fontSize="small" />
               </IconButton>
               <IconButton 
                 className={viewMode === 'today' ? 'active' : ''}
                 onClick={() => setViewMode('today')}
                 title="Today's Tasks"
               >
-                <EventIcon />
+                <EventIcon fontSize="small" />
               </IconButton>
               <IconButton 
                 className={viewMode === 'ultimate' ? 'active' : ''}
                 onClick={() => setViewMode('ultimate')}
                 title="Ultimate Board"
               >
-                <StarIcon />
+                <StarIcon fontSize="small" />
+              </IconButton>
+              <IconButton 
+                className={viewMode === 'upcoming' ? 'active' : ''}
+                onClick={() => setViewMode('upcoming')}
+                title="Upcoming Tasks"
+              >
+                <ScheduleIcon fontSize="small" />
               </IconButton>
             </Box>
+
+            {/* Spacer before search */}
             <Box sx={{ flexGrow: 1 }} />
-            {user && (
-              <>
-                <TextField
-                  size="small"
-                  variant="outlined"
-                  placeholder="Search tasks..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <Box sx={{ display: 'flex', alignItems: 'center', color: 'inherit', pl: 1 }}>
-                        <SearchIcon />
-                      </Box>
-                    ),
-                    endAdornment: searchQuery && (
-                      <IconButton
-                        size="small"
-                        onClick={() => setSearchQuery('')}
-                        sx={{ color: 'inherit' }}
-                      >
-                        <ClearIcon />
-                      </IconButton>
-                    ),
-                    sx: { 
-                      color: 'inherit',
-                      '& .MuiOutlinedInput-notchedOutline': {
-                        borderColor: 'rgba(255, 255, 255, 0.3)',
-                      },
-                      '&:hover .MuiOutlinedInput-notchedOutline': {
-                        borderColor: 'rgba(255, 255, 255, 0.5)',
-                      },
-                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                        borderColor: 'primary.main',
-                      }
-                    }
-                  }}
-                  sx={{ 
-                    mr: 2,
-                    width: 200,
-                    '& .MuiInputBase-root': {
-                      color: 'inherit'
-                    }
-                  }}
-                />
-                {googleAccounts.length > 0 && <AccountSwitcher />}
-              </>
+
+            {/* Centered Search Field */}
+            <TextField
+              size="small"
+              variant="outlined"
+              placeholder="Search tasks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <Box sx={{ display: 'flex', alignItems: 'center', color: 'inherit', pl: 1 }}>
+                    <SearchIcon fontSize="small" />
+                  </Box>
+                ),
+                endAdornment: searchQuery && (
+                  <IconButton
+                    size="small"
+                    onClick={() => setSearchQuery('')}
+                    sx={{ color: 'inherit' }}
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                ),
+                sx: { 
+                  color: 'inherit',
+                  fontSize: '0.95rem',
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'white',
+                  }
+                }
+              }}
+              sx={{ 
+                width: 400,
+                mx: 3,
+                '& .MuiInputBase-root': {
+                  color: 'inherit'
+                }
+              }}
+            />
+
+            {/* Spacer after search */}
+            <Box sx={{ flexGrow: 1 }} />
+
+            {/* Google Tasks Accounts Section */}
+            {googleAccounts.length > 0 && (
+              <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                bgcolor: 'rgba(255,255,255,0.08)',
+                px: 1.5,
+                py: 0.5,
+                borderRadius: 2,
+                boxShadow: 1,
+                ml: 2,
+                mr: 2,
+                border: '1px solid',
+                borderColor: 'rgba(255,255,255,0.15)'
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
+                  <AccountCircleIcon sx={{ color: 'primary.light', fontSize: 22, mr: 0.5 }} />
+                  <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', fontWeight: 500, letterSpacing: 0.5 }}>Accounts</span>
+                </Box>
+                <AccountSwitcher />
+              </Box>
             )}
+
+            {/* Divider between accounts and user */}
+            <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: 'rgba(255,255,255,0.15)' }} />
+
+            {/* User/Login Section */}
             {user ? (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 1 }}>
+                <IconButton
+                  onClick={refreshTasks}
+                  disabled={isRefreshing}
+                  size="small"
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    bgcolor: isRefreshing ? 'warning.main' : 'success.main',
+                    color: 'white',
+                    transition: 'all 0.3s ease',
+                    boxShadow: '0 0 8px rgba(255, 255, 255, 0.3)',
+                    '&:hover': {
+                      transform: 'rotate(180deg)',
+                      backgroundColor: isRefreshing ? 'warning.dark' : 'success.dark',
+                      boxShadow: '0 0 12px rgba(255, 255, 255, 0.5)',
+                    },
+                    '&.Mui-disabled': {
+                      bgcolor: 'rgba(255, 255, 255, 0.2)',
+                      color: 'rgba(255, 255, 255, 0.5)',
+                    }
+                  }}
+                  title="Refresh Tasks"
+                >
+                  {isRefreshing ? (
+                    <CircularProgress 
+                      size={16} 
+                      color="inherit"
+                      sx={{
+                        animation: 'spin 1s linear infinite',
+                        '@keyframes spin': {
+                          '0%': { transform: 'rotate(0deg)' },
+                          '100%': { transform: 'rotate(360deg)' }
+                        }
+                      }}
+                    />
+                  ) : (
+                    <RefreshIcon fontSize="small" />
+                  )}
+                </IconButton>
                 <Avatar 
                   src={user.picture} 
                   alt={user.name}
                   sx={{
+                    width: 32,
+                    height: 32,
                     border: '2px solid rgba(255, 255, 255, 0.3)',
-                    boxShadow: '0 0 10px rgba(255, 255, 255, 0.2)'
+                    boxShadow: '0 0 8px rgba(255, 255, 255, 0.2)'
                   }}
+                  title={user.name}
                 />
-                <Typography 
-                  variant="body1"
-                  sx={{
-                    fontWeight: 500,
-                    textShadow: '0 1px 2px rgba(0, 0, 0, 0.2)'
-                  }}
-                >
-                  {user.name}
-                </Typography>
                 <IconButton 
                   color="inherit" 
                   onClick={handleLogout}
+                  size="small"
                   sx={{
                     '&:hover': {
                       background: 'rgba(255, 255, 255, 0.1)',
@@ -2808,8 +3100,9 @@ function App() {
                       transition: 'all 0.3s ease'
                     }
                   }}
+                  title="Logout"
                 >
-                  <LogoutIcon />
+                  <LogoutIcon fontSize="small" />
                 </IconButton>
               </Box>
             ) : (
@@ -2818,76 +3111,6 @@ function App() {
                 onError={handleGoogleError}
               />
             )}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2 }}>
-              <IconButton
-                onClick={refreshTasks}
-                disabled={isRefreshing}
-                sx={{
-                  color: 'inherit',
-                  transition: 'all 0.3s ease',
-                  position: 'relative',
-                  '&:hover': {
-                    transform: 'rotate(180deg)',
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  },
-                  '&.Mui-disabled': {
-                    color: 'rgba(255, 255, 255, 0.3)',
-                  },
-                  '&::after': {
-                    content: '""',
-                    position: 'absolute',
-                    top: -2,
-                    left: -2,
-                    right: -2,
-                    bottom: -2,
-                    borderRadius: '50%',
-                    border: '2px solid',
-                    borderColor: 'transparent',
-                    transition: 'all 0.3s ease',
-                  },
-                  '&:hover::after': {
-                    borderColor: 'rgba(255, 255, 255, 0.3)',
-                  }
-                }}
-              >
-                {isRefreshing ? (
-                  <CircularProgress 
-                    size={24} 
-                    color="inherit"
-                    sx={{
-                      animation: 'spin 1s linear infinite',
-                      '@keyframes spin': {
-                        '0%': { transform: 'rotate(0deg)' },
-                        '100%': { transform: 'rotate(360deg)' }
-                      }
-                    }}
-                  />
-                ) : (
-                  <RefreshIcon />
-                )}
-              </IconButton>
-              <Typography 
-                variant="caption" 
-                sx={{ 
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5
-                }}
-              >
-                <Box 
-                  component="span" 
-                  sx={{ 
-                    width: 8, 
-                    height: 8, 
-                    borderRadius: '50%', 
-                    bgcolor: isRefreshing ? 'warning.main' : 'success.main',
-                    transition: 'all 0.3s ease'
-                  }} 
-                />
-                Last refresh: {format(lastRefreshTime, 'HH:mm:ss')}
-              </Typography>
-            </Box>
           </Toolbar>
         </AppBar>
         
@@ -2918,6 +3141,7 @@ function App() {
                   {viewMode === 'today' && renderTodayView()}
                   {viewMode === 'ultimate' && renderUltimateView()}
                   {viewMode === 'kanban' && renderKanbanView()}
+                  {viewMode === 'upcoming' && renderUpcomingView()}
                 </>
               )
             ) : (
