@@ -551,33 +551,44 @@ function App() {
   const AccountSwitcher = () => (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
       {googleAccounts.map((account, index) => (
-        <Chip
+        <Avatar
           key={account.user.email}
-          avatar={<Avatar src={account.user.picture} alt={account.user.name} />}
-          label={account.user.name}
+          src={account.user.picture}
+          alt={account.user.name}
           onClick={() => setActiveAccountIndex(index)}
-          onDelete={() => setSelectedAccountForRemoval(index)}
-          color={index === activeAccountIndex ? 'primary' : 'default'}
           sx={{
+            width: 28,
+            height: 28,
+            cursor: 'pointer',
+            border: index === activeAccountIndex ? '2px solid #fff' : '2px solid rgba(255, 255, 255, 0.3)',
             '&:hover': {
-              opacity: 0.8
+              opacity: 0.8,
+              transform: 'scale(1.1)',
+              transition: 'all 0.2s ease'
             }
           }}
+          title={`${account.user.name} (${account.user.email})`}
         />
       ))}
       <IconButton
+        size="small"
         color="primary"
         onClick={() => setOpenAccountDialog(true)}
         sx={{
+          width: 28,
+          height: 28,
           border: '1px dashed',
-          borderColor: 'primary.main',
+          borderColor: 'rgba(255, 255, 255, 0.5)',
+          color: 'rgba(255, 255, 255, 0.8)',
           '&:hover': {
-            backgroundColor: 'primary.light',
-            color: 'white'
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            color: 'white',
+            borderColor: 'white'
           }
         }}
+        title="Add Account"
       >
-        <AddIcon />
+        <AddIcon fontSize="small" />
       </IconButton>
     </Box>
   );
@@ -2858,27 +2869,25 @@ function App() {
           }}
         >
           <Toolbar>
-            <Typography 
-              variant="h6" 
-              noWrap 
-              component="div" 
-              sx={{ 
-                mr: 4,
-                fontWeight: 'bold',
-                letterSpacing: '0.5px',
-                background: 'linear-gradient(45deg, #fff 30%, #e3f2fd 90%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent'
-              }}
-            >
-              Task Manager
-            </Typography>
+            {/* Logo and Title */}
             <Box sx={{ 
               display: 'flex', 
-              gap: 1,
+              alignItems: 'center',
+              mr: 3,
+              color: '#4CAF50',
+              fontSize: '2rem'
+            }}>
+              ✓
+            </Box>
+
+            {/* View Mode Buttons */}
+            <Box sx={{ 
+              display: 'flex', 
+              gap: 0.5,
               '& .MuiIconButton-root': {
                 color: 'rgba(255, 255, 255, 0.8)',
                 transition: 'all 0.3s ease',
+                padding: '8px',
                 '&:hover': {
                   color: '#fff',
                   transform: 'translateY(-2px)',
@@ -2891,71 +2900,48 @@ function App() {
                 }
               }
             }}>
-              <Select
-                value={viewMode}
-                onChange={(e) => setViewMode(e.target.value as ViewMode)}
-                sx={{
-                  minWidth: 140,
-                  color: 'white',
-                  '& .MuiSelect-icon': {
-                    color: 'white'
-                  },
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(255, 255, 255, 0.3)',
-                  },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(255, 255, 255, 0.5)',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'white',
-                  },
-                  '& .MuiSelect-select': {
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    py: 1
-                  }
-                }}
-                MenuProps={{
-                  PaperProps: {
-                    sx: {
-                      mt: 1,
-                      '& .MuiMenuItem-root': {
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1.5,
-                        py: 1.5,
-                        px: 2
-                      }
-                    }
-                  }
-                }}
+              <IconButton 
+                className={viewMode === 'kanban' ? 'active' : ''}
+                onClick={() => setViewMode('kanban')}
+                title="Kanban View"
               >
-                <MenuItem value="kanban">
-                  <DashboardIcon fontSize="small" />
-                  Kanban View
-                </MenuItem>
-                <MenuItem value="list">
-                  <ListIcon fontSize="small" />
-                  List View
-                </MenuItem>
-                <MenuItem value="calendar">
-                  <CalendarTodayIcon fontSize="small" />
-                  Calendar View
-                </MenuItem>
-                <MenuItem value="today">
-                  <EventIcon fontSize="small" />
-                  Today's Tasks
-                </MenuItem>
-                <MenuItem value="ultimate">
-                  <StarIcon fontSize="small" />
-                  Ultimate Board
-                </MenuItem>
-                <MenuItem value="upcoming">
-                  <ScheduleIcon fontSize="small" />
-                  Upcoming Tasks
-                </MenuItem>
-              </Select>
+                <DashboardIcon fontSize="small" />
+              </IconButton>
+              <IconButton 
+                className={viewMode === 'list' ? 'active' : ''}
+                onClick={() => setViewMode('list')}
+                title="List View"
+              >
+                <ListIcon fontSize="small" />
+              </IconButton>
+              <IconButton 
+                className={viewMode === 'calendar' ? 'active' : ''}
+                onClick={() => setViewMode('calendar')}
+                title="Calendar View"
+              >
+                <CalendarTodayIcon fontSize="small" />
+              </IconButton>
+              <IconButton 
+                className={viewMode === 'today' ? 'active' : ''}
+                onClick={() => setViewMode('today')}
+                title="Today's Tasks"
+              >
+                <EventIcon fontSize="small" />
+              </IconButton>
+              <IconButton 
+                className={viewMode === 'ultimate' ? 'active' : ''}
+                onClick={() => setViewMode('ultimate')}
+                title="Ultimate Board"
+              >
+                <StarIcon fontSize="small" />
+              </IconButton>
+              <IconButton 
+                className={viewMode === 'upcoming' ? 'active' : ''}
+                onClick={() => setViewMode('upcoming')}
+                title="Upcoming Tasks"
+              >
+                <ScheduleIcon fontSize="small" />
+              </IconButton>
             </Box>
             <Box sx={{ flexGrow: 1 }} />
             {user && (
@@ -3016,20 +3002,8 @@ function App() {
                     border: '2px solid rgba(255, 255, 255, 0.3)',
                     boxShadow: '0 0 8px rgba(255, 255, 255, 0.2)'
                   }}
+                  title={user.name}
                 />
-                <Typography 
-                  variant="body2"
-                  sx={{
-                    fontWeight: 500,
-                    textShadow: '0 1px 2px rgba(0, 0, 0, 0.2)',
-                    maxWidth: 120,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {user.name}
-                </Typography>
                 <IconButton 
                   color="inherit" 
                   onClick={handleLogout}
@@ -3066,27 +3040,13 @@ function App() {
                   },
                   '&.Mui-disabled': {
                     color: 'rgba(255, 255, 255, 0.3)',
-                  },
-                  '&::after': {
-                    content: '""',
-                    position: 'absolute',
-                    top: -2,
-                    left: -2,
-                    right: -2,
-                    bottom: -2,
-                    borderRadius: '50%',
-                    border: '2px solid',
-                    borderColor: 'transparent',
-                    transition: 'all 0.3s ease',
-                  },
-                  '&:hover::after': {
-                    borderColor: 'rgba(255, 255, 255, 0.3)',
                   }
                 }}
+                title="Refresh Tasks"
               >
                 {isRefreshing ? (
                   <CircularProgress 
-                    size={24} 
+                    size={20} 
                     color="inherit"
                     sx={{
                       animation: 'spin 1s linear infinite',
@@ -3097,7 +3057,7 @@ function App() {
                     }}
                   />
                 ) : (
-                  <RefreshIcon />
+                  <RefreshIcon fontSize="small" />
                 )}
               </IconButton>
               <Typography 
@@ -3106,20 +3066,21 @@ function App() {
                   color: 'rgba(255, 255, 255, 0.7)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 0.5
+                  gap: 0.5,
+                  fontSize: '0.7rem'
                 }}
               >
                 <Box 
                   component="span" 
                   sx={{ 
-                    width: 8, 
-                    height: 8, 
+                    width: 6, 
+                    height: 6, 
                     borderRadius: '50%', 
                     bgcolor: isRefreshing ? 'warning.main' : 'success.main',
                     transition: 'all 0.3s ease'
                   }} 
                 />
-                Last refresh: {format(lastRefreshTime, 'HH:mm:ss')}
+                {format(lastRefreshTime, 'HH:mm')}
               </Typography>
             </Box>
           </Toolbar>
