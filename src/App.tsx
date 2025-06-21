@@ -26,7 +26,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { CircularProgress } from '@mui/material';
 import { apiService } from './api';
-import TaskRow from './TaskRow';
+import TaskRow from './TaskRow.tsx';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
