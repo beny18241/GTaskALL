@@ -26,6 +26,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { CircularProgress } from '@mui/material';
 import { apiService } from './api';
+import TaskRow from './TaskRow';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -184,6 +185,20 @@ function App() {
   const [selectedListForNewTask, setSelectedListForNewTask] = useState<string>('');
   const [tempUserData, setTempUserData] = useState<User | null>(null);
   const [calendarShowAll, setCalendarShowAll] = useState(false);
+
+  // Color coding for different accounts - moved to global scope
+  const getAccountColor = (accountEmail: string) => {
+    switch (accountEmail) {
+      case 'beny18241@gmail.com':
+        return '#2196F3'; // Blue
+      case 'pindelaMaciej@gmail.com':
+        return '#E91E63'; // Pink
+      case 'maciejpindela@whitehatgmiang':
+        return '#4CAF50'; // Green
+      default:
+        return '#9C27B0'; // Purple for any other accounts
+    }
+  };
 
   // Add effect to restore user session on mount
   useEffect(() => {
@@ -1573,113 +1588,73 @@ function App() {
             >
               Day
             </Button>
-            <LocalizationProvider dateAdapter={AdapterDateFns}>
-              <DatePicker
-                value={selectedDate}
-                onChange={(newDate) => newDate && setSelectedDate(newDate)}
-                slotProps={{
-                  textField: {
-                    variant: 'outlined',
-                    size: 'small',
-                  },
-                }}
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <DatePicker
+              value={selectedDate}
+              onChange={(newDate) => newDate && setSelectedDate(newDate)}
+              slotProps={{
+                textField: {
+                  variant: 'outlined',
+                  size: 'small',
+                },
+              }}
                 disabled={calendarShowAll}
-              />
-            </LocalizationProvider>
+            />
+          </LocalizationProvider>
           </Box>
         </Box>
         <Paper sx={{ p: 2 }}>
           {calendarShowAll ? (
             <>
-              <Typography variant="h6" gutterBottom>
+          <Typography variant="h6" gutterBottom>
                 All Tasks
-              </Typography>
-              <Stack spacing={2}>
+          </Typography>
+              <Box sx={{ bgcolor: 'white', borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
                 {filteredTasks.length === 0 ? (
                   <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
                     No tasks scheduled
-                  </Typography>
+                    </Typography>
                 ) : (
-                  filteredTasks.map((task) => (
-                    <Paper
-                      key={task.id}
-                      sx={{
-                        p: 2,
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: 2,
-                        borderLeft: `4px solid ${task.color || '#42A5F5'}`,
-                        '&:hover': {
-                          boxShadow: 2,
-                        },
-                        minHeight: '100px',
-                        height: 'auto'
-                      }}
-                    >
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="subtitle1" sx={{ wordBreak: 'break-word' }}>{task.content}</Typography>
-                        {task.notes && (
-                          <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-                            {task.notes}
-                          </Typography>
-                        )}
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Chip
-                          label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
-                          color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
-                          size="small"
-                        />
-                      </Box>
-                    </Paper>
-                  ))
-                )}
-              </Stack>
+                  filteredTasks.map((task, index) => {
+                    const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
+                    return (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        accountColor={accountColor}
+                        showDivider={index < filteredTasks.length - 1}
+                        onEdit={() => handleEditTask(task, task.listId || 'todo')}
+                      />
+                    );
+                  })
+                  )}
+                </Box>
             </>
           ) : (
             <>
               <Typography variant="h6" gutterBottom>
                 {format(selectedDate, 'MMMM d, yyyy')}
               </Typography>
-              <Stack spacing={2}>
-                {tasksByDate[format(selectedDate, 'yyyy-MM-dd')]?.map((task) => (
-                  <Paper
-                    key={task.id}
-                    sx={{
-                      p: 2,
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 2,
-                      borderLeft: `4px solid ${task.color || '#42A5F5'}`,
-                      '&:hover': {
-                        boxShadow: 2,
-                      },
-                      minHeight: '100px',
-                      height: 'auto'
-                    }}
-                  >
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant="subtitle1" sx={{ wordBreak: 'break-word' }}>{task.content}</Typography>
-                      {task.notes && (
-                        <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-                          {task.notes}
-                        </Typography>
-                      )}
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Chip
-                        label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
-                        color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
-                        size="small"
+              <Box sx={{ bgcolor: 'white', borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+                {(tasksByDate[format(selectedDate, 'yyyy-MM-dd')] || []).length === 0 ? (
+              <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                No tasks scheduled for this date
+              </Typography>
+                ) : (
+                  (tasksByDate[format(selectedDate, 'yyyy-MM-dd')] || []).map((task, index, arr) => {
+                    const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
+                    return (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        accountColor={accountColor}
+                        showDivider={index < arr.length - 1}
+                        onEdit={() => handleEditTask(task, task.listId || 'todo')}
                       />
-                    </Box>
-                  </Paper>
-                )) || (
-                  <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                    No tasks scheduled for this date
-                  </Typography>
+                    );
+                  })
                 )}
-              </Stack>
+              </Box>
             </>
           )}
         </Paper>
@@ -1698,20 +1673,6 @@ function App() {
 
     const filteredTasks = filterTasks(todayTasks);
 
-    // Color coding for different accounts
-    const getAccountColor = (accountEmail: string) => {
-      switch (accountEmail) {
-        case 'beny18241@gmail.com':
-          return '#2196F3'; // Blue
-        case 'pindelaMaciej@gmail.com':
-          return '#E91E63'; // Pink
-        case 'maciejpindela@whitehatgmiang':
-          return '#4CAF50'; // Green
-        default:
-          return '#9C27B0'; // Purple for any other accounts
-      }
-    };
-
     // Get account icon based on email
     const getAccountIcon = (accountEmail: string) => {
       if (accountEmail.includes('beny18241')) return '👨‍💻';
@@ -1728,7 +1689,7 @@ function App() {
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           borderRadius: 2,
           p: 2,
-          color: 'white',
+              color: 'white',
           boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
         }}>
           <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 0.5 }}>
@@ -1736,7 +1697,7 @@ function App() {
           </Typography>
           <Typography variant="body2" sx={{ opacity: 0.9 }}>
             {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} for today
-          </Typography>
+        </Typography>
         </Box>
 
         {filteredTasks.length === 0 ? (
@@ -1748,11 +1709,11 @@ function App() {
           }}>
             <Typography variant="h6" color="text.secondary" gutterBottom>
               🎉 No tasks for today!
-            </Typography>
+          </Typography>
             <Typography variant="body2" color="text.secondary">
               You're all caught up. Enjoy your day!
             </Typography>
-          </Box>
+      </Box>
         ) : (
           <Box sx={{ 
             bgcolor: 'white', 
@@ -1762,182 +1723,14 @@ function App() {
           }}>
             {filteredTasks.map((task, index) => {
               const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
-              const accountIcon = task.accountEmail ? getAccountIcon(task.accountEmail) : '👤';
-              
               return (
-                <Box
+                <TaskRow
                   key={task.id}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 1,
-                    p: 1.5,
-                    borderBottom: index < filteredTasks.length - 1 ? '1px solid' : 'none',
-                    borderColor: 'divider',
-                    transition: 'all 0.2s ease',
-                    '&:hover': {
-                      bgcolor: 'action.hover',
-                    },
-                    '&:last-child': {
-                      borderBottom: 'none'
-                    },
-                    borderLeft: `3px solid ${accountColor}`,
-                    position: 'relative'
-                  }}
-                >
-                  {/* Checkbox */}
-                  <Box sx={{ pt: 0.25, flexShrink: 0 }}>
-                    <input
-                      type="checkbox"
-                      checked={task.status === 'completed'}
-                      onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
-                      className="task-completion-checkbox"
-                      style={{
-                        width: '16px',
-                        height: '16px',
-                        cursor: 'pointer',
-                        accentColor: accountColor,
-                        borderRadius: '2px',
-                        border: `1.5px solid ${accountColor}`,
-                        transition: 'all 0.2s ease'
-                      }}
-                    />
-                  </Box>
-
-                  {/* Task Content */}
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography 
-                      variant="body2" 
-                      sx={{ 
-                        wordBreak: 'break-word',
-                        fontWeight: 500,
-                        color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
-                        textDecoration: task.status === 'completed' ? 'line-through' : 'none',
-                        mb: task.notes ? 0.25 : 0,
-                        transition: 'all 0.2s ease',
-                        fontSize: '0.9rem',
-                        lineHeight: 1.3
-                      }}
-                    >
-                      {task.content}
-                    </Typography>
-                    
-                    {/* Task Notes/Description - Compact */}
-                    {task.notes && (
-                      <Typography 
-                        variant="caption" 
-                        color="text.secondary"
-                        sx={{ 
-                          wordBreak: 'break-word',
-                          whiteSpace: 'pre-wrap',
-                          lineHeight: 1.3,
-                          mb: 0.5,
-                          fontStyle: 'italic',
-                          opacity: task.status === 'completed' ? 0.4 : 0.6,
-                          fontSize: '0.75rem',
-                          display: 'block'
-                        }}
-                      >
-                        {task.notes}
-                      </Typography>
-                    )}
-
-                    {/* Recurring Badge - Only if task is recurring */}
-                    {task.isRecurring && (
-                      <Box sx={{ 
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        bgcolor: 'primary.main',
-                        color: 'white',
-                        px: 0.5,
-                        py: 0.25,
-                        borderRadius: 0.5,
-                        fontSize: '0.65rem',
-                        height: '16px',
-                        mt: 0.25
-                      }}>
-                        🔄
-                      </Box>
-                    )}
-                  </Box>
-
-                  {/* Right side elements */}
-                  <Box sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: 0.75,
-                    flexShrink: 0
-                  }}>
-                    {/* Status Badge */}
-                    <Chip
-                      label={task.status === 'in-progress' ? 'Active' : task.status === 'completed' ? 'Done' : 'To Do'}
-                      color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
-                      size="small"
-                      sx={{ 
-                        fontWeight: 500,
-                        height: '16px',
-                        '& .MuiChip-label': {
-                          px: 0.5,
-                          fontSize: '0.65rem'
-                        }
-                      }}
-                    />
-
-                    {/* Account Icon */}
-                    {task.accountEmail && (
-                      <Box sx={{ 
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '24px',
-                        height: '24px',
-                        borderRadius: '50%',
-                        overflow: 'hidden',
-                        border: `2px solid ${accountColor}`,
-                        boxShadow: `0 2px 4px ${accountColor}40`
-                      }}>
-                        {task.accountPicture ? (
-                          <img 
-                            src={task.accountPicture} 
-                            alt={task.accountName || task.accountEmail}
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover'
-                            }}
-                          />
-                        ) : (
-                          <Box sx={{
-                            width: '100%',
-                            height: '100%',
-                            bgcolor: accountColor,
-                            color: 'white',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '0.7rem',
-                            fontWeight: 'bold'
-                          }}>
-                            {(task.accountName || task.accountEmail).charAt(0).toUpperCase()}
-                          </Box>
-                        )}
-                      </Box>
-                    )}
-
-                    {/* Completion Indicator */}
-                    {task.status === 'completed' && (
-                      <Box sx={{ 
-                        color: 'success.main',
-                        fontSize: '1rem',
-                        animation: 'fadeInScale 0.2s ease-out',
-                        display: 'flex',
-                        alignItems: 'center'
-                      }}>
-                        ✓
-                      </Box>
-                    )}
-                  </Box>
-                </Box>
+                  task={task}
+                  accountColor={accountColor}
+                  showDivider={index < filteredTasks.length - 1}
+                  onEdit={() => handleEditTask(task, task.listId || 'todo')}
+                />
               );
             })}
           </Box>
@@ -1945,21 +1738,21 @@ function App() {
 
         {/* Progress Summary - Compact */}
         {filteredTasks.length > 0 && (
-          <Box sx={{ 
+    <Box sx={{ 
             mt: 1.5, 
-            p: 1.5,
+      p: 1.5,
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
+          color: 'white',
             borderRadius: 1.5
-          }}>
+        }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
                 Progress: {filteredTasks.filter(t => t.status === 'completed').length} of {filteredTasks.length} completed
-              </Typography>
+        </Typography>
               <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
                 {Math.round((filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100)}%
-              </Typography>
-            </Box>
+      </Typography>
+      </Box>
             <Box sx={{ 
               mt: 0.75, 
               height: 3, 
@@ -1973,8 +1766,8 @@ function App() {
                 width: `${(filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100}%`,
                 transition: 'width 0.3s ease'
               }} />
-            </Box>
-          </Box>
+    </Box>
+              </Box>
         )}
       </Box>
     );
