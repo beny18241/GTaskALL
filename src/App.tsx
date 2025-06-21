@@ -221,16 +221,32 @@ function App() {
           const token = await apiService.getToken(mainUserEmail, connection.gtask_account_email);
           
           if (token) {
-            savedAccounts.push({
-              user: {
-                name: connection.gtask_account_name,
-                email: connection.gtask_account_email,
-                picture: connection.gtask_account_picture
-              },
-              token: token,
-              taskLists: [],
-              tasks: {}
-            });
+            // Test if the token is still valid by making a simple API call
+            try {
+              const testResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              
+              // If the API call succeeds, the token is valid
+              savedAccounts.push({
+                user: {
+                  name: connection.gtask_account_name,
+                  email: connection.gtask_account_email,
+                  picture: connection.gtask_account_picture
+                },
+                token: token,
+                taskLists: [],
+                tasks: {}
+              });
+            } catch (error) {
+              console.log(`Token for ${connection.gtask_account_email} is expired, will need to reconnect`);
+              // Remove expired token from database
+              try {
+                await apiService.removeConnection(mainUserEmail, connection.gtask_account_email);
+              } catch (removeError) {
+                console.error('Error removing expired connection:', removeError);
+              }
+            }
           }
         }
         
@@ -400,7 +416,7 @@ function App() {
           tasks: {}
         };
 
-        // Save connection to database
+        // Save connection to database with access token (we'll handle refresh later)
         try {
           await apiService.addConnection(
             user.email,
@@ -703,127 +719,7 @@ function App() {
           });
 
           // Update columns with fresh data
-          setColumns(prevColumns => {
-            return prevColumns.map(column => {
-              let columnTasks: Task[] = [];
-              
-              if (column.id === 'todo') {
-                // Get all uncompleted tasks from all lists
-                Object.values(tasksByList).forEach(tasks => {
-                  const todoTasks = tasks
-                    .filter(task => !task.completed && (!task.notes || !task.notes.includes('⚡ Active')))
-                    .map(task => ({
-                      id: task.id,
-                      content: task.title,
-                      dueDate: task.due ? new Date(task.due) : null,
-                      isRecurring: task.recurrence ? true : false,
-                      notes: task.notes || '',
-                      color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
-                      status: 'todo' as const,
-                      accountEmail: task.accountEmail,
-                      accountName: task.accountName,
-                      accountPicture: task.accountPicture
-                    }));
-                  columnTasks = [...columnTasks, ...todoTasks];
-                });
-
-                // Sort by due date (if available) and then by title
-                columnTasks.sort((a, b) => {
-                  if (a.dueDate && b.dueDate) {
-                    return a.dueDate.getTime() - b.dueDate.getTime();
-                  }
-                  if (a.dueDate) return -1;
-                  if (b.dueDate) return 1;
-                  return a.content.localeCompare(b.content);
-                });
-
-                // Show all tasks in ToDo column
-                if (columnTasks.length === 0) {
-                  columnTasks = [{
-                    id: 'no-tasks',
-                    content: 'No tasks to do',
-                    status: 'todo' as const,
-                    color: '#42A5F5',
-                    accountEmail: '',
-                    accountName: '',
-                    accountPicture: ''
-                  }];
-                }
-              } else if (column.id === 'inProgress') {
-                // Get tasks with "Active" note from all lists
-                Object.values(tasksByList).forEach(tasks => {
-                  const inProgressTasks = tasks
-                    .filter(task => !task.completed && task.notes && task.notes.includes('⚡ Active'))
-                    .map(task => ({
-                      id: task.id,
-                      content: task.title,
-                      dueDate: task.due ? new Date(task.due) : null,
-                      isRecurring: task.recurrence ? true : false,
-                      notes: task.notes?.replace('⚡ Active', '').trim() || '',
-                      color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#FFA726',
-                      status: 'in-progress' as const,
-                      accountEmail: task.accountEmail,
-                      accountName: task.accountName,
-                      accountPicture: task.accountPicture
-                    }));
-                  columnTasks = [...columnTasks, ...inProgressTasks];
-                });
-              } else if (column.id === 'done') {
-                // Get completed tasks from all lists
-                const allCompletedTasks: Task[] = [];
-                Object.values(tasksByList).forEach(tasks => {
-                  const completedTasks = tasks
-                    .filter(task => task.completed)
-                    .map(task => ({
-                      id: task.id,
-                      content: task.title,
-                      dueDate: task.due ? new Date(task.due) : null,
-                      isRecurring: task.recurrence ? true : false,
-                      notes: task.notes || '',
-                      color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
-                      status: 'completed' as const,
-                      completedAt: task.completed ? new Date(task.completed) : null,
-                      accountEmail: task.accountEmail,
-                      accountName: task.accountName,
-                      accountPicture: task.accountPicture
-                    }));
-                  allCompletedTasks.push(...completedTasks);
-                });
-                
-                // Sort by completion date (most recent first)
-                columnTasks = allCompletedTasks
-                  .sort((a, b) => {
-                    if (!a.completedAt || !b.completedAt) return 0;
-                    return b.completedAt.getTime() - a.completedAt.getTime();
-                  });
-
-                // Apply limit if specified
-                if (column.limit && column.limit > 0) {
-                  columnTasks = columnTasks.slice(0, column.limit);
-                } else if (column.limit === -1) {
-                  // Show all tasks if limit is -1
-                  columnTasks = columnTasks;
-                }
-
-                if (columnTasks.length === 0) {
-                  columnTasks = [{
-                    id: 'no-tasks',
-                    content: 'No completed tasks yet',
-                    status: 'completed' as const,
-                    color: '#66BB6A',
-                    accountEmail: '',
-                    accountName: '',
-                    accountPicture: ''
-                  }];
-                }
-              }
-
-              return {
-                ...column,
-                tasks: columnTasks
-              };
-            });
-          });
+          updateColumnsWithTasks(tasksByList);
         }
       } catch (error) {
         console.error('Error syncing with Google Tasks:', error);
@@ -2427,80 +2323,111 @@ function App() {
 
       // Fetch tasks for all accounts (not just the active one)
       const allTasksPromises = googleAccounts.map(async (account, index) => {
-        // Fetch task lists
-        const listsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
-          headers: { Authorization: `Bearer ${account.token}` }
-        });
-        
-        const taskLists = listsResponse.data.items || [];
-        
-        // Update the account with new task lists
-        setGoogleAccounts(prevAccounts => {
-          const newAccounts = [...prevAccounts];
-          newAccounts[index] = {
-            ...newAccounts[index],
-            taskLists
-          };
-          return newAccounts;
-        });
-
-        // Fetch tasks for each list with proper pagination
-        const tasksPromises = taskLists.map(async (list: any) => {
-          let allTasks: any[] = [];
-          let pageToken: string | undefined;
+        try {
+          // Fetch task lists
+          const listsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
+            headers: { Authorization: `Bearer ${account.token}` }
+          });
           
-          do {
-            const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
-              headers: { Authorization: `Bearer ${account.token}` },
-              params: {
-                showCompleted: true,
-                showHidden: true,
-                maxResults: 100,
-                pageToken: pageToken
-              }
-            });
+          const taskLists = listsResponse.data.items || [];
+          
+          // Update the account with new task lists
+          setGoogleAccounts(prevAccounts => {
+            const newAccounts = [...prevAccounts];
+            newAccounts[index] = {
+              ...newAccounts[index],
+              taskLists
+            };
+            return newAccounts;
+          });
+
+          // Fetch tasks for each list with proper pagination
+          const tasksPromises = taskLists.map(async (list: any) => {
+            let allTasks: any[] = [];
+            let pageToken: string | undefined;
             
-            const tasks = response.data.items || [];
-            // Add account info to each task
-            const tasksWithAccount = tasks.map((task: any) => ({
-              ...task,
-              accountEmail: account.user.email,
-              accountName: account.user.name,
-              accountPicture: account.user.picture
-            }));
-            allTasks = [...allTasks, ...tasksWithAccount];
-            pageToken = response.data.nextPageToken;
-          } while (pageToken);
+            do {
+              const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
+                headers: { Authorization: `Bearer ${account.token}` },
+                params: {
+                  showCompleted: true,
+                  showHidden: true,
+                  maxResults: 100,
+                  pageToken: pageToken
+                }
+              });
+              
+              const tasks = response.data.items || [];
+              // Add account info to each task
+              const tasksWithAccount = tasks.map((task: any) => ({
+                ...task,
+                accountEmail: account.user.email,
+                accountName: account.user.name,
+                accountPicture: account.user.picture
+              }));
+              allTasks = [...allTasks, ...tasksWithAccount];
+              pageToken = response.data.nextPageToken;
+            } while (pageToken);
 
-          return { listId: list.id, tasks: allTasks };
-        });
+            return { listId: list.id, tasks: allTasks };
+          });
 
-        const results = await Promise.all(tasksPromises);
-        const tasksByList: { [listId: string]: any[] } = {};
-        results.forEach(({ listId, tasks }) => {
-          tasksByList[listId] = tasks;
-        });
+          const results = await Promise.all(tasksPromises);
+          const tasksByList: { [listId: string]: any[] } = {};
+          results.forEach(({ listId, tasks }) => {
+            tasksByList[listId] = tasks;
+          });
 
-        return { accountIndex: index, tasksByList };
+          return { accountIndex: index, tasksByList };
+        } catch (error: any) {
+          // Handle expired token
+          if (error.response?.status === 401) {
+            console.log(`Token for ${account.user.email} is expired`);
+            // Remove the account from the list
+            setGoogleAccounts(prevAccounts => prevAccounts.filter((_, i) => i !== index));
+            
+            // Remove from database
+            if (user) {
+              try {
+                await apiService.removeConnection(user.email, account.user.email);
+              } catch (removeError) {
+                console.error('Error removing expired connection:', removeError);
+              }
+            }
+            
+            return null;
+          }
+          throw error;
+        }
       });
 
       const allResults = await Promise.all(allTasksPromises);
+      const validResults = allResults.filter(result => result !== null);
+      
+      if (validResults.length === 0) {
+        // All tokens are expired
+        setGoogleAccounts([]);
+        setIsRefreshing(false);
+        return;
+      }
       
       // Update all accounts with their tasks
       setGoogleAccounts(prevAccounts => {
         const newAccounts = [...prevAccounts];
-        allResults.forEach(({ accountIndex, tasksByList }) => {
-          newAccounts[accountIndex] = {
-            ...newAccounts[accountIndex],
-            tasks: tasksByList
-          };
+        validResults.forEach(({ accountIndex, tasksByList }) => {
+          if (newAccounts[accountIndex]) {
+            newAccounts[accountIndex] = {
+              ...newAccounts[accountIndex],
+              tasks: tasksByList
+            };
+          }
         });
         return newAccounts;
       });
 
       // Combine tasks from all accounts
       const combinedTasksByList: { [listId: string]: any[] } = {};
-      allResults.forEach(({ tasksByList }) => {
+      validResults.forEach(({ tasksByList }) => {
         Object.entries(tasksByList).forEach(([listId, tasks]) => {
           if (!combinedTasksByList[listId]) {
             combinedTasksByList[listId] = [];

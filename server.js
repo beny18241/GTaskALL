@@ -38,12 +38,12 @@ function initDatabase() {
       UNIQUE(main_user_email, gtask_account_email)
     )`);
 
-    // Table for storing encrypted tokens (in production, use proper encryption)
+    // Table for storing refresh tokens (in production, use proper encryption)
     db.run(`CREATE TABLE IF NOT EXISTS account_tokens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       main_user_email TEXT NOT NULL,
       gtask_account_email TEXT NOT NULL,
-      encrypted_token TEXT NOT NULL,
+      refresh_token TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(main_user_email, gtask_account_email)
@@ -108,7 +108,7 @@ app.post('/api/connections', (req, res) => {
         if (token) {
           db.run(
             `INSERT OR REPLACE INTO account_tokens 
-             (main_user_email, gtask_account_email, encrypted_token, updated_at) 
+             (main_user_email, gtask_account_email, refresh_token, updated_at) 
              VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
             [mainUserEmail, gtaskAccountEmail, token],
             function(err) {
@@ -177,7 +177,7 @@ app.get('/api/tokens/:mainUserEmail/:gtaskAccountEmail', (req, res) => {
   const { mainUserEmail, gtaskAccountEmail } = req.params;
 
   db.get(
-    `SELECT encrypted_token FROM account_tokens 
+    `SELECT refresh_token FROM account_tokens 
      WHERE main_user_email = ? AND gtask_account_email = ?`,
     [mainUserEmail, gtaskAccountEmail],
     (err, row) => {
@@ -185,7 +185,7 @@ app.get('/api/tokens/:mainUserEmail/:gtaskAccountEmail', (req, res) => {
         console.error('Error fetching token:', err);
         res.status(500).json({ error: 'Failed to fetch token' });
       } else if (row) {
-        res.json({ token: row.encrypted_token });
+        res.json({ token: row.refresh_token });
       } else {
         res.status(404).json({ error: 'Token not found' });
       }
@@ -204,7 +204,7 @@ app.put('/api/tokens/:mainUserEmail/:gtaskAccountEmail', (req, res) => {
 
   db.run(
     `INSERT OR REPLACE INTO account_tokens 
-     (main_user_email, gtask_account_email, encrypted_token, updated_at) 
+     (main_user_email, gtask_account_email, refresh_token, updated_at) 
      VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
     [mainUserEmail, gtaskAccountEmail, token],
     function(err) {
