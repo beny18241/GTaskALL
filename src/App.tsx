@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid, Checkbox } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -152,6 +152,7 @@ function App() {
   const [selectedAccountForRemoval, setSelectedAccountForRemoval] = useState<number | null>(null);
   const [googleTasksButtonHover, setGoogleTasksButtonHover] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [openTaskDialog, setOpenTaskDialog] = useState(false);
@@ -188,8 +189,8 @@ function App() {
   const [tempUserData, setTempUserData] = useState<User | null>(null);
   const [calendarShowAll, setCalendarShowAll] = useState(false);
 
-  // Color coding for different accounts - moved to global scope
-  const getAccountColor = (accountEmail: string) => {
+  // Color coding for different accounts - optimized with useMemo
+  const getAccountColor = useMemo(() => (accountEmail: string) => {
     switch (accountEmail) {
       case 'beny18241@gmail.com':
         return '#2196F3'; // Blue
@@ -200,10 +201,20 @@ function App() {
       default:
         return '#9C27B0'; // Purple for any other accounts
     }
-  };
+  }, []);
 
   // Add effect to restore user session on mount
   useEffect(() => {
+    // 1. Load from localStorage immediately
+    const savedAccounts = localStorage.getItem(GOOGLE_ACCOUNTS_KEY);
+    if (savedAccounts) {
+      try {
+        setGoogleAccounts(JSON.parse(savedAccounts));
+      } catch (e) {
+        setGoogleAccounts([]);
+      }
+    }
+    // 2. Load from DB in the background
     const savedCredential = localStorage.getItem('google-credential');
     if (savedCredential) {
       try {
@@ -215,8 +226,7 @@ function App() {
         };
         setUser(userData);
         localStorage.setItem('google-credential', savedCredential);
-        
-        // Load saved Google Tasks connections from database
+        // Load saved Google Tasks connections from database in background
         loadSavedConnections(userData.email);
       } catch (error) {
         console.error('Error restoring user session:', error);
@@ -224,7 +234,6 @@ function App() {
         setIsInitialLoad(false);
       }
     } else {
-      // No saved credential, set initial load to false immediately
       setIsInitialLoad(false);
     }
   }, []);
@@ -290,7 +299,7 @@ function App() {
     }
   };
 
-  // Save user data to localStorage whenever it changes
+  // Save user data to localStorage whenever it changes - optimized
   useEffect(() => {
     if (user) {
       localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
@@ -299,9 +308,23 @@ function App() {
     }
   }, [user]);
 
+  // Save columns to localStorage whenever they change - optimized with debouncing
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
+    const timer = setTimeout(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [columns]);
+
+  // Save accounts to localStorage whenever they change - optimized with debouncing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      localStorage.setItem(GOOGLE_ACCOUNTS_KEY, JSON.stringify(googleAccounts));
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [googleAccounts]);
 
   // Update the effect for fetching Google Tasks to work with multiple accounts
   useEffect(() => {
@@ -410,11 +433,6 @@ function App() {
 
     fetchTasksForAllAccounts();
   }, [googleAccounts.length]); // Only depend on the number of accounts
-
-  // Save accounts to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem(GOOGLE_ACCOUNTS_KEY, JSON.stringify(googleAccounts));
-  }, [googleAccounts]);
 
   const handleGoogleSuccess = async (credentialResponse: any) => {
     try {
@@ -951,16 +969,16 @@ function App() {
     return 'primary.main';
   };
 
-  // Filter tasks based on search query
-  const filterTasks = (tasks: Task[]) => {
-    if (!searchQuery.trim()) return tasks;
+  // Filter tasks based on search query - optimized with useMemo
+  const filterTasks = useCallback((tasks: Task[]) => {
+    if (!debouncedSearchQuery.trim()) return tasks;
     
-    const query = searchQuery.toLowerCase();
+    const query = debouncedSearchQuery.toLowerCase();
     return tasks.filter(task => 
       task.content.toLowerCase().includes(query) ||
       (task.notes && task.notes.toLowerCase().includes(query))
     );
-  };
+  }, [debouncedSearchQuery]);
 
   const handleEditTask = async (task: Task, columnId: string) => {
     if (!task || task.id === 'no-tasks') return;
@@ -1301,6 +1319,17 @@ function App() {
         draggable
         onDragStart={() => handleDragStart(task, columnId)}
       >
+        {/* Checkbox for marking as done */}
+        {!isNoTask && (
+          <Box sx={{ position: 'absolute', top: 8, left: 8, zIndex: 2 }}>
+            <Checkbox
+              checked={task.status === 'completed'}
+              onChange={e => handleTaskCompletionToggle(task, e.target.checked)}
+              size="small"
+              sx={{ p: 0, color: task.color || 'primary.main' }}
+            />
+          </Box>
+        )}
         {task.accountPicture && !isNoTask && (
           <Box
             sx={{
@@ -1569,6 +1598,10 @@ function App() {
     }, []);
 
     const filteredTasks = filterTasks(allTasks);
+    const today = startOfDay(selectedDate);
+    const overdueTasks = filteredTasks.filter(task => task.dueDate && new Date(task.dueDate) < today && task.status !== 'completed');
+    const todayTasks = filteredTasks.filter(task => task.dueDate && isSameDay(new Date(task.dueDate), today));
+    const tasksForSelectedDay = [...overdueTasks, ...todayTasks];
     const tasksByDate = filteredTasks.reduce((acc: { [key: string]: Task[] }, task) => {
       if (task.dueDate) {
         const dateKey = format(new Date(task.dueDate), 'yyyy-MM-dd');
@@ -1649,12 +1682,12 @@ function App() {
                 {format(selectedDate, 'MMMM d, yyyy')}
               </Typography>
               <Box sx={{ bgcolor: 'white', borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
-                {(tasksByDate[format(selectedDate, 'yyyy-MM-dd')] || []).length === 0 ? (
+                {tasksForSelectedDay.length === 0 ? (
               <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
                 No tasks scheduled for this date
               </Typography>
                 ) : (
-                  (tasksByDate[format(selectedDate, 'yyyy-MM-dd')] || []).map((task, index, arr) => {
+                  tasksForSelectedDay.map((task, index, arr) => {
                     const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
                     return (
                       <TaskRow
@@ -1680,11 +1713,15 @@ function App() {
       return [...acc, ...column.tasks];
     }, []);
 
+    // Overdue: dueDate < today and not completed
+    const overdueTasks = allTasks.filter(task => 
+      task.dueDate && new Date(task.dueDate) < startOfDay(new Date()) && task.status !== 'completed'
+    );
+    // Today: dueDate is today
     const todayTasks = allTasks.filter(task => 
       task.dueDate && isToday(new Date(task.dueDate))
     );
-
-    const filteredTasks = filterTasks(todayTasks);
+    const filteredTasks = filterTasks([...overdueTasks, ...todayTasks]);
 
     // Get account icon based on email
     const getAccountIcon = (accountEmail: string) => {
@@ -2124,8 +2161,8 @@ function App() {
     );
   };
 
-  // Helper function to update columns with tasks from Google Tasks
-  const updateColumnsWithTasks = (tasksByList: { [listId: string]: any[] }) => {
+  // Helper function to update columns with tasks from Google Tasks - optimized with useCallback
+  const updateColumnsWithTasks = useCallback((tasksByList: { [listId: string]: any[] }) => {
     setColumns(prevColumns => {
       return prevColumns.map(column => {
         let columnTasks: Task[] = [];
@@ -2247,9 +2284,9 @@ function App() {
         };
       });
     });
-  };
+  }, []);
 
-  const refreshTasks = async () => {
+  const refreshTasks = useCallback(async () => {
     if (googleAccounts.length === 0 || isRefreshing) return;
 
     try {
@@ -2378,7 +2415,7 @@ function App() {
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [googleAccounts.length, activeAccountIndex, user, updateColumnsWithTasks]);
 
   // Update the useEffect for auto-refresh with a shorter interval
   useEffect(() => {
@@ -2393,9 +2430,9 @@ function App() {
         }
       };
     }
-  }, [googleAccounts.length, activeAccountIndex]);
+  }, [googleAccounts.length, activeAccountIndex, refreshTasks]);
 
-  const handleTaskCompletionToggle = async (task: Task, isCompleted: boolean) => {
+  const handleTaskCompletionToggle = useCallback(async (task: Task, isCompleted: boolean) => {
     // Update local state first
     setColumns(prevColumns => {
       return prevColumns.map(column => {
@@ -2482,9 +2519,9 @@ function App() {
         });
       }
     }
-  };
+  }, [googleAccounts, activeAccountIndex]);
 
-  const handleLimitChange = (columnId: string, newLimit: number) => {
+  const handleLimitChange = useCallback((columnId: string, newLimit: number) => {
     setColumns(prevColumns => {
       const newColumns = prevColumns.map(col => {
         if (col.id === columnId) {
@@ -2542,7 +2579,7 @@ function App() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newColumns));
       return newColumns;
     });
-  };
+  }, [googleAccounts]);
 
   // Helper function to get date section for a task
   const getDateSection = (task: Task): DateSection => {
@@ -2611,8 +2648,8 @@ function App() {
     }
   };
 
-  // Helper function to group tasks by date sections
-  const groupTasksByDate = (tasks: Task[]): DateSection[] => {
+  // Helper function to group tasks by date sections - optimized with useMemo
+  const groupTasksByDate = useMemo(() => (tasks: Task[]): DateSection[] => {
     const sections: { [key: string]: DateSection } = {};
     
     tasks.forEach(task => {
@@ -2629,10 +2666,10 @@ function App() {
     return sectionOrder
       .map(id => sections[id])
       .filter(section => section && section.tasks.length > 0);
-  };
+  }, []);
 
-  // Helper function to render date section header
-  const renderDateSectionHeader = (section: DateSection) => {
+  // Helper function to render date section header - optimized with useCallback
+  const renderDateSectionHeader = useCallback((section: DateSection) => {
     const getSectionColor = (type: DateSection['type']) => {
       switch (type) {
         case 'overdue': return 'error.main';
@@ -2700,9 +2737,9 @@ function App() {
         )}
       </Box>
     );
-  };
+  }, []);
 
-  const renderColumnHeader = (column: Column) => (
+  const renderColumnHeader = useCallback((column: Column) => (
     <Box sx={{ 
       display: 'flex', 
       alignItems: 'center', 
@@ -2782,9 +2819,9 @@ function App() {
         )}
       </Box>
     </Box>
-  );
+  ), [dateGroupingEnabled, handleLimitChange]);
 
-  const renderColumn = (column: Column) => {
+  const renderColumn = useCallback((column: Column) => {
     // Apply limit for done column
     const displayTasks = column.id === 'done' ? 
       (column.limit && column.limit > 0 ? column.tasks.slice(0, column.limit) : 
@@ -2792,6 +2829,12 @@ function App() {
       column.tasks;
 
     const filteredTasks = filterTasks(displayTasks);
+    
+    // Performance optimization: limit tasks rendered at once for large lists
+    const maxTasksToRender = 50;
+    const tasksToRender = filteredTasks.length > maxTasksToRender 
+      ? filteredTasks.slice(0, maxTasksToRender) 
+      : filteredTasks;
 
     return (
       <Paper
@@ -2830,7 +2873,7 @@ function App() {
         {dateGroupingEnabled && column.id !== 'done' ? (
           // Render with date sections
           <Stack spacing={2}>
-            {groupTasksByDate(filteredTasks).map((section) => (
+            {groupTasksByDate(tasksToRender).map((section) => (
               <Box key={section.id}>
                 {renderDateSectionHeader(section)}
                 <Stack spacing={1} sx={{ pl: 1 }}>
@@ -2849,13 +2892,37 @@ function App() {
         )}
       </Paper>
     );
-  };
+  }, [filterTasks, dragOverColumn, draggedTask, dateGroupingEnabled, groupTasksByDate, renderDateSectionHeader, renderColumnHeader, handleDragOver, handleDragLeave, handleDrop, renderTask]);
 
-  const renderKanbanView = () => (
+  const renderKanbanView = useCallback(() => (
     <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
       {columns.map(column => renderColumn(column))}
     </Box>
-  );
+  ), [columns, renderColumn]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === 'q' &&
+        !e.repeat &&
+        document.activeElement &&
+        ['INPUT', 'TEXTAREA'].indexOf((document.activeElement as HTMLElement).tagName) === -1
+      ) {
+        setOpenNewTaskDialog(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Debounce search query for better performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
