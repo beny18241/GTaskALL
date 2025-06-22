@@ -43,25 +43,25 @@ function initDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       main_user_email TEXT NOT NULL,
       gtask_account_email TEXT NOT NULL,
-      refresh_token TEXT NOT NULL,
+      encrypted_token TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(main_user_email, gtask_account_email)
     )`);
 
-    // Migration: Check if refresh_token column exists, if not add it
+    // Migration: Check if encrypted_token column exists, if not add it
     db.get("PRAGMA table_info(account_tokens)", (err, rows) => {
       if (!err) {
         db.all("PRAGMA table_info(account_tokens)", (err, columns) => {
           if (!err) {
-            const hasRefreshToken = columns.some(col => col.name === 'refresh_token');
-            if (!hasRefreshToken) {
-              console.log('Adding refresh_token column to account_tokens table...');
-              db.run("ALTER TABLE account_tokens ADD COLUMN refresh_token TEXT", (err) => {
+            const hasEncryptedToken = columns.some(col => col.name === 'encrypted_token');
+            if (!hasEncryptedToken) {
+              console.log('Adding encrypted_token column to account_tokens table...');
+              db.run("ALTER TABLE account_tokens ADD COLUMN encrypted_token TEXT", (err) => {
                 if (err) {
-                  console.error('Error adding refresh_token column:', err);
+                  console.error('Error adding encrypted_token column:', err);
                 } else {
-                  console.log('Successfully added refresh_token column');
+                  console.log('Successfully added encrypted_token column');
                 }
               });
             }
@@ -129,7 +129,7 @@ app.post('/api/connections', (req, res) => {
         if (token) {
           db.run(
             `INSERT OR REPLACE INTO account_tokens 
-             (main_user_email, gtask_account_email, refresh_token, updated_at) 
+             (main_user_email, gtask_account_email, encrypted_token, updated_at) 
              VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
             [mainUserEmail, gtaskAccountEmail, token],
             function(err) {
@@ -198,7 +198,7 @@ app.get('/api/tokens/:mainUserEmail/:gtaskAccountEmail', (req, res) => {
   const { mainUserEmail, gtaskAccountEmail } = req.params;
 
   db.get(
-    `SELECT refresh_token FROM account_tokens 
+    `SELECT encrypted_token FROM account_tokens 
      WHERE main_user_email = ? AND gtask_account_email = ?`,
     [mainUserEmail, gtaskAccountEmail],
     (err, row) => {
@@ -206,7 +206,7 @@ app.get('/api/tokens/:mainUserEmail/:gtaskAccountEmail', (req, res) => {
         console.error('Error fetching token:', err);
         res.status(500).json({ error: 'Failed to fetch token' });
       } else if (row) {
-        res.json({ token: row.refresh_token });
+        res.json({ token: row.encrypted_token });
       } else {
         res.status(404).json({ error: 'Token not found' });
       }
@@ -225,7 +225,7 @@ app.put('/api/tokens/:mainUserEmail/:gtaskAccountEmail', (req, res) => {
 
   db.run(
     `INSERT OR REPLACE INTO account_tokens 
-     (main_user_email, gtask_account_email, refresh_token, updated_at) 
+     (main_user_email, gtask_account_email, encrypted_token, updated_at) 
      VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
     [mainUserEmail, gtaskAccountEmail, token],
     function(err) {

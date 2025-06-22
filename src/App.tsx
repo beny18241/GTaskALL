@@ -190,7 +190,7 @@ function App() {
   const [calendarShowAll, setCalendarShowAll] = useState(false);
 
   // Color coding for different accounts - optimized with useMemo
-  const getAccountColor = useMemo(() => (accountEmail: string) => {
+  const getAccountColor = (accountEmail: string) => {
     switch (accountEmail) {
       case 'beny18241@gmail.com':
         return '#2196F3'; // Blue
@@ -201,7 +201,7 @@ function App() {
       default:
         return '#9C27B0'; // Purple for any other accounts
     }
-  }, []);
+  };
 
   // Add effect to restore user session on mount
   useEffect(() => {
@@ -2002,11 +2002,9 @@ function App() {
       new Date(task.dueDate) >= startOfDay(new Date())
     );
 
-    // Get overdue tasks (due date < today and not completed)
+    // Get overdue tasks (not completed, dueDate < today)
     const overdueTasks = allTasks.filter(task => 
-      task.dueDate && 
-      task.status !== 'completed' &&
-      new Date(task.dueDate) < startOfDay(new Date())
+      task.dueDate && new Date(task.dueDate) < startOfDay(new Date()) && task.status !== 'completed'
     );
 
     // Group tasks by due date
@@ -2019,26 +2017,16 @@ function App() {
       return acc;
     }, {});
 
-    // Create date columns starting with overdue, then next 7 days
-    const dateColumns: { id: string; title: string; date: Date; tasks: Task[]; isOverdue?: boolean }[] = [];
-    
-    // Add overdue column if there are overdue tasks
-    if (overdueTasks.length > 0) {
-      dateColumns.push({
-        id: 'overdue',
-        title: 'Overdue',
-        date: new Date(0), // Use epoch date for overdue
-        tasks: overdueTasks.sort((a, b) => a.content.localeCompare(b.content)),
-        isOverdue: true
-      });
-    }
-
-    // Add next 7 days
+    // Create date columns for the next 7 days
+    const dateColumns: { id: string; title: string; date: Date; tasks: Task[] }[] = [];
     for (let i = 0; i < 7; i++) {
       const date = addDays(new Date(), i);
       const dateKey = format(date, 'yyyy-MM-dd');
-      const tasks = tasksByDate[dateKey] || [];
-      
+      let tasks = tasksByDate[dateKey] || [];
+      // For today, prepend overdue tasks
+      if (i === 0 && overdueTasks.length > 0) {
+        tasks = [...overdueTasks, ...tasks];
+      }
       dateColumns.push({
         id: dateKey,
         title: format(date, 'EEE, MMM d'),
@@ -2058,8 +2046,8 @@ function App() {
               height: 'calc(100vh - 120px)',
               display: 'flex',
               flexDirection: 'column',
-              bgcolor: dateColumn.isOverdue ? '#ffebee' : isToday(dateColumn.date) ? '#fff3e0' : '#fafafa',
-              border: dateColumn.isOverdue ? '2px solid #f44336' : isToday(dateColumn.date) ? '2px solid #ff9800' : '1px solid #e0e0e0',
+              bgcolor: isToday(dateColumn.date) ? '#fff3e0' : '#fafafa',
+              border: isToday(dateColumn.date) ? '2px solid #ff9800' : '1px solid #e0e0e0',
               borderRadius: 2,
               overflow: 'hidden'
             }}
@@ -2068,8 +2056,8 @@ function App() {
             <Box
               sx={{
                 p: 2,
-                bgcolor: dateColumn.isOverdue ? '#f44336' : isToday(dateColumn.date) ? '#ff9800' : '#f5f5f5',
-                color: dateColumn.isOverdue || isToday(dateColumn.date) ? 'white' : 'text.primary',
+                bgcolor: isToday(dateColumn.date) ? '#ff9800' : '#f5f5f5',
+                color: isToday(dateColumn.date) ? 'white' : 'text.primary',
                 borderBottom: '1px solid',
                 borderColor: 'divider',
                 display: 'flex',
@@ -2091,8 +2079,8 @@ function App() {
                 label={dateColumn.tasks.length}
                 size="small"
                 sx={{
-                  bgcolor: dateColumn.isOverdue || isToday(dateColumn.date) ? 'rgba(255,255,255,0.2)' : 'primary.main',
-                  color: dateColumn.isOverdue || isToday(dateColumn.date) ? 'white' : 'white',
+                  bgcolor: isToday(dateColumn.date) ? 'rgba(255,255,255,0.2)' : 'primary.main',
+                  color: isToday(dateColumn.date) ? 'white' : 'white',
                   fontWeight: 'bold'
                 }}
               />
@@ -2121,21 +2109,22 @@ function App() {
                 </Box>
               ) : (
                 <Stack spacing={1}>
-                  {dateColumn.tasks.map((task) => {
+                  {dateColumn.tasks.map((task, idx) => {
                     const isOverdue = task.dueDate && new Date(task.dueDate) < startOfDay(new Date()) && task.status !== 'completed';
+                    const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
                     return (
                       <Paper
                         key={task.id}
                         sx={{
                           p: 1.5,
                           cursor: 'pointer',
-                          borderLeft: `4px solid ${isOverdue ? '#f44336' : task.color || '#42A5F5'}`,
+                          borderLeft: `4px solid ${isOverdue ? '#f44336' : (task.color || '#42A5F5')}`,
                           bgcolor: isOverdue ? '#ffebee' : 'white',
                           '&:hover': {
                             boxShadow: 2,
                             transform: 'translateY(-1px)',
                             transition: 'all 0.2s ease',
-                            bgcolor: isOverdue ? '#ffcdd2' : 'white'
+                            bgcolor: isOverdue ? '#ffcdd2' : 'white',
                           }
                         }}
                         onClick={() => handleEditTask(task, 'upcoming')}
@@ -2198,7 +2187,7 @@ function App() {
                         </Box>
                       </Paper>
                     );
-                  ))}
+                  })}
                 </Stack>
               )}
             </Box>
