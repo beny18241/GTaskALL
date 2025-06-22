@@ -1321,12 +1321,26 @@ function App() {
       >
         {/* Checkbox for marking as done */}
         {!isNoTask && (
-          <Box sx={{ position: 'absolute', top: 8, left: 8, zIndex: 2 }}>
+          <Box sx={{ 
+            position: 'absolute', 
+            top: 8, 
+            left: 8, 
+            zIndex: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
             <Checkbox
               checked={task.status === 'completed'}
               onChange={e => handleTaskCompletionToggle(task, e.target.checked)}
               size="small"
-              sx={{ p: 0, color: task.color || 'primary.main' }}
+              sx={{ 
+                p: 0, 
+                color: task.color || 'primary.main',
+                '&:hover': {
+                  backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                }
+              }}
             />
           </Box>
         )}
@@ -1361,7 +1375,10 @@ function App() {
                 fontSize: '0.9rem',
                 lineHeight: 1.3,
                 mb: 0.5,
-                pr: task.accountPicture ? 4 : 0
+                pr: task.accountPicture ? 4 : 0,
+                pl: !isNoTask ? 4 : 0, // Add left padding for checkbox
+                textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                color: task.status === 'completed' ? 'text.secondary' : 'text.primary'
               }}
             >
               {task.content}
@@ -1663,6 +1680,7 @@ function App() {
                 ) : (
                   filteredTasks.map((task, index) => {
                     const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
+                    const isOverdue = task.dueDate && new Date(task.dueDate) < startOfDay(new Date()) && task.status !== 'completed';
                     return (
                       <TaskRow
                         key={task.id}
@@ -1670,6 +1688,7 @@ function App() {
                         accountColor={accountColor}
                         showDivider={index < filteredTasks.length - 1}
                         onEdit={() => handleEditTask(task, task.listId || 'todo')}
+                        isOverdue={isOverdue}
                       />
                     );
                   })
@@ -1689,6 +1708,7 @@ function App() {
                 ) : (
                   tasksForSelectedDay.map((task, index, arr) => {
                     const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
+                    const isOverdue = task.dueDate && new Date(task.dueDate) < startOfDay(new Date()) && task.status !== 'completed';
                     return (
                       <TaskRow
                         key={task.id}
@@ -1696,6 +1716,7 @@ function App() {
                         accountColor={accountColor}
                         showDivider={index < arr.length - 1}
                         onEdit={() => handleEditTask(task, task.listId || 'todo')}
+                        isOverdue={isOverdue}
                       />
                     );
                   })
@@ -1773,6 +1794,7 @@ function App() {
           }}>
             {filteredTasks.map((task, index) => {
               const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
+              const isOverdue = task.dueDate && new Date(task.dueDate) < startOfDay(new Date()) && task.status !== 'completed';
               return (
                 <TaskRow
                   key={task.id}
@@ -1780,6 +1802,7 @@ function App() {
                   accountColor={accountColor}
                   showDivider={index < filteredTasks.length - 1}
                   onEdit={() => handleEditTask(task, task.listId || 'todo')}
+                  isOverdue={isOverdue}
                 />
               );
             })}

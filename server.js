@@ -48,6 +48,27 @@ function initDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(main_user_email, gtask_account_email)
     )`);
+
+    // Migration: Check if refresh_token column exists, if not add it
+    db.get("PRAGMA table_info(account_tokens)", (err, rows) => {
+      if (!err) {
+        db.all("PRAGMA table_info(account_tokens)", (err, columns) => {
+          if (!err) {
+            const hasRefreshToken = columns.some(col => col.name === 'refresh_token');
+            if (!hasRefreshToken) {
+              console.log('Adding refresh_token column to account_tokens table...');
+              db.run("ALTER TABLE account_tokens ADD COLUMN refresh_token TEXT", (err) => {
+                if (err) {
+                  console.error('Error adding refresh_token column:', err);
+                } else {
+                  console.log('Successfully added refresh_token column');
+                }
+              });
+            }
+          }
+        });
+      }
+    });
   });
 }
 
