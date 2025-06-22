@@ -2002,6 +2002,13 @@ function App() {
       new Date(task.dueDate) >= startOfDay(new Date())
     );
 
+    // Get overdue tasks (due date < today and not completed)
+    const overdueTasks = allTasks.filter(task => 
+      task.dueDate && 
+      task.status !== 'completed' &&
+      new Date(task.dueDate) < startOfDay(new Date())
+    );
+
     // Group tasks by due date
     const tasksByDate = upcomingTasks.reduce((acc: { [key: string]: Task[] }, task) => {
       const dateKey = format(new Date(task.dueDate!), 'yyyy-MM-dd');
@@ -2012,8 +2019,21 @@ function App() {
       return acc;
     }, {});
 
-    // Create date columns for the next 7 days
-    const dateColumns: { id: string; title: string; date: Date; tasks: Task[] }[] = [];
+    // Create date columns starting with overdue, then next 7 days
+    const dateColumns: { id: string; title: string; date: Date; tasks: Task[]; isOverdue?: boolean }[] = [];
+    
+    // Add overdue column if there are overdue tasks
+    if (overdueTasks.length > 0) {
+      dateColumns.push({
+        id: 'overdue',
+        title: 'Overdue',
+        date: new Date(0), // Use epoch date for overdue
+        tasks: overdueTasks.sort((a, b) => a.content.localeCompare(b.content)),
+        isOverdue: true
+      });
+    }
+
+    // Add next 7 days
     for (let i = 0; i < 7; i++) {
       const date = addDays(new Date(), i);
       const dateKey = format(date, 'yyyy-MM-dd');
@@ -2038,8 +2058,8 @@ function App() {
               height: 'calc(100vh - 120px)',
               display: 'flex',
               flexDirection: 'column',
-              bgcolor: isToday(dateColumn.date) ? '#fff3e0' : '#fafafa',
-              border: isToday(dateColumn.date) ? '2px solid #ff9800' : '1px solid #e0e0e0',
+              bgcolor: dateColumn.isOverdue ? '#ffebee' : isToday(dateColumn.date) ? '#fff3e0' : '#fafafa',
+              border: dateColumn.isOverdue ? '2px solid #f44336' : isToday(dateColumn.date) ? '2px solid #ff9800' : '1px solid #e0e0e0',
               borderRadius: 2,
               overflow: 'hidden'
             }}
@@ -2048,8 +2068,8 @@ function App() {
             <Box
               sx={{
                 p: 2,
-                bgcolor: isToday(dateColumn.date) ? '#ff9800' : '#f5f5f5',
-                color: isToday(dateColumn.date) ? 'white' : 'text.primary',
+                bgcolor: dateColumn.isOverdue ? '#f44336' : isToday(dateColumn.date) ? '#ff9800' : '#f5f5f5',
+                color: dateColumn.isOverdue || isToday(dateColumn.date) ? 'white' : 'text.primary',
                 borderBottom: '1px solid',
                 borderColor: 'divider',
                 display: 'flex',
@@ -2071,8 +2091,8 @@ function App() {
                 label={dateColumn.tasks.length}
                 size="small"
                 sx={{
-                  bgcolor: isToday(dateColumn.date) ? 'rgba(255,255,255,0.2)' : 'primary.main',
-                  color: isToday(dateColumn.date) ? 'white' : 'white',
+                  bgcolor: dateColumn.isOverdue || isToday(dateColumn.date) ? 'rgba(255,255,255,0.2)' : 'primary.main',
+                  color: dateColumn.isOverdue || isToday(dateColumn.date) ? 'white' : 'white',
                   fontWeight: 'bold'
                 }}
               />
@@ -2101,79 +2121,83 @@ function App() {
                 </Box>
               ) : (
                 <Stack spacing={1}>
-                  {dateColumn.tasks.map((task) => (
-                    <Paper
-                      key={task.id}
-                      sx={{
-                        p: 1.5,
-                        cursor: 'pointer',
-                        borderLeft: `4px solid ${task.color || '#42A5F5'}`,
-                        bgcolor: 'white',
-                        '&:hover': {
-                          boxShadow: 2,
-                          transform: 'translateY(-1px)',
-                          transition: 'all 0.2s ease'
-                        }
-                      }}
-                      onClick={() => handleEditTask(task, 'upcoming')}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                        <Checkbox
-                          checked={task.status === 'completed'}
-                          onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
-                          size="small"
-                          sx={{ mt: 0.5 }}
-                        />
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              fontWeight: 500,
-                              textDecoration: task.status === 'completed' ? 'line-through' : 'none',
-                              color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
-                              wordBreak: 'break-word'
-                            }}
-                          >
-                            {task.content}
-                          </Typography>
-                          {task.notes && (
+                  {dateColumn.tasks.map((task) => {
+                    const isOverdue = task.dueDate && new Date(task.dueDate) < startOfDay(new Date()) && task.status !== 'completed';
+                    return (
+                      <Paper
+                        key={task.id}
+                        sx={{
+                          p: 1.5,
+                          cursor: 'pointer',
+                          borderLeft: `4px solid ${isOverdue ? '#f44336' : task.color || '#42A5F5'}`,
+                          bgcolor: isOverdue ? '#ffebee' : 'white',
+                          '&:hover': {
+                            boxShadow: 2,
+                            transform: 'translateY(-1px)',
+                            transition: 'all 0.2s ease',
+                            bgcolor: isOverdue ? '#ffcdd2' : 'white'
+                          }
+                        }}
+                        onClick={() => handleEditTask(task, 'upcoming')}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                          <Checkbox
+                            checked={task.status === 'completed'}
+                            onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
+                            size="small"
+                            sx={{ mt: 0.5 }}
+                          />
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Typography
-                              variant="caption"
+                              variant="body2"
                               sx={{
-                                color: 'text.secondary',
-                                display: 'block',
-                                mt: 0.5,
+                                fontWeight: 500,
+                                textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                                color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
                                 wordBreak: 'break-word'
                               }}
                             >
-                              {task.notes}
+                              {task.content}
                             </Typography>
-                          )}
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                            <Chip
-                              label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
-                              color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
-                              size="small"
-                              sx={{ height: '20px', fontSize: '0.7rem' }}
-                            />
-                            {task.accountEmail && (
-                              <Avatar
-                                src={task.accountPicture}
-                                alt={task.accountName}
+                            {task.notes && (
+                              <Typography
+                                variant="caption"
                                 sx={{
-                                  width: 20,
-                                  height: 20,
-                                  fontSize: '0.7rem',
-                                  bgcolor: getAccountColor(task.accountEmail)
+                                  color: 'text.secondary',
+                                  display: 'block',
+                                  mt: 0.5,
+                                  wordBreak: 'break-word'
                                 }}
                               >
-                                {task.accountName?.charAt(0)}
-                              </Avatar>
+                                {task.notes}
+                              </Typography>
                             )}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                              <Chip
+                                label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
+                                color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
+                                size="small"
+                                sx={{ height: '20px', fontSize: '0.7rem' }}
+                              />
+                              {task.accountEmail && (
+                                <Avatar
+                                  src={task.accountPicture}
+                                  alt={task.accountName}
+                                  sx={{
+                                    width: 20,
+                                    height: 20,
+                                    fontSize: '0.7rem',
+                                    bgcolor: getAccountColor(task.accountEmail)
+                                  }}
+                                >
+                                  {task.accountName?.charAt(0)}
+                                </Avatar>
+                              )}
+                            </Box>
                           </Box>
                         </Box>
-                      </Box>
-                    </Paper>
+                      </Paper>
+                    );
                   ))}
                 </Stack>
               )}
