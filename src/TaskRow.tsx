@@ -7,9 +7,12 @@ export interface TaskRowProps {
   onEdit: (task: any) => void;
   accountColor: string;
   showDivider?: boolean;
+  isOverdue?: boolean | null;
 }
 
-const TaskRow: React.FC<TaskRowProps> = ({ task, onEdit, accountColor, showDivider = true }) => {
+const TaskRow: React.FC<TaskRowProps> = ({ task, onEdit, accountColor, showDivider = true, isOverdue = false }) => {
+  const isOverdueTask = Boolean(isOverdue);
+  
   return (
     <Box
       sx={{
@@ -20,12 +23,12 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onEdit, accountColor, showDivid
         borderBottom: showDivider ? '1px solid' : 'none',
         borderColor: 'divider',
         transition: 'all 0.2s ease',
-        '&:hover': {
-          bgcolor: 'action.hover',
-        },
-        borderLeft: `3px solid ${accountColor}`,
+        borderLeft: `3px solid ${isOverdueTask ? '#f44336' : accountColor}`,
         position: 'relative',
-        bgcolor: 'white',
+        bgcolor: isOverdueTask ? '#ffebee' : 'white',
+        '&:hover': {
+          bgcolor: isOverdueTask ? '#ffcdd2' : 'action.hover',
+        },
       }}
     >
       {/* Checkbox (not handled here, for display only) */}
