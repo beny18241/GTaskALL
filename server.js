@@ -46,8 +46,19 @@ function initDatabase() {
       gtask_account_name TEXT NOT NULL,
       gtask_account_picture TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(main_user_email, gtask_account_email),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )`);
+
+    // Table for storing user settings
+    db.run(`CREATE TABLE IF NOT EXISTS user_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      setting_key TEXT NOT NULL,
+      setting_value TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      UNIQUE(user_id, setting_key)
     )`);
 
     // Table for storing refresh tokens (in production, use proper encryption)
@@ -153,45 +164,34 @@ app.post('/api/users', (req, res) => {
 // Get user by email
 app.get('/api/users/:email', (req, res) => {
   const { email } = req.params;
-
+  
   db.get(
-    `SELECT id, email, name, picture, created_at, last_login 
-     FROM users 
-     WHERE email = ?`,
+    'SELECT * FROM users WHERE email = ?',
     [email],
     (err, row) => {
       if (err) {
         console.error('Error fetching user:', err);
         res.status(500).json({ error: 'Failed to fetch user' });
-      } else if (row) {
-        res.json({ user: row });
       } else {
-        res.status(404).json({ error: 'User not found' });
+        res.json({ user: row });
       }
     }
   );
 });
 
-// Update user last login
+// Update user's last login
 app.put('/api/users/:email/login', (req, res) => {
   const { email } = req.params;
-
+  
   db.run(
-    `UPDATE users 
-     SET last_login = CURRENT_TIMESTAMP 
-     WHERE email = ?`,
+    'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE email = ?',
     [email],
     function(err) {
       if (err) {
         console.error('Error updating user login:', err);
         res.status(500).json({ error: 'Failed to update user login' });
-      } else if (this.changes > 0) {
-        res.json({ 
-          success: true, 
-          message: 'User login updated successfully' 
-        });
       } else {
-        res.status(404).json({ error: 'User not found' });
+        res.json({ success: true, message: 'Login time updated' });
       }
     }
   );
@@ -422,6 +422,57 @@ app.put('/api/tokens/:mainUserEmail/:gtaskAccountEmail', (req, res) => {
       }
     );
   });
+});
+
+// User Settings Endpoints
+
+// Get user settings
+app.get('/api/users/:email/settings', (req, res) => {
+  const { email } = req.params;
+  
+  db.all(
+    `SELECT s.setting_key, s.setting_value 
+     FROM user_settings s
+     JOIN users u ON s.user_id = u.id
+     WHERE u.email = ?`,
+    [email],
+    (err, rows) => {
+      if (err) {
+        console.error('Error fetching user settings:', err);
+        res.status(500).json({ error: 'Failed to fetch user settings' });
+      } else {
+        const settings = rows.reduce((acc, row) => {
+          acc[row.setting_key] = row.setting_value;
+          return acc;
+        }, {});
+        res.json({ settings });
+      }
+    }
+  );
+});
+
+// Update user setting
+app.put('/api/users/:email/settings', (req, res) => {
+  const { email } = req.params;
+  const { setting_key, setting_value } = req.body;
+  
+  if (!setting_key) {
+    return res.status(400).json({ error: 'Setting key is required' });
+  }
+  
+  db.run(
+    `INSERT OR REPLACE INTO user_settings (user_id, setting_key, setting_value, updated_at)
+     SELECT id, ?, ?, CURRENT_TIMESTAMP FROM users WHERE email = ?`,
+    [setting_key, setting_value, email],
+    function(err) {
+      if (err) {
+        console.error('Error updating user setting:', err);
+        res.status(500).json({ error: 'Failed to update user setting' });
+      } else {
+        res.json({ success: true, message: 'Setting updated successfully' });
+      }
+    }
+  );
 });
 
 // Health check endpoint

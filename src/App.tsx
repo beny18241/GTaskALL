@@ -8,6 +8,10 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EventIcon from '@mui/icons-material/Event';
 import ScheduleIcon from '@mui/icons-material/Schedule';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import Brightness4Icon from '@mui/icons-material/Brightness4';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
+import SettingsIcon from '@mui/icons-material/Settings';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -29,8 +33,6 @@ import { CircularProgress } from '@mui/material';
 import { apiService } from './api';
 import TaskRow from './TaskRow.tsx';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
-import Brightness4Icon from '@mui/icons-material/Brightness4';
-import Brightness7Icon from '@mui/icons-material/Brightness7';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -213,6 +215,9 @@ function App() {
   const [selectedListForNewTask, setSelectedListForNewTask] = useState<string>('');
   const [tempUserData, setTempUserData] = useState<User | null>(null);
   const [calendarShowAll, setCalendarShowAll] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [isLoadingSettings, setIsLoadingSettings] = useState(false);
 
   // Dark mode toggle function
   const toggleDarkMode = () => {
@@ -3048,6 +3053,39 @@ function App() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Settings management functions
+  const handleOpenSettings = async () => {
+    if (!user?.email) return;
+    
+    setIsLoadingSettings(true);
+    try {
+      const response = await apiService.getUserSettings(user.email);
+      if (response.settings) {
+        setGeminiApiKey(response.settings.gemini_api_key || '');
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    } finally {
+      setIsLoadingSettings(false);
+    }
+    setSettingsOpen(true);
+  };
+
+  const handleSaveSettings = async () => {
+    if (!user?.email) return;
+    
+    try {
+      await apiService.updateUserSetting(user.email, 'gemini_api_key', geminiApiKey);
+      setSettingsOpen(false);
+    } catch (error) {
+      console.error('Error saving settings:', error);
+    }
+  };
+
+  const handleCloseSettings = () => {
+    setSettingsOpen(false);
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
@@ -3219,6 +3257,28 @@ function App() {
               >
                 {darkMode ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
               </IconButton>
+
+              {/* Settings Button */}
+              {user && (
+                <IconButton
+                  onClick={handleOpenSettings}
+                  size="small"
+                  sx={{
+                    color: 'rgba(255, 255, 255, 0.8)',
+                    transition: 'all 0.3s ease',
+                    padding: '8px',
+                    mr: 2,
+                    '&:hover': {
+                      color: '#fff',
+                      transform: 'scale(1.1)',
+                      background: 'rgba(255, 255, 255, 0.1)'
+                    }
+                  }}
+                  title="Settings"
+                >
+                  <SettingsIcon fontSize="small" />
+                </IconButton>
+              )}
 
               {/* Google Tasks Accounts Section */}
               {googleAccounts.length > 0 && (
@@ -3751,6 +3811,62 @@ function App() {
                 disabled={!newTaskForm.content.trim() || !selectedListForNewTask}
               >
                 Add Task
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Settings Dialog */}
+          <Dialog
+            open={settingsOpen}
+            onClose={handleCloseSettings}
+            maxWidth="sm"
+            fullWidth
+          >
+            <DialogTitle>Settings</DialogTitle>
+            <DialogContent>
+              <Stack spacing={3} sx={{ mt: 1 }}>
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    Gemini API Configuration
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Add your Gemini API key to enable AI-powered features in the application.
+                  </Typography>
+                  <TextField
+                    label="Gemini API Key"
+                    value={geminiApiKey}
+                    onChange={(e) => setGeminiApiKey(e.target.value)}
+                    fullWidth
+                    type="password"
+                    placeholder="Enter your Gemini API key"
+                    helperText="Your API key will be stored securely and used only for AI features"
+                    disabled={isLoadingSettings}
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    Get your API key from{' '}
+                    <a 
+                      href="https://makersuite.google.com/app/apikey" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      style={{ color: 'inherit', textDecoration: 'underline' }}
+                    >
+                      Google AI Studio
+                    </a>
+                  </Typography>
+                </Box>
+              </Stack>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleCloseSettings}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSaveSettings} 
+                variant="contained" 
+                color="primary"
+                disabled={isLoadingSettings}
+              >
+                Save Settings
               </Button>
             </DialogActions>
           </Dialog>

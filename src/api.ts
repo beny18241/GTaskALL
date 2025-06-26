@@ -25,6 +25,7 @@ interface ApiResponse {
   connectionId?: number;
   user?: User;
   userId?: number;
+  settings?: { [key: string]: string };
 }
 
 // API service for managing Google Tasks account connections
@@ -78,22 +79,16 @@ export const apiService = {
     }
   },
 
-  // Update user last login
+  // Update user's last login
   async updateUserLogin(email: string): Promise<ApiResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${encodeURIComponent(email)}/login`, {
+      const response = await fetch(`${API_BASE_URL}/users/${email}/login`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data: ApiResponse = await response.json();
-      return data;
+      return await response.json();
     } catch (error) {
       console.error('Error updating user login:', error);
       throw error;
@@ -233,5 +228,38 @@ export const apiService = {
       console.error('Health check failed:', error);
       return null;
     }
-  }
+  },
+
+  // User Settings Methods
+
+  // Get user settings
+  async getUserSettings(email: string): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${email}/settings`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching user settings:', error);
+      throw error;
+    }
+  },
+
+  // Update user setting
+  async updateUserSetting(email: string, settingKey: string, settingValue: string): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${email}/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          setting_key: settingKey,
+          setting_value: settingValue,
+        }),
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating user setting:', error);
+      throw error;
+    }
+  },
 }; 
