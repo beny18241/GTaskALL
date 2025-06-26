@@ -326,6 +326,44 @@ function App() {
     return () => clearTimeout(timer);
   }, [googleAccounts]);
 
+  // Check for existing user data on app startup
+  useEffect(() => {
+    const checkExistingUser = async () => {
+      const savedUser = localStorage.getItem(USER_STORAGE_KEY);
+      if (savedUser) {
+        const userData = JSON.parse(savedUser);
+        
+        // Verify user exists in database and update last login
+        try {
+          const dbUser = await apiService.getUser(userData.email);
+          if (dbUser) {
+            // User exists in database, update last login
+            await apiService.updateUserLogin(userData.email);
+            setUser(userData);
+            
+            // Load saved connections
+            await loadSavedConnections(userData.email);
+          } else {
+            // User doesn't exist in database, clear local storage
+            localStorage.removeItem(USER_STORAGE_KEY);
+            localStorage.removeItem(GOOGLE_ACCOUNTS_KEY);
+            setIsInitialLoad(false);
+          }
+        } catch (error) {
+          console.error('Error checking existing user:', error);
+          // If there's an error, clear local storage and start fresh
+          localStorage.removeItem(USER_STORAGE_KEY);
+          localStorage.removeItem(GOOGLE_ACCOUNTS_KEY);
+          setIsInitialLoad(false);
+        }
+      } else {
+        setIsInitialLoad(false);
+      }
+    };
+
+    checkExistingUser();
+  }, []);
+
   // Update the effect for fetching Google Tasks to work with multiple accounts
   useEffect(() => {
     if (googleAccounts.length === 0) {
@@ -442,6 +480,16 @@ function App() {
         email: decoded.email,
         picture: decoded.picture,
       };
+      
+      // Create or update user account in database
+      try {
+        await apiService.createOrUpdateUser(userData.email, userData.name, userData.picture);
+        await apiService.updateUserLogin(userData.email);
+        console.log('User account created/updated successfully');
+      } catch (error) {
+        console.error('Error creating/updating user account:', error);
+      }
+      
       setUser(userData);
       localStorage.setItem('google-credential', credentialResponse.credential);
       

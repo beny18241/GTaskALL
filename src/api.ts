@@ -8,16 +8,98 @@ interface Connection {
   created_at: string;
 }
 
+interface User {
+  id: number;
+  email: string;
+  name: string;
+  picture: string;
+  created_at: string;
+  last_login: string;
+}
+
 interface ApiResponse {
   success?: boolean;
   message?: string;
   connections?: Connection[];
   token?: string;
   connectionId?: number;
+  user?: User;
+  userId?: number;
 }
 
 // API service for managing Google Tasks account connections
 export const apiService = {
+  // User Management Methods
+
+  // Create or update user account
+  async createOrUpdateUser(email: string, name: string, picture?: string): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          name,
+          picture
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data: ApiResponse = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error creating/updating user:', error);
+      throw error;
+    }
+  },
+
+  // Get user by email
+  async getUser(email: string): Promise<User | null> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${encodeURIComponent(email)}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null; // User not found
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data: ApiResponse = await response.json();
+      return data.user || null;
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      return null;
+    }
+  },
+
+  // Update user last login
+  async updateUserLogin(email: string): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${encodeURIComponent(email)}/login`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data: ApiResponse = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error updating user login:', error);
+      throw error;
+    }
+  },
+
   // Get all connected Google Tasks accounts for a main user
   async getConnections(mainUserEmail: string): Promise<Connection[]> {
     try {
