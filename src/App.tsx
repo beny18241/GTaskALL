@@ -1749,17 +1749,17 @@ function App() {
           </LocalizationProvider>
           </Box>
         </Box>
-        <Paper sx={{ p: 2 }}>
+        <Paper sx={{ p: 2, bgcolor: 'background.paper' }}>
           {calendarShowAll ? (
             <>
-          <Typography variant="h6" gutterBottom>
+              <Typography variant="h6" gutterBottom color="text.primary">
                 All Tasks
-          </Typography>
-              <Box sx={{ bgcolor: 'white', borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+              </Typography>
+              <Box sx={{ bgcolor: 'background.paper', borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
                 {filteredTasks.length === 0 ? (
                   <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
                     No tasks scheduled
-                    </Typography>
+                  </Typography>
                 ) : (
                   filteredTasks.map((task, index) => {
                     const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
@@ -1775,19 +1775,19 @@ function App() {
                       />
                     );
                   })
-                  )}
-                </Box>
+                )}
+              </Box>
             </>
           ) : (
             <>
-              <Typography variant="h6" gutterBottom>
+              <Typography variant="h6" gutterBottom color="text.primary">
                 {format(selectedDate, 'MMMM d, yyyy')}
               </Typography>
-              <Box sx={{ bgcolor: 'white', borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+              <Box sx={{ bgcolor: 'background.paper', borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
                 {tasksForSelectedDay.length === 0 ? (
-              <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                No tasks scheduled for this date
-              </Typography>
+                  <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                    No tasks scheduled for this date
+                  </Typography>
                 ) : (
                   tasksForSelectedDay.map((task, index, arr) => {
                     const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
@@ -2133,8 +2133,9 @@ function App() {
               height: 'calc(100vh - 120px)',
               display: 'flex',
               flexDirection: 'column',
-              bgcolor: isToday(dateColumn.date) ? '#fff3e0' : '#fafafa',
-              border: isToday(dateColumn.date) ? '2px solid #ff9800' : '1px solid #e0e0e0',
+              bgcolor: isToday(dateColumn.date) ? 'warning.light' : 'background.paper',
+              border: isToday(dateColumn.date) ? '2px solid' : '1px solid',
+              borderColor: isToday(dateColumn.date) ? 'warning.main' : 'divider',
               borderRadius: 2,
               overflow: 'hidden'
             }}
@@ -2143,8 +2144,8 @@ function App() {
             <Box
               sx={{
                 p: 2,
-                bgcolor: isToday(dateColumn.date) ? '#ff9800' : '#f5f5f5',
-                color: isToday(dateColumn.date) ? 'white' : 'text.primary',
+                bgcolor: isToday(dateColumn.date) ? 'warning.main' : 'background.default',
+                color: isToday(dateColumn.date) ? 'warning.contrastText' : 'text.primary',
                 borderBottom: '1px solid',
                 borderColor: 'divider',
                 display: 'flex',
@@ -2205,13 +2206,13 @@ function App() {
                         sx={{
                           p: 1.5,
                           cursor: 'pointer',
-                          borderLeft: `4px solid ${isOverdue ? '#f44336' : (task.color || '#42A5F5')}`,
-                          bgcolor: isOverdue ? '#ffebee' : 'white',
+                          borderLeft: `4px solid ${isOverdue ? 'error.main' : (task.color || '#42A5F5')}`,
+                          bgcolor: isOverdue ? 'error.light' : 'background.paper',
                           '&:hover': {
                             boxShadow: 2,
                             transform: 'translateY(-1px)',
                             transition: 'all 0.2s ease',
-                            bgcolor: isOverdue ? '#ffcdd2' : 'white',
+                            bgcolor: isOverdue ? 'error.light' : 'action.hover',
                           }
                         }}
                         onClick={() => handleEditTask(task, 'upcoming')}
