@@ -1858,22 +1858,26 @@ function App() {
           <Box sx={{ 
             p: 3, 
             textAlign: 'center',
-            background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-            borderRadius: 2
+            bgcolor: 'background.paper',
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'divider'
           }}>
             <Typography variant="h6" color="text.secondary" gutterBottom>
               🎉 No tasks for today!
-          </Typography>
+            </Typography>
             <Typography variant="body2" color="text.secondary">
               You're all caught up. Enjoy your day!
             </Typography>
-      </Box>
+          </Box>
         ) : (
           <Box sx={{ 
-            bgcolor: 'white', 
+            bgcolor: 'background.paper', 
             borderRadius: 1.5,
             boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            border: '1px solid',
+            borderColor: 'divider'
           }}>
             {filteredTasks.map((task, index) => {
               const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
@@ -1946,7 +1950,7 @@ function App() {
             position: 'relative',
             transition: 'width 0.3s ease',
             flexShrink: 0,
-            bgcolor: '#f5f5f5',
+            bgcolor: 'background.paper',
             borderLeft: '2px solid',
             borderColor: 'primary.main',
             boxShadow: '-8px 0 16px rgba(0, 0, 0, 0.15)',
@@ -2023,10 +2027,10 @@ function App() {
                   gap: 1.5,
                   borderLeft: `3px solid ${task.color || '#42A5F5'}`,
                   '&:hover': {
-                    bgcolor: 'rgba(0, 0, 0, 0.04)',
+                    bgcolor: 'action.hover',
                     transition: 'all 0.2s ease'
                   },
-                  bgcolor: 'white',
+                  bgcolor: 'background.paper',
                   borderBottom: '1px solid',
                   borderColor: 'divider',
                   cursor: 'pointer'
