@@ -6,6 +6,16 @@ interface Connection {
   gtask_account_name: string;
   gtask_account_picture: string;
   created_at: string;
+  status?: string;
+}
+
+interface User {
+  id: number;
+  email: string;
+  name: string;
+  picture: string;
+  created_at: string;
+  last_login: string;
 }
 
 interface ApiResponse {
@@ -14,10 +24,78 @@ interface ApiResponse {
   connections?: Connection[];
   token?: string;
   connectionId?: number;
+  user?: User;
+  userId?: number;
+  settings?: { [key: string]: string };
 }
 
 // API service for managing Google Tasks account connections
 export const apiService = {
+  // User Management Methods
+
+  // Create or update user account
+  async createOrUpdateUser(email: string, name: string, picture?: string): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          name,
+          picture
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data: ApiResponse = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error creating/updating user:', error);
+      throw error;
+    }
+  },
+
+  // Get user by email
+  async getUser(email: string): Promise<User | null> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${encodeURIComponent(email)}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null; // User not found
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data: ApiResponse = await response.json();
+      return data.user || null;
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      return null;
+    }
+  },
+
+  // Update user's last login
+  async updateUserLogin(email: string): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${email}/login`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating user login:', error);
+      throw error;
+    }
+  },
+
   // Get all connected Google Tasks accounts for a main user
   async getConnections(mainUserEmail: string): Promise<Connection[]> {
     try {
@@ -151,5 +229,76 @@ export const apiService = {
       console.error('Health check failed:', error);
       return null;
     }
-  }
+  },
+
+  // User Settings Methods
+
+  // Get user settings
+  async getUserSettings(email: string): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${email}/settings`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching user settings:', error);
+      throw error;
+    }
+  },
+
+  // Update user setting
+  async updateUserSetting(email: string, settingKey: string, settingValue: string): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${email}/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          setting_key: settingKey,
+          setting_value: settingValue,
+        }),
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating user setting:', error);
+      throw error;
+    }
+  },
+
+  // AI Summary Methods
+
+  // Generate AI summary for tasks
+  async generateTaskSummary(email: string, tasks: any[]): Promise<{ summary: string; insights: string[] }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/ai/summary`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          tasks
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error generating AI summary:', error);
+      throw error;
+    }
+  },
+
+  // Mark a connection as expired
+  async expireConnection(mainUserEmail: string, gtaskAccountEmail: string): Promise<void> {
+    await fetch(`${API_BASE_URL}/connections/${encodeURIComponent(mainUserEmail)}/${encodeURIComponent(gtaskAccountEmail)}/expire`, { method: 'PUT' });
+  },
+
+  // Mark a connection as active
+  async activateConnection(mainUserEmail: string, gtaskAccountEmail: string): Promise<void> {
+    await fetch(`${API_BASE_URL}/connections/${encodeURIComponent(mainUserEmail)}/${encodeURIComponent(gtaskAccountEmail)}/activate`, { method: 'PUT' });
+  },
 }; 

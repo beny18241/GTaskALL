@@ -23,12 +23,28 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onEdit, accountColor, showDivid
         borderBottom: showDivider ? '1px solid' : 'none',
         borderColor: 'divider',
         transition: 'all 0.2s ease',
-        borderLeft: `3px solid ${isOverdueTask ? '#f44336' : accountColor}`,
+        borderLeft: `3px solid ${isOverdueTask ? '#ff6b6b' : accountColor}`,
         position: 'relative',
-        bgcolor: isOverdueTask ? '#ffebee' : 'white',
+        bgcolor: isOverdueTask ? 'rgba(255, 107, 107, 0.08)' : 'background.paper',
         '&:hover': {
-          bgcolor: isOverdueTask ? '#ffcdd2' : 'action.hover',
+          bgcolor: isOverdueTask ? 'rgba(255, 107, 107, 0.12)' : 'action.hover',
         },
+        ...(isOverdueTask && {
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: '3px',
+            background: 'linear-gradient(180deg, #ff6b6b 0%, #ff8e8e 100%)',
+            animation: 'pulse 2s ease-in-out infinite',
+          },
+          '@keyframes pulse': {
+            '0%, 100%': { opacity: 1 },
+            '50%': { opacity: 0.7 },
+          },
+        }),
       }}
     >
       {/* Checkbox (not handled here, for display only) */}
@@ -61,7 +77,15 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onEdit, accountColor, showDivid
             mb: task.notes ? 0.25 : 0,
             transition: 'all 0.2s ease',
             fontSize: '0.9rem',
-            lineHeight: 1.3
+            lineHeight: 1.3,
+            ...(isOverdueTask && {
+              '&::after': {
+                content: '" ⏰"',
+                color: '#ff6b6b',
+                fontSize: '0.8rem',
+                fontWeight: 'bold',
+              },
+            }),
           }}
         >
           {task.content}
@@ -176,7 +200,7 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onEdit, accountColor, showDivid
           onClick={() => onEdit(task)}
           sx={{
             ml: 0.5,
-            backgroundColor: 'rgba(255,255,255,0.9)',
+            backgroundColor: 'background.paper',
             border: '1px solid',
             borderColor: 'divider',
             '&:hover': {
