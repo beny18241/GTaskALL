@@ -23,11 +23,11 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onEdit, accountColor, showDivid
         borderBottom: showDivider ? '1px solid' : 'none',
         borderColor: 'divider',
         transition: 'all 0.2s ease',
-        borderLeft: `3px solid ${isOverdueTask ? '#f44336' : accountColor}`,
+        borderLeft: `3px solid ${isOverdueTask ? 'error.main' : accountColor}`,
         position: 'relative',
-        bgcolor: isOverdueTask ? '#ffebee' : 'white',
+        bgcolor: isOverdueTask ? 'error.light' : 'background.paper',
         '&:hover': {
-          bgcolor: isOverdueTask ? '#ffcdd2' : 'action.hover',
+          bgcolor: isOverdueTask ? 'error.light' : 'action.hover',
         },
       }}
     >
@@ -176,7 +176,7 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onEdit, accountColor, showDivid
           onClick={() => onEdit(task)}
           sx={{
             ml: 0.5,
-            backgroundColor: 'rgba(255,255,255,0.9)',
+            backgroundColor: 'background.paper',
             border: '1px solid',
             borderColor: 'divider',
             '&:hover': {
