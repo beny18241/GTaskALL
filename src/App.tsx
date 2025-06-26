@@ -2211,13 +2211,13 @@ function App() {
                         sx={{
                           p: 1.5,
                           cursor: 'pointer',
-                          borderLeft: `4px solid ${isOverdue ? 'error.main' : (task.color || '#42A5F5')}`,
-                          bgcolor: isOverdue ? 'error.light' : 'background.paper',
+                          borderLeft: `4px solid ${isOverdue ? '#ff6b6b' : (task.color || '#42A5F5')}`,
+                          bgcolor: isOverdue ? 'rgba(255, 107, 107, 0.08)' : 'background.paper',
                           '&:hover': {
                             boxShadow: 2,
                             transform: 'translateY(-1px)',
                             transition: 'all 0.2s ease',
-                            bgcolor: isOverdue ? 'error.light' : 'action.hover',
+                            bgcolor: isOverdue ? 'rgba(255, 107, 107, 0.12)' : 'action.hover',
                           }
                         }}
                         onClick={() => handleEditTask(task, 'upcoming')}
@@ -3074,11 +3074,15 @@ function App() {
   const handleSaveSettings = async () => {
     if (!user?.email) return;
     
+    setIsLoadingSettings(true);
     try {
-      await apiService.updateUserSetting(user.email, 'gemini_api_key', geminiApiKey);
+      const response = await apiService.updateUserSetting(user.email, 'gemini_api_key', geminiApiKey);
+      console.log('Settings save response:', response);
       setSettingsOpen(false);
     } catch (error) {
       console.error('Error saving settings:', error);
+    } finally {
+      setIsLoadingSettings(false);
     }
   };
 
