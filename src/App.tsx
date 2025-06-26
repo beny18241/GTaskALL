@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid, Checkbox } from '@mui/material';
+import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid, Checkbox, ThemeProvider, createTheme } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -29,6 +29,8 @@ import { CircularProgress } from '@mui/material';
 import { apiService } from './api';
 import TaskRow from './TaskRow.tsx';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import Brightness4Icon from '@mui/icons-material/Brightness4';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -75,6 +77,7 @@ const STORAGE_KEY = 'kanban-board-data';
 const USER_STORAGE_KEY = 'user-data';
 const GOOGLE_ACCOUNTS_KEY = 'google-accounts';
 const GOOGLE_CLIENT_ID = "251184335563-bdf3sv4vc1sr4v2itciiepd7fllvshec.apps.googleusercontent.com";
+const DARK_MODE_KEY = 'dark-mode-preference';
 
 // Add new view mode type
 type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate' | 'upcoming';
@@ -103,6 +106,28 @@ function App() {
   const [isDrawerExpanded, setIsDrawerExpanded] = useState(true);
   const [doneTasksLimit, setDoneTasksLimit] = useState(3);
   const [dateGroupingEnabled, setDateGroupingEnabled] = useState(true);
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem(DARK_MODE_KEY);
+    return saved ? JSON.parse(saved) : false;
+  });
+  
+  // Create theme based on dark mode preference
+  const theme = useMemo(() => createTheme({
+    palette: {
+      mode: darkMode ? 'dark' : 'light',
+      primary: {
+        main: '#1976d2',
+      },
+      secondary: {
+        main: '#dc004e',
+      },
+      background: {
+        default: darkMode ? '#121212' : '#f5f5f5',
+        paper: darkMode ? '#1e1e1e' : '#ffffff',
+      },
+    },
+  }), [darkMode]);
+  
   const [columns, setColumns] = useState<Column[]>(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
@@ -188,6 +213,16 @@ function App() {
   const [selectedListForNewTask, setSelectedListForNewTask] = useState<string>('');
   const [tempUserData, setTempUserData] = useState<User | null>(null);
   const [calendarShowAll, setCalendarShowAll] = useState(false);
+
+  // Dark mode toggle function
+  const toggleDarkMode = () => {
+    setDarkMode((prev: boolean) => !prev);
+  };
+
+  // Save dark mode preference to localStorage
+  useEffect(() => {
+    localStorage.setItem(DARK_MODE_KEY, JSON.stringify(darkMode));
+  }, [darkMode]);
 
   // Color coding for different accounts - optimized with useMemo
   const getAccountColor = (accountEmail: string) => {
@@ -3009,692 +3044,714 @@ function App() {
   }, [searchQuery]);
 
   return (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <Box sx={{ display: 'flex' }}>
-        <CssBaseline />
-        <AppBar 
-          position="fixed" 
-          sx={{ 
-            zIndex: (theme) => theme.zIndex.drawer + 1,
-            background: 'linear-gradient(45deg, #1a237e 30%, #283593 90%)',
-            boxShadow: '0 3px 5px 2px rgba(33, 150, 243, .3)'
-          }}
-        >
-          <Toolbar>
-            {/* Logo and Title */}
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center',
-              mr: 3,
-              color: '#4CAF50',
-              fontSize: '2rem'
-            }}>
-              ✓
-            </Box>
-            <Typography 
-              variant="h6" 
-              sx={{ 
-                color: 'white',
-                fontWeight: 600,
-                letterSpacing: 1,
-                textShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                mr: 3
-              }}
-            >
-              GTask ALL
-            </Typography>
+    <ThemeProvider theme={theme}>
+      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+        <Box sx={{ display: 'flex' }}>
+          <CssBaseline />
+          <AppBar 
+            position="fixed" 
+            sx={{ 
+              zIndex: (theme) => theme.zIndex.drawer + 1,
+              background: 'linear-gradient(45deg, #1a237e 30%, #283593 90%)',
+              boxShadow: '0 3px 5px 2px rgba(33, 150, 243, .3)'
+            }}
+          >
+            <Toolbar>
+              {/* Logo and Title */}
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                mr: 3,
+                color: '#4CAF50',
+                fontSize: '2rem'
+              }}>
+                ✓
+              </Box>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  color: 'white',
+                  fontWeight: 600,
+                  letterSpacing: 1,
+                  textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                  mr: 3
+                }}
+              >
+                GTask ALL
+              </Typography>
 
-            {/* View Mode Buttons */}
-            <Box sx={{ 
-              display: 'flex', 
-              gap: 0.5,
-              '& .MuiIconButton-root': {
-                color: 'rgba(255, 255, 255, 0.8)',
-                transition: 'all 0.3s ease',
-                padding: '8px',
-                '&:hover': {
-                  color: '#fff',
-                  transform: 'translateY(-2px)',
-                  background: 'rgba(255, 255, 255, 0.1)'
-                },
-                '&.active': {
-                  color: '#fff',
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  boxShadow: '0 0 10px rgba(255, 255, 255, 0.3)'
-                }
-              }
-            }}>
-              <IconButton 
-                className={viewMode === 'kanban' ? 'active' : ''}
-                onClick={() => setViewMode('kanban')}
-                title="Kanban View"
-              >
-                <DashboardIcon fontSize="small" />
-              </IconButton>
-              <IconButton 
-                className={viewMode === 'list' ? 'active' : ''}
-                onClick={() => setViewMode('list')}
-                title="List View"
-              >
-                <ListIcon fontSize="small" />
-              </IconButton>
-              <IconButton 
-                className={viewMode === 'calendar' ? 'active' : ''}
-                onClick={() => setViewMode('calendar')}
-                title="Calendar View"
-              >
-                <CalendarTodayIcon fontSize="small" />
-              </IconButton>
-              <IconButton 
-                className={viewMode === 'today' ? 'active' : ''}
-                onClick={() => setViewMode('today')}
-                title="Today's Tasks"
-              >
-                <EventIcon fontSize="small" />
-              </IconButton>
-              <IconButton 
-                className={viewMode === 'ultimate' ? 'active' : ''}
-                onClick={() => setViewMode('ultimate')}
-                title="Ultimate Board"
-              >
-                <StarIcon fontSize="small" />
-              </IconButton>
-              <IconButton 
-                className={viewMode === 'upcoming' ? 'active' : ''}
-                onClick={() => setViewMode('upcoming')}
-                title="Upcoming Tasks"
-              >
-                <ScheduleIcon fontSize="small" />
-              </IconButton>
-            </Box>
-
-            {/* Spacer before search */}
-            <Box sx={{ flexGrow: 1 }} />
-
-            {/* Centered Search Field */}
-            <TextField
-              size="small"
-              variant="outlined"
-              placeholder="Search tasks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <Box sx={{ display: 'flex', alignItems: 'center', color: 'inherit', pl: 1 }}>
-                    <SearchIcon fontSize="small" />
-                  </Box>
-                ),
-                endAdornment: searchQuery && (
-                  <IconButton
-                    size="small"
-                    onClick={() => setSearchQuery('')}
-                    sx={{ color: 'inherit' }}
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                ),
-                sx: { 
-                  color: 'inherit',
-                  fontSize: '0.95rem',
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(255, 255, 255, 0.3)',
+              {/* View Mode Buttons */}
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 0.5,
+                '& .MuiIconButton-root': {
+                  color: 'rgba(255, 255, 255, 0.8)',
+                  transition: 'all 0.3s ease',
+                  padding: '8px',
+                  '&:hover': {
+                    color: '#fff',
+                    transform: 'translateY(-2px)',
+                    background: 'rgba(255, 255, 255, 0.1)'
                   },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(255, 255, 255, 0.5)',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'white',
+                  '&.active': {
+                    color: '#fff',
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    boxShadow: '0 0 10px rgba(255, 255, 255, 0.3)'
                   }
                 }
-              }}
-              sx={{ 
-                width: 400,
-                mx: 3,
-                '& .MuiInputBase-root': {
-                  color: 'inherit'
-                }
-              }}
-            />
-
-            {/* Spacer after search */}
-            <Box sx={{ flexGrow: 1 }} />
-
-            {/* Google Tasks Accounts Section */}
-            {googleAccounts.length > 0 && (
-              <Box sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                bgcolor: 'rgba(255,255,255,0.08)',
-                px: 1.5,
-                py: 0.5,
-                borderRadius: 2,
-                boxShadow: 1,
-                ml: 2,
-                mr: 2,
-                border: '1px solid',
-                borderColor: 'rgba(255,255,255,0.15)'
               }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
-                  <AccountCircleIcon sx={{ color: 'primary.light', fontSize: 22, mr: 0.5 }} />
-                  <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', fontWeight: 500, letterSpacing: 0.5 }}>Accounts</span>
-                </Box>
-                <AccountSwitcher />
-              </Box>
-            )}
-
-            {/* Divider between accounts and user */}
-            <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: 'rgba(255,255,255,0.15)' }} />
-
-            {/* User/Login Section */}
-            {user ? (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 1 }}>
-                <IconButton
-                  onClick={refreshTasks}
-                  disabled={isRefreshing}
-                  size="small"
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: '50%',
-                    bgcolor: isRefreshing ? 'warning.main' : 'success.main',
-                    color: 'white',
-                    transition: 'all 0.3s ease',
-                    boxShadow: '0 0 8px rgba(255, 255, 255, 0.3)',
-                    '&:hover': {
-                      transform: 'rotate(180deg)',
-                      backgroundColor: isRefreshing ? 'warning.dark' : 'success.dark',
-                      boxShadow: '0 0 12px rgba(255, 255, 255, 0.5)',
-                    },
-                    '&.Mui-disabled': {
-                      bgcolor: 'rgba(255, 255, 255, 0.2)',
-                      color: 'rgba(255, 255, 255, 0.5)',
-                    }
-                  }}
-                  title="Refresh Tasks"
-                >
-                  {isRefreshing ? (
-                    <CircularProgress 
-                      size={16} 
-                      color="inherit"
-                      sx={{
-                        animation: 'spin 1s linear infinite',
-                        '@keyframes spin': {
-                          '0%': { transform: 'rotate(0deg)' },
-                          '100%': { transform: 'rotate(360deg)' }
-                        }
-                      }}
-                    />
-                  ) : (
-                    <RefreshIcon fontSize="small" />
-                  )}
-                </IconButton>
-                <Avatar 
-                  src={user.picture} 
-                  alt={user.name}
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    border: '2px solid rgba(255, 255, 255, 0.3)',
-                    boxShadow: '0 0 8px rgba(255, 255, 255, 0.2)'
-                  }}
-                  title={user.name}
-                />
                 <IconButton 
-                  color="inherit" 
-                  onClick={handleLogout}
-                  size="small"
-                  sx={{
-                    '&:hover': {
-                      background: 'rgba(255, 255, 255, 0.1)',
-                      transform: 'rotate(90deg)',
-                      transition: 'all 0.3s ease'
-                    }
-                  }}
-                  title="Logout"
+                  className={viewMode === 'kanban' ? 'active' : ''}
+                  onClick={() => setViewMode('kanban')}
+                  title="Kanban View"
                 >
-                  <LogoutIcon fontSize="small" />
+                  <DashboardIcon fontSize="small" />
+                </IconButton>
+                <IconButton 
+                  className={viewMode === 'list' ? 'active' : ''}
+                  onClick={() => setViewMode('list')}
+                  title="List View"
+                >
+                  <ListIcon fontSize="small" />
+                </IconButton>
+                <IconButton 
+                  className={viewMode === 'calendar' ? 'active' : ''}
+                  onClick={() => setViewMode('calendar')}
+                  title="Calendar View"
+                >
+                  <CalendarTodayIcon fontSize="small" />
+                </IconButton>
+                <IconButton 
+                  className={viewMode === 'today' ? 'active' : ''}
+                  onClick={() => setViewMode('today')}
+                  title="Today's Tasks"
+                >
+                  <EventIcon fontSize="small" />
+                </IconButton>
+                <IconButton 
+                  className={viewMode === 'ultimate' ? 'active' : ''}
+                  onClick={() => setViewMode('ultimate')}
+                  title="Ultimate Board"
+                >
+                  <StarIcon fontSize="small" />
+                </IconButton>
+                <IconButton 
+                  className={viewMode === 'upcoming' ? 'active' : ''}
+                  onClick={() => setViewMode('upcoming')}
+                  title="Upcoming Tasks"
+                >
+                  <ScheduleIcon fontSize="small" />
                 </IconButton>
               </Box>
-            ) : (
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={handleGoogleError}
+
+              {/* Spacer before search */}
+              <Box sx={{ flexGrow: 1 }} />
+
+              {/* Centered Search Field */}
+              <TextField
+                size="small"
+                variant="outlined"
+                placeholder="Search tasks..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <Box sx={{ display: 'flex', alignItems: 'center', color: 'inherit', pl: 1 }}>
+                      <SearchIcon fontSize="small" />
+                    </Box>
+                  ),
+                  endAdornment: searchQuery && (
+                    <IconButton
+                      size="small"
+                      onClick={() => setSearchQuery('')}
+                      sx={{ color: 'inherit' }}
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  ),
+                  sx: { 
+                    color: 'inherit',
+                    fontSize: '0.95rem',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'rgba(255, 255, 255, 0.5)',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'white',
+                    }
+                  }
+                }}
+                sx={{ 
+                  width: 400,
+                  mx: 3,
+                  '& .MuiInputBase-root': {
+                    color: 'inherit'
+                  }
+                }}
               />
-            )}
-          </Toolbar>
-        </AppBar>
-        
-        <Box
-          component="main"
-          sx={{
-            flexGrow: 1,
-            p: 3,
-            width: '100%',
-            mt: '64px',
-          }}
-        >
-          {user ? (
-            googleAccounts.length > 0 ? (
-              isInitialLoad || googleTasksLoading ? (
-                <Box sx={{ 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  alignItems: 'center', 
-                  height: 'calc(100vh - 100px)'
+
+              {/* Spacer after search */}
+              <Box sx={{ flexGrow: 1 }} />
+
+              {/* Dark Mode Toggle */}
+              <IconButton
+                onClick={toggleDarkMode}
+                size="small"
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.8)',
+                  transition: 'all 0.3s ease',
+                  padding: '8px',
+                  mr: 2,
+                  '&:hover': {
+                    color: '#fff',
+                    transform: 'scale(1.1)',
+                    background: 'rgba(255, 255, 255, 0.1)'
+                  }
+                }}
+                title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {darkMode ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
+              </IconButton>
+
+              {/* Google Tasks Accounts Section */}
+              {googleAccounts.length > 0 && (
+                <Box sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  bgcolor: 'rgba(255,255,255,0.08)',
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 2,
+                  boxShadow: 1,
+                  ml: 2,
+                  mr: 2,
+                  border: '1px solid',
+                  borderColor: 'rgba(255,255,255,0.15)'
                 }}>
-                  <Typography variant="h6">Loading Google Tasks...</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
+                    <AccountCircleIcon sx={{ color: 'primary.light', fontSize: 22, mr: 0.5 }} />
+                    <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', fontWeight: 500, letterSpacing: 0.5 }}>Accounts</span>
+                  </Box>
+                  <AccountSwitcher />
+                </Box>
+              )}
+
+              {/* Divider between accounts and user */}
+              <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: 'rgba(255,255,255,0.15)' }} />
+
+              {/* User/Login Section */}
+              {user ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 1 }}>
+                  <IconButton
+                    onClick={refreshTasks}
+                    disabled={isRefreshing}
+                    size="small"
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      bgcolor: isRefreshing ? 'warning.main' : 'success.main',
+                      color: 'white',
+                      transition: 'all 0.3s ease',
+                      boxShadow: '0 0 8px rgba(255, 255, 255, 0.3)',
+                      '&:hover': {
+                        transform: 'rotate(180deg)',
+                        backgroundColor: isRefreshing ? 'warning.dark' : 'success.dark',
+                        boxShadow: '0 0 12px rgba(255, 255, 255, 0.5)',
+                      },
+                      '&.Mui-disabled': {
+                        bgcolor: 'rgba(255, 255, 255, 0.2)',
+                        color: 'rgba(255, 255, 255, 0.5)',
+                      }
+                    }}
+                    title="Refresh Tasks"
+                  >
+                    {isRefreshing ? (
+                      <CircularProgress 
+                        size={16} 
+                        color="inherit"
+                        sx={{
+                          animation: 'spin 1s linear infinite',
+                          '@keyframes spin': {
+                            '0%': { transform: 'rotate(0deg)' },
+                            '100%': { transform: 'rotate(360deg)' }
+                          }
+                        }}
+                      />
+                    ) : (
+                      <RefreshIcon fontSize="small" />
+                    )}
+                  </IconButton>
+                  <Avatar 
+                    src={user.picture} 
+                    alt={user.name}
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      border: '2px solid rgba(255, 255, 255, 0.3)',
+                      boxShadow: '0 0 8px rgba(255, 255, 255, 0.2)'
+                    }}
+                    title={user.name}
+                  />
+                  <IconButton 
+                    color="inherit" 
+                    onClick={handleLogout}
+                    size="small"
+                    sx={{
+                      '&:hover': {
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        transform: 'rotate(90deg)',
+                        transition: 'all 0.3s ease'
+                      }
+                    }}
+                    title="Logout"
+                  >
+                    <LogoutIcon fontSize="small" />
+                  </IconButton>
                 </Box>
               ) : (
-                <>
-                  {viewMode === 'list' && renderListView()}
-                  {viewMode === 'calendar' && renderCalendarView()}
-                  {viewMode === 'today' && renderTodayView()}
-                  {viewMode === 'ultimate' && renderUltimateView()}
-                  {viewMode === 'kanban' && renderKanbanView()}
-                  {viewMode === 'upcoming' && renderUpcomingView()}
-                </>
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                />
+              )}
+            </Toolbar>
+          </AppBar>
+          
+          <Box
+            component="main"
+            sx={{
+              flexGrow: 1,
+              p: 3,
+              width: '100%',
+              mt: '64px',
+            }}
+          >
+            {user ? (
+              googleAccounts.length > 0 ? (
+                isInitialLoad || googleTasksLoading ? (
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center', 
+                    height: 'calc(100vh - 100px)'
+                  }}>
+                    <Typography variant="h6">Loading Google Tasks...</Typography>
+                  </Box>
+                ) : (
+                  <>
+                    {viewMode === 'list' && renderListView()}
+                    {viewMode === 'calendar' && renderCalendarView()}
+                    {viewMode === 'today' && renderTodayView()}
+                    {viewMode === 'ultimate' && renderUltimateView()}
+                    {viewMode === 'kanban' && renderKanbanView()}
+                    {viewMode === 'upcoming' && renderUpcomingView()}
+                  </>
+                )
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography variant="h5" gutterBottom>
+                    Welcome, {user.name}!
+                  </Typography>
+                  <Typography color="text.secondary" paragraph>
+                    You're logged in as {user.email}. To start managing your tasks, please connect your Google Tasks account.
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    size="large"
+                    onClick={handleConnectGoogleTasks}
+                    disabled={googleTasksLoading}
+                    startIcon={googleTasksLoading ? <CircularProgress size={20} /> : null}
+                    sx={{ 
+                      mt: 2,
+                      px: 4,
+                      py: 1.5,
+                      fontSize: '1.1rem',
+                      borderRadius: 2,
+                      boxShadow: 3,
+                      '&:hover': {
+                        boxShadow: 6,
+                        transform: 'translateY(-2px)',
+                      }
+                    }}
+                  >
+                    {googleTasksLoading ? 'Connecting...' : 'Connect Google Tasks'}
+                  </Button>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                    This will allow you to view and manage your Google Tasks in this application.
+                  </Typography>
+                </Box>
               )
             ) : (
               <Box sx={{ textAlign: 'center', py: 4 }}>
                 <Typography variant="h5" gutterBottom>
-                  Welcome, {user.name}!
+                  Welcome to GTaskALL
                 </Typography>
                 <Typography color="text.secondary" paragraph>
-                  You're logged in as {user.email}. To start managing your tasks, please connect your Google Tasks account.
+                  Sign in to manage your tasks
                 </Typography>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  size="large"
-                  onClick={handleConnectGoogleTasks}
-                  disabled={googleTasksLoading}
-                  startIcon={googleTasksLoading ? <CircularProgress size={20} /> : null}
-                  sx={{ 
-                    mt: 2,
-                    px: 4,
-                    py: 1.5,
-                    fontSize: '1.1rem',
-                    borderRadius: 2,
-                    boxShadow: 3,
-                    '&:hover': {
-                      boxShadow: 6,
-                      transform: 'translateY(-2px)',
-                    }
-                  }}
-                >
-                  {googleTasksLoading ? 'Connecting...' : 'Connect Google Tasks'}
-                </Button>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                  This will allow you to view and manage your Google Tasks in this application.
-                </Typography>
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                />
               </Box>
-            )
-          ) : (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography variant="h5" gutterBottom>
-                Welcome to GTaskALL
-              </Typography>
-              <Typography color="text.secondary" paragraph>
-                Sign in to manage your tasks
-              </Typography>
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={handleGoogleError}
-              />
+            )}
+          </Box>
+
+          {/* Floating Action Button to add new task */}
+          {user && googleAccounts.length > 0 && (
+            <Box sx={{ position: 'fixed', bottom: 32, right: 32, zIndex: 2000 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<AddIcon />}
+                sx={{ borderRadius: '50%', minWidth: 64, minHeight: 64, fontSize: 32, boxShadow: 6 }}
+                onClick={() => setOpenNewTaskDialog(true)}
+                title="Add New Task"
+              >
+                {/* Hide text for round FAB */}
+              </Button>
             </Box>
           )}
-        </Box>
 
-        {/* Floating Action Button to add new task */}
-        {user && googleAccounts.length > 0 && (
-          <Box sx={{ position: 'fixed', bottom: 32, right: 32, zIndex: 2000 }}>
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<AddIcon />}
-              sx={{ borderRadius: '50%', minWidth: 64, minHeight: 64, fontSize: 32, boxShadow: 6 }}
-              onClick={() => setOpenNewTaskDialog(true)}
-              title="Add New Task"
-            >
-              {/* Hide text for round FAB */}
-            </Button>
-          </Box>
-        )}
+          <Dialog open={openNewColumnDialog} onClose={() => setOpenNewColumnDialog(false)}>
+            <DialogTitle>Add New Column</DialogTitle>
+            <DialogContent>
+              <TextField
+                autoFocus
+                margin="dense"
+                label="Column Title"
+                type="text"
+                fullWidth
+                variant="outlined"
+                value={newColumnTitle}
+                onChange={(e) => setNewColumnTitle(e.target.value)}
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setOpenNewColumnDialog(false)}>Cancel</Button>
+              <Button onClick={handleAddColumn} variant="contained">
+                Add
+              </Button>
+            </DialogActions>
+          </Dialog>
 
-        <Dialog open={openNewColumnDialog} onClose={() => setOpenNewColumnDialog(false)}>
-          <DialogTitle>Add New Column</DialogTitle>
-          <DialogContent>
-            <TextField
-              autoFocus
-              margin="dense"
-              label="Column Title"
-              type="text"
-              fullWidth
-              variant="outlined"
-              value={newColumnTitle}
-              onChange={(e) => setNewColumnTitle(e.target.value)}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenNewColumnDialog(false)}>Cancel</Button>
-            <Button onClick={handleAddColumn} variant="contained">
-              Add
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        <Dialog
-          open={!!deleteColumnId}
-          onClose={() => setDeleteColumnId(null)}
-        >
-          <DialogTitle>Delete Column</DialogTitle>
-          <DialogContent>
-            <Typography>
-              Are you sure you want to delete this column? This action cannot be undone.
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setDeleteColumnId(null)}>Cancel</Button>
-            <Button onClick={() => handleDeleteColumn(deleteColumnId as string)} color="error" variant="contained">
-              Delete
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        <Dialog
-          open={!!selectedTask}
-          onClose={() => setSelectedTask(null)}
-        >
-          <DialogTitle>Set Due Date</DialogTitle>
-          <DialogContent>
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                Quick Select
+          <Dialog
+            open={!!deleteColumnId}
+            onClose={() => setDeleteColumnId(null)}
+          >
+            <DialogTitle>Delete Column</DialogTitle>
+            <DialogContent>
+              <Typography>
+                Are you sure you want to delete this column? This action cannot be undone.
               </Typography>
-              <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, new Date())}
-                  sx={{ minWidth: '100px' }}
-                >
-                  Today
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, addDays(new Date(), 1))}
-                  sx={{ minWidth: '100px' }}
-                >
-                  Tomorrow
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, addDays(new Date(), 7))}
-                  sx={{ minWidth: '100px' }}
-                >
-                  Next Week
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, addDays(new Date(), 30))}
-                  sx={{ minWidth: '100px' }}
-                >
-                  In a Month
-                </Button>
-              </Stack>
-            </Box>
-            <LocalizationProvider dateAdapter={AdapterDateFns}>
-              <DatePicker
-                label="Due Date"
-                value={selectedTask?.task.dueDate || null}
-                onChange={(date) => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, date)}
-                slotProps={{
-                  textField: {
-                    fullWidth: true,
-                    margin: 'normal',
-                  },
-                }}
-              />
-            </LocalizationProvider>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setSelectedTask(null)}>Cancel</Button>
-            <Button 
-              onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, null)} 
-              color="error"
-            >
-              Remove Date
-            </Button>
-          </DialogActions>
-        </Dialog>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setDeleteColumnId(null)}>Cancel</Button>
+              <Button onClick={() => handleDeleteColumn(deleteColumnId as string)} color="error" variant="contained">
+                Delete
+              </Button>
+            </DialogActions>
+          </Dialog>
 
-        <Dialog
-          open={selectedAccountForRemoval !== null}
-          onClose={() => setSelectedAccountForRemoval(null)}
-        >
-          <DialogTitle>Remove Account</DialogTitle>
-          <DialogContent>
-            <Typography>
-              Are you sure you want to remove this Google Tasks account? This action cannot be undone.
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setSelectedAccountForRemoval(null)}>Cancel</Button>
-            <Button 
-              onClick={() => selectedAccountForRemoval !== null && handleRemoveAccount(selectedAccountForRemoval)} 
-              color="error" 
-              variant="contained"
-            >
-              Remove
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        <Dialog
-          open={openAccountDialog}
-          onClose={() => setOpenAccountDialog(false)}
-        >
-          <DialogTitle>Add Google Tasks Account</DialogTitle>
-          <DialogContent>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Connect another Google account to manage its tasks. This will add the account's tasks to your board alongside your existing tasks.
-            </Typography>
-            <GoogleLogin
-              onSuccess={handleAddGoogleTasksAccountSuccess}
-              onError={handleGoogleError}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenAccountDialog(false)}>Cancel</Button>
-          </DialogActions>
-        </Dialog>
-
-        <Dialog
-          open={!!editingTask}
-          onClose={() => {
-            setEditingTask(null);
-            setEditTaskForm({
-              content: '',
-              notes: '',
-              color: '#1976d2',
-              dueDate: null,
-              isRecurring: false
-            });
-          }}
-          maxWidth="sm"
-          fullWidth
-        >
-          <DialogTitle>Edit Task</DialogTitle>
-          <DialogContent>
-            <Stack spacing={2} sx={{ mt: 1 }}>
-              <TextField
-                label="Task Title"
-                value={editTaskForm.content}
-                onChange={(e) => setEditTaskForm(prev => ({ ...prev, content: e.target.value }))}
-                fullWidth
-                multiline
-                rows={2}
-                error={!editTaskForm.content.trim()}
-                helperText={!editTaskForm.content.trim() ? "Task title is required" : ""}
-                autoFocus
-              />
-              <TextField
-                label="Notes"
-                value={editTaskForm.notes}
-                onChange={(e) => setEditTaskForm(prev => ({ ...prev, notes: e.target.value }))}
-                fullWidth
-                multiline
-                rows={4}
-              />
+          <Dialog
+            open={!!selectedTask}
+            onClose={() => setSelectedTask(null)}
+          >
+            <DialogTitle>Set Due Date</DialogTitle>
+            <DialogContent>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Quick Select
+                </Typography>
+                <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, new Date())}
+                    sx={{ minWidth: '100px' }}
+                  >
+                    Today
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, addDays(new Date(), 1))}
+                    sx={{ minWidth: '100px' }}
+                  >
+                    Tomorrow
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, addDays(new Date(), 7))}
+                    sx={{ minWidth: '100px' }}
+                  >
+                    Next Week
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, addDays(new Date(), 30))}
+                    sx={{ minWidth: '100px' }}
+                  >
+                    In a Month
+                  </Button>
+                </Stack>
+              </Box>
               <LocalizationProvider dateAdapter={AdapterDateFns}>
                 <DatePicker
                   label="Due Date"
-                  value={editTaskForm.dueDate}
-                  onChange={(date) => setEditTaskForm(prev => ({ ...prev, dueDate: date }))}
+                  value={selectedTask?.task.dueDate || null}
+                  onChange={(date) => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, date)}
                   slotProps={{
                     textField: {
                       fullWidth: true,
+                      margin: 'normal',
                     },
                   }}
                 />
               </LocalizationProvider>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography variant="body2">Color:</Typography>
-                <input
-                  type="color"
-                  value={editTaskForm.color}
-                  onChange={(e) => setEditTaskForm(prev => ({ ...prev, color: e.target.value }))}
-                  style={{ width: '50px', height: '30px' }}
-                />
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Checkbox
-                  checked={editTaskForm.isRecurring}
-                  onChange={(e) => setEditTaskForm(prev => ({ ...prev, isRecurring: e.target.checked }))}
-                />
-                <Typography variant="body2">Recurring Task</Typography>
-              </Box>
-            </Stack>
-          </DialogContent>
-          <DialogActions>
-            <Button 
-              onClick={() => {
-                setEditingTask(null);
-                setEditTaskForm({
-                  content: '',
-                  notes: '',
-                  color: '#1976d2',
-                  dueDate: null,
-                  isRecurring: false
-                });
-              }}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSaveTaskEdit} 
-              variant="contained" 
-              color="primary"
-              disabled={!editTaskForm.content.trim()}
-            >
-              Save Changes
-            </Button>
-          </DialogActions>
-        </Dialog>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setSelectedTask(null)}>Cancel</Button>
+              <Button 
+                onClick={() => selectedTask && handleQuickDateChange(selectedTask.task, selectedTask.columnId, null)} 
+                color="error"
+              >
+                Remove Date
+              </Button>
+            </DialogActions>
+          </Dialog>
 
-        {/* Add New Task Dialog */}
-        <Dialog
-          open={openNewTaskDialog}
-          onClose={() => setOpenNewTaskDialog(false)}
-          maxWidth="sm"
-          fullWidth
-        >
-          <DialogTitle>Add New Task</DialogTitle>
-          <DialogContent>
-            <Stack spacing={2} sx={{ mt: 1 }}>
-              <TextField
-                label="Task Title"
-                value={newTaskForm.content}
-                onChange={(e) => setNewTaskForm(prev => ({ ...prev, content: e.target.value }))}
-                fullWidth
-                multiline
-                rows={2}
-                error={!newTaskForm.content.trim()}
-                helperText={!newTaskForm.content.trim() ? "Task title is required" : ""}
-                autoFocus
+          <Dialog
+            open={selectedAccountForRemoval !== null}
+            onClose={() => setSelectedAccountForRemoval(null)}
+          >
+            <DialogTitle>Remove Account</DialogTitle>
+            <DialogContent>
+              <Typography>
+                Are you sure you want to remove this Google Tasks account? This action cannot be undone.
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setSelectedAccountForRemoval(null)}>Cancel</Button>
+              <Button 
+                onClick={() => selectedAccountForRemoval !== null && handleRemoveAccount(selectedAccountForRemoval)} 
+                color="error" 
+                variant="contained"
+              >
+                Remove
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          <Dialog
+            open={openAccountDialog}
+            onClose={() => setOpenAccountDialog(false)}
+          >
+            <DialogTitle>Add Google Tasks Account</DialogTitle>
+            <DialogContent>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Connect another Google account to manage its tasks. This will add the account's tasks to your board alongside your existing tasks.
+              </Typography>
+              <GoogleLogin
+                onSuccess={handleAddGoogleTasksAccountSuccess}
+                onError={handleGoogleError}
               />
-              <TextField
-                label="Notes"
-                value={newTaskForm.notes}
-                onChange={(e) => setNewTaskForm(prev => ({ ...prev, notes: e.target.value }))}
-                fullWidth
-                multiline
-                rows={4}
-              />
-              <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <DatePicker
-                  label="Due Date"
-                  value={newTaskForm.dueDate}
-                  onChange={(date) => setNewTaskForm(prev => ({ ...prev, dueDate: date }))}
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                    },
-                  }}
-                />
-              </LocalizationProvider>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography variant="body2">Color:</Typography>
-                <input
-                  type="color"
-                  value={newTaskForm.color}
-                  onChange={(e) => setNewTaskForm(prev => ({ ...prev, color: e.target.value }))}
-                  style={{ width: '50px', height: '30px' }}
-                />
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Checkbox
-                  checked={newTaskForm.isRecurring}
-                  onChange={(e) => setNewTaskForm(prev => ({ ...prev, isRecurring: e.target.checked }))}
-                />
-                <Typography variant="body2">Recurring Task</Typography>
-              </Box>
-              <Box>
-                <Typography variant="body2" sx={{ mb: 1 }}>Task List:</Typography>
-                <Select
-                  value={selectedListForNewTask}
-                  onChange={(e) => setSelectedListForNewTask(e.target.value)}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setOpenAccountDialog(false)}>Cancel</Button>
+            </DialogActions>
+          </Dialog>
+
+          <Dialog
+            open={!!editingTask}
+            onClose={() => {
+              setEditingTask(null);
+              setEditTaskForm({
+                content: '',
+                notes: '',
+                color: '#1976d2',
+                dueDate: null,
+                isRecurring: false
+              });
+            }}
+            maxWidth="sm"
+            fullWidth
+          >
+            <DialogTitle>Edit Task</DialogTitle>
+            <DialogContent>
+              <Stack spacing={2} sx={{ mt: 1 }}>
+                <TextField
+                  label="Task Title"
+                  value={editTaskForm.content}
+                  onChange={(e) => setEditTaskForm(prev => ({ ...prev, content: e.target.value }))}
                   fullWidth
-                  displayEmpty
-                >
-                  <MenuItem value="" disabled>Select a list</MenuItem>
-                  {googleAccounts[activeAccountIndex]?.taskLists?.map((list: any) => (
-                    <MenuItem key={list.id} value={list.id}>{list.title}</MenuItem>
-                  ))}
-                </Select>
-              </Box>
-            </Stack>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenNewTaskDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateNewTask}
-              variant="contained"
-              color="primary"
-              disabled={!newTaskForm.content.trim() || !selectedListForNewTask}
-            >
-              Add Task
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </Box>
-    </GoogleOAuthProvider>
+                  multiline
+                  rows={2}
+                  error={!editTaskForm.content.trim()}
+                  helperText={!editTaskForm.content.trim() ? "Task title is required" : ""}
+                  autoFocus
+                />
+                <TextField
+                  label="Notes"
+                  value={editTaskForm.notes}
+                  onChange={(e) => setEditTaskForm(prev => ({ ...prev, notes: e.target.value }))}
+                  fullWidth
+                  multiline
+                  rows={4}
+                />
+                <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <DatePicker
+                    label="Due Date"
+                    value={editTaskForm.dueDate}
+                    onChange={(date) => setEditTaskForm(prev => ({ ...prev, dueDate: date }))}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                      },
+                    }}
+                  />
+                </LocalizationProvider>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography variant="body2">Color:</Typography>
+                  <input
+                    type="color"
+                    value={editTaskForm.color}
+                    onChange={(e) => setEditTaskForm(prev => ({ ...prev, color: e.target.value }))}
+                    style={{ width: '50px', height: '30px' }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Checkbox
+                    checked={editTaskForm.isRecurring}
+                    onChange={(e) => setEditTaskForm(prev => ({ ...prev, isRecurring: e.target.checked }))}
+                  />
+                  <Typography variant="body2">Recurring Task</Typography>
+                </Box>
+              </Stack>
+            </DialogContent>
+            <DialogActions>
+              <Button 
+                onClick={() => {
+                  setEditingTask(null);
+                  setEditTaskForm({
+                    content: '',
+                    notes: '',
+                    color: '#1976d2',
+                    dueDate: null,
+                    isRecurring: false
+                  });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSaveTaskEdit} 
+                variant="contained" 
+                color="primary"
+                disabled={!editTaskForm.content.trim()}
+              >
+                Save Changes
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Add New Task Dialog */}
+          <Dialog
+            open={openNewTaskDialog}
+            onClose={() => setOpenNewTaskDialog(false)}
+            maxWidth="sm"
+            fullWidth
+          >
+            <DialogTitle>Add New Task</DialogTitle>
+            <DialogContent>
+              <Stack spacing={2} sx={{ mt: 1 }}>
+                <TextField
+                  label="Task Title"
+                  value={newTaskForm.content}
+                  onChange={(e) => setNewTaskForm(prev => ({ ...prev, content: e.target.value }))}
+                  fullWidth
+                  multiline
+                  rows={2}
+                  error={!newTaskForm.content.trim()}
+                  helperText={!newTaskForm.content.trim() ? "Task title is required" : ""}
+                  autoFocus
+                />
+                <TextField
+                  label="Notes"
+                  value={newTaskForm.notes}
+                  onChange={(e) => setNewTaskForm(prev => ({ ...prev, notes: e.target.value }))}
+                  fullWidth
+                  multiline
+                  rows={4}
+                />
+                <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <DatePicker
+                    label="Due Date"
+                    value={newTaskForm.dueDate}
+                    onChange={(date) => setNewTaskForm(prev => ({ ...prev, dueDate: date }))}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                      },
+                    }}
+                  />
+                </LocalizationProvider>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography variant="body2">Color:</Typography>
+                  <input
+                    type="color"
+                    value={newTaskForm.color}
+                    onChange={(e) => setNewTaskForm(prev => ({ ...prev, color: e.target.value }))}
+                    style={{ width: '50px', height: '30px' }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Checkbox
+                    checked={newTaskForm.isRecurring}
+                    onChange={(e) => setNewTaskForm(prev => ({ ...prev, isRecurring: e.target.checked }))}
+                  />
+                  <Typography variant="body2">Recurring Task</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" sx={{ mb: 1 }}>Task List:</Typography>
+                  <Select
+                    value={selectedListForNewTask}
+                    onChange={(e) => setSelectedListForNewTask(e.target.value)}
+                    fullWidth
+                    displayEmpty
+                  >
+                    <MenuItem value="" disabled>Select a list</MenuItem>
+                    {googleAccounts[activeAccountIndex]?.taskLists?.map((list: any) => (
+                      <MenuItem key={list.id} value={list.id}>{list.title}</MenuItem>
+                    ))}
+                  </Select>
+                </Box>
+              </Stack>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setOpenNewTaskDialog(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateNewTask}
+                variant="contained"
+                color="primary"
+                disabled={!newTaskForm.content.trim() || !selectedListForNewTask}
+              >
+                Add Task
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </Box>
+      </GoogleOAuthProvider>
+    </ThemeProvider>
   );
 }
 
