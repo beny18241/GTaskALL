@@ -33,6 +33,8 @@ import { CircularProgress } from '@mui/material';
 import { apiService } from './api';
 import TaskRow from './TaskRow.tsx';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import Alert from '@mui/material/Alert';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -68,12 +70,14 @@ interface User {
   picture: string;
 }
 
-interface GoogleAccount {
+// Add status to GoogleAccount type
+export type GoogleAccount = {
   user: User;
-  token: string;
+  token: string | null;
   taskLists: any[];
   tasks: { [listId: string]: any[] };
-}
+  status?: string; // 'active' or 'expired'
+};
 
 const STORAGE_KEY = 'kanban-board-data';
 const USER_STORAGE_KEY = 'user-data';
@@ -219,6 +223,11 @@ function App() {
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [isLoadingSettings, setIsLoadingSettings] = useState(false);
 
+  // AI Summary state
+  const [aiSummary, setAiSummary] = useState<{ summary: string; insights: string[] } | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
   // Dark mode toggle function
   const toggleDarkMode = () => {
     setDarkMode((prev: boolean) => !prev);
@@ -282,59 +291,45 @@ function App() {
   const loadSavedConnections = async (mainUserEmail: string) => {
     try {
       const connections = await apiService.getConnections(mainUserEmail);
-      
       if (connections.length > 0) {
-        // Convert saved connections to GoogleAccount format
         const savedAccounts: GoogleAccount[] = [];
-        
         for (const connection of connections) {
           // Try to get the stored token
           const token = await apiService.getToken(mainUserEmail, connection.gtask_account_email);
-          
-          if (token) {
+          let status = connection.status || 'active';
+          let account: GoogleAccount = {
+            user: {
+              name: connection.gtask_account_name,
+              email: connection.gtask_account_email,
+              picture: connection.gtask_account_picture
+            },
+            token: token,
+            taskLists: [],
+            tasks: {},
+            status
+          };
+          if (token && status === 'active') {
             // Test if the token is still valid by making a simple API call
             try {
-              const testResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
+              await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
                 headers: { Authorization: `Bearer ${token}` }
               });
-              
-              // If the API call succeeds, the token is valid
-              savedAccounts.push({
-                user: {
-                  name: connection.gtask_account_name,
-                  email: connection.gtask_account_email,
-                  picture: connection.gtask_account_picture
-                },
-                token: token,
-                taskLists: [],
-                tasks: {}
-              });
             } catch (error) {
-              console.log(`Token for ${connection.gtask_account_email} is expired, will need to reconnect`);
-              // Remove expired token from database
-              try {
-                await apiService.removeConnection(mainUserEmail, connection.gtask_account_email);
-              } catch (removeError) {
-                console.error('Error removing expired connection:', removeError);
-              }
+              // Token is expired, mark as expired in DB and locally
+              await apiService.expireConnection(mainUserEmail, connection.gtask_account_email);
+              account.status = 'expired';
+              account.token = null;
             }
           }
+          savedAccounts.push(account);
         }
-        
-        if (savedAccounts.length > 0) {
-          setGoogleAccounts(savedAccounts);
-          setActiveAccountIndex(0);
-        } else {
-          // No valid connections found, set initial load to false
-          setIsInitialLoad(false);
-        }
+        setGoogleAccounts(savedAccounts);
+        setActiveAccountIndex(0);
       } else {
-        // No connections found, set initial load to false
         setIsInitialLoad(false);
       }
     } catch (error) {
       console.error('Error loading saved connections:', error);
-      // Set initial load to false even if there's an error
       setIsInitialLoad(false);
     }
   };
@@ -1841,14 +1836,14 @@ function App() {
     };
 
     return (
-      <Box sx={{ p: 2, maxWidth: '1000px', mx: 'auto' }}>
+      <Box sx={{ p: 2, maxWidth: '1400px', mx: 'auto' }}>
         <Box sx={{ 
           mb: 2, 
           textAlign: 'center',
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           borderRadius: 2,
           p: 2,
-              color: 'white',
+          color: 'white',
           boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
         }}>
           <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 0.5 }}>
@@ -1856,84 +1851,201 @@ function App() {
           </Typography>
           <Typography variant="body2" sx={{ opacity: 0.9 }}>
             {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} for today
-        </Typography>
+          </Typography>
         </Box>
 
-        {filteredTasks.length === 0 ? (
-          <Box sx={{ 
-            p: 3, 
-            textAlign: 'center',
-            bgcolor: 'background.paper',
-            borderRadius: 2,
-            border: '1px solid',
-            borderColor: 'divider'
-          }}>
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              🎉 No tasks for today!
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              You're all caught up. Enjoy your day!
-            </Typography>
-          </Box>
-        ) : (
-          <Box sx={{ 
-            bgcolor: 'background.paper', 
-            borderRadius: 1.5,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-            overflow: 'hidden',
-            border: '1px solid',
-            borderColor: 'divider'
-          }}>
-            {filteredTasks.map((task, index) => {
-              const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
-              const isOverdue = task.dueDate && new Date(task.dueDate) < startOfDay(new Date()) && task.status !== 'completed';
-              return (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  accountColor={accountColor}
-                  showDivider={index < filteredTasks.length - 1}
-                  onEdit={() => handleEditTask(task, task.listId || 'todo')}
-                  isOverdue={isOverdue}
-                />
-              );
-            })}
-          </Box>
-        )}
+        <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
+          {/* Left Column - Tasks */}
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            {filteredTasks.length === 0 ? (
+              <Box sx={{ 
+                p: 3, 
+                textAlign: 'center',
+                bgcolor: 'background.paper',
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: 'divider'
+              }}>
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  🎉 No tasks for today!
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  You're all caught up. Enjoy your day!
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ 
+                bgcolor: 'background.paper', 
+                borderRadius: 1.5,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                overflow: 'hidden',
+                border: '1px solid',
+                borderColor: 'divider'
+              }}>
+                {filteredTasks.map((task, index) => {
+                  const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
+                  const isOverdue = task.dueDate && new Date(task.dueDate) < startOfDay(new Date()) && task.status !== 'completed';
+                  return (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      accountColor={accountColor}
+                      showDivider={index < filteredTasks.length - 1}
+                      onEdit={() => handleEditTask(task, task.listId || 'todo')}
+                      isOverdue={isOverdue}
+                    />
+                  );
+                })}
+              </Box>
+            )}
 
-        {/* Progress Summary - Compact */}
-        {filteredTasks.length > 0 && (
-    <Box sx={{ 
-            mt: 1.5, 
-      p: 1.5,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-            borderRadius: 1.5
-        }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
-                Progress: {filteredTasks.filter(t => t.status === 'completed').length} of {filteredTasks.length} completed
-        </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
-                {Math.round((filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100)}%
-      </Typography>
-      </Box>
+            {/* Progress Summary - Compact */}
+            {filteredTasks.length > 0 && (
+              <Box sx={{ 
+                mt: 1.5, 
+                p: 1.5,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                borderRadius: 1.5
+              }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
+                    Progress: {filteredTasks.filter(t => t.status === 'completed').length} of {filteredTasks.length} completed
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
+                    {Math.round((filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100)}%
+                  </Typography>
+                </Box>
+                <Box sx={{ 
+                  mt: 0.75, 
+                  height: 3, 
+                  bgcolor: 'rgba(255,255,255,0.2)', 
+                  borderRadius: 1.5,
+                  overflow: 'hidden'
+                }}>
+                  <Box sx={{ 
+                    height: '100%', 
+                    bgcolor: 'white',
+                    width: `${(filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100}%`,
+                    transition: 'width 0.3s ease'
+                  }} />
+                </Box>
+              </Box>
+            )}
+          </Box>
+
+          {/* Right Column - AI Summary */}
+          {filteredTasks.length > 0 && (
             <Box sx={{ 
-              mt: 0.75, 
-              height: 3, 
-              bgcolor: 'rgba(255,255,255,0.2)', 
-              borderRadius: 1.5,
-              overflow: 'hidden'
+              width: 350, 
+              flexShrink: 0,
+              position: 'sticky',
+              top: 20
             }}>
               <Box sx={{ 
-                height: '100%', 
-                bgcolor: 'white',
-                width: `${(filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100}%`,
-                transition: 'width 0.3s ease'
-              }} />
-    </Box>
+                bgcolor: 'background.paper',
+                borderRadius: 2,
+                p: 2,
+                border: '1px solid',
+                borderColor: 'divider',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                height: 'fit-content'
+              }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  mb: 2
+                }}>
+                  <Typography variant="h6" sx={{ 
+                    color: 'primary.main',
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  }}>
+                    🤖 AI Summary
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => generateAISummary(filteredTasks)}
+                    disabled={isGeneratingSummary}
+                    startIcon={isGeneratingSummary ? <CircularProgress size={16} /> : <AutoAwesomeIcon />}
+                    sx={{
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    {isGeneratingSummary ? 'Generating...' : 'Generate'}
+                  </Button>
+                </Box>
+
+                {summaryError && (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    {summaryError}
+                  </Alert>
+                )}
+
+                {aiSummary ? (
+                  <Box>
+                    <Typography variant="body1" sx={{ 
+                      mb: 2,
+                      fontWeight: 'medium',
+                      color: 'text.primary',
+                      fontSize: '0.9rem',
+                      lineHeight: 1.5
+                    }}>
+                      {aiSummary.summary}
+                    </Typography>
+                    
+                    {aiSummary.insights.length > 0 && (
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ 
+                          mb: 1,
+                          fontWeight: 'bold',
+                          color: 'primary.main',
+                          fontSize: '0.85rem'
+                        }}>
+                          Key Insights:
+                        </Typography>
+                        <Box component="ul" sx={{ m: 0, pl: 2 }}>
+                          {aiSummary.insights.map((insight, index) => (
+                            <Typography 
+                              key={index} 
+                              component="li" 
+                              variant="body2" 
+                              sx={{ 
+                                mb: 0.5,
+                                color: 'text.secondary',
+                                fontSize: '0.8rem',
+                                lineHeight: 1.4
+                              }}
+                            >
+                              {insight}
+                            </Typography>
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+                  </Box>
+                ) : (
+                  <Box sx={{ 
+                    textAlign: 'center', 
+                    py: 3,
+                    color: 'text.secondary'
+                  }}>
+                    <AutoAwesomeIcon sx={{ fontSize: 40, mb: 1, opacity: 0.5 }} />
+                    <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
+                      Click "Generate" to get AI insights about your tasks
+                    </Typography>
+                  </Box>
+                )}
               </Box>
-        )}
+            </Box>
+          )}
+        </Box>
       </Box>
     );
   };
@@ -3078,9 +3190,14 @@ function App() {
     try {
       const response = await apiService.updateUserSetting(user.email, 'gemini_api_key', geminiApiKey);
       console.log('Settings save response:', response);
+      // Add a small delay to show the loading state
+      await new Promise(resolve => setTimeout(resolve, 500));
+      // Always close the dialog after attempting to save
       setSettingsOpen(false);
     } catch (error) {
       console.error('Error saving settings:', error);
+      // Even if there's an error, close the dialog
+      setSettingsOpen(false);
     } finally {
       setIsLoadingSettings(false);
     }
@@ -3089,6 +3206,76 @@ function App() {
   const handleCloseSettings = () => {
     setSettingsOpen(false);
   };
+
+  // AI Summary function
+  const generateAISummary = async (tasks: Task[]) => {
+    if (!user?.email || tasks.length === 0) return;
+    
+    setIsGeneratingSummary(true);
+    setSummaryError(null);
+    
+    try {
+      const response = await apiService.generateTaskSummary(user.email, tasks);
+      setAiSummary(response);
+    } catch (error: any) {
+      console.error('Error generating AI summary:', error);
+      setSummaryError(error.message || 'Failed to generate AI summary');
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+
+  // Add apiService methods for expiring/activating connections
+  apiService.expireConnection = async (mainUserEmail: string, gtaskAccountEmail: string) => {
+    await fetch(`${API_BASE_URL}/connections/${encodeURIComponent(mainUserEmail)}/${encodeURIComponent(gtaskAccountEmail)}/expire`, { method: 'PUT' });
+  };
+  apiService.activateConnection = async (mainUserEmail: string, gtaskAccountEmail: string) => {
+    await fetch(`${API_BASE_URL}/connections/${encodeURIComponent(mainUserEmail)}/${encodeURIComponent(gtaskAccountEmail)}/activate`, { method: 'PUT' });
+  };
+
+  // Add handleReconnectGoogleTasksAccount
+  const handleReconnectGoogleTasksAccount = (userData: User) => {
+    setTempUserData(userData);
+    setGoogleTasksLoading(true);
+    loginGoogleTasksForReconnect();
+  };
+
+  // Add loginGoogleTasksForReconnect hook
+  const loginGoogleTasksForReconnect = useGoogleLogin({
+    scope: 'https://www.googleapis.com/auth/tasks',
+    onSuccess: async (tokenResponse) => {
+      try {
+        if (!tempUserData || !user) throw new Error('No user data available');
+        // Update token in DB and set status to active
+        await apiService.addConnection(
+          user.email, // main user email
+          tempUserData.email, // Google Tasks account email
+          tempUserData.name,
+          tempUserData.picture,
+          tokenResponse.access_token
+        );
+        await apiService.activateConnection(user.email, tempUserData.email);
+        // Update local state
+        setGoogleAccounts(prevAccounts => prevAccounts.map(acc =>
+          acc.user.email === tempUserData.email
+            ? { ...acc, token: tokenResponse.access_token, status: 'active' }
+            : acc
+        ));
+        setGoogleTasksLoading(false);
+        setTempUserData(null);
+      } catch (error) {
+        console.error('Error reconnecting account:', error);
+        setGoogleTasksLoading(false);
+        setTempUserData(null);
+      }
+    },
+    onError: () => {
+      setGoogleTasksLoading(false);
+      setTempUserData(null);
+      alert('Google Tasks reconnection failed.');
+    },
+    flow: 'implicit',
+  });
 
   return (
     <ThemeProvider theme={theme}>
@@ -3869,8 +4056,9 @@ function App() {
                 variant="contained" 
                 color="primary"
                 disabled={isLoadingSettings}
+                startIcon={isLoadingSettings ? <CircularProgress size={16} /> : null}
               >
-                Save Settings
+                {isLoadingSettings ? 'Saving...' : 'Save Settings'}
               </Button>
             </DialogActions>
           </Dialog>

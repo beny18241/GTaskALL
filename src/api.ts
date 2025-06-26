@@ -6,6 +6,7 @@ interface Connection {
   gtask_account_name: string;
   gtask_account_picture: string;
   created_at: string;
+  status?: string;
 }
 
 interface User {
@@ -261,5 +262,43 @@ export const apiService = {
       console.error('Error updating user setting:', error);
       throw error;
     }
+  },
+
+  // AI Summary Methods
+
+  // Generate AI summary for tasks
+  async generateTaskSummary(email: string, tasks: any[]): Promise<{ summary: string; insights: string[] }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/ai/summary`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          tasks
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error generating AI summary:', error);
+      throw error;
+    }
+  },
+
+  // Mark a connection as expired
+  async expireConnection(mainUserEmail: string, gtaskAccountEmail: string): Promise<void> {
+    await fetch(`${API_BASE_URL}/connections/${encodeURIComponent(mainUserEmail)}/${encodeURIComponent(gtaskAccountEmail)}/expire`, { method: 'PUT' });
+  },
+
+  // Mark a connection as active
+  async activateConnection(mainUserEmail: string, gtaskAccountEmail: string): Promise<void> {
+    await fetch(`${API_BASE_URL}/connections/${encodeURIComponent(mainUserEmail)}/${encodeURIComponent(gtaskAccountEmail)}/activate`, { method: 'PUT' });
   },
 }; 

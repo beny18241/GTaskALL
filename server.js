@@ -3,6 +3,7 @@ import sqlite3 from 'sqlite3';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -206,7 +207,8 @@ app.get('/api/connections/:mainUserEmail', (req, res) => {
       uc.gtask_account_email,
       uc.gtask_account_name,
       uc.gtask_account_picture,
-      uc.created_at
+      uc.created_at,
+      uc.status
      FROM user_connections uc
      JOIN users u ON uc.user_id = u.id
      WHERE u.email = ?`,
@@ -475,6 +477,100 @@ app.put('/api/users/:email/settings', (req, res) => {
   );
 });
 
+// AI Summary Endpoint
+
+// Generate AI summary for tasks
+app.post('/api/ai/summary', async (req, res) => {
+  const { email, tasks } = req.body;
+
+  if (!email || !tasks) {
+    return res.status(400).json({ error: 'Email and tasks are required' });
+  }
+
+  try {
+    // Get user's Gemini API key
+    db.get(
+      `SELECT s.setting_value 
+       FROM user_settings s
+       JOIN users u ON s.user_id = u.id
+       WHERE u.email = ? AND s.setting_key = 'gemini_api_key'`,
+      [email],
+      async (err, row) => {
+        if (err) {
+          console.error('Error fetching API key:', err);
+          return res.status(500).json({ error: 'Failed to fetch API key' });
+        }
+
+        if (!row || !row.setting_value) {
+          return res.status(400).json({ error: 'Gemini API key not configured' });
+        }
+
+        const apiKey = row.setting_value;
+
+        try {
+          // Initialize Google AI
+          const genAI = new GoogleGenerativeAI(apiKey);
+          const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+
+          // Prepare tasks data for analysis
+          const tasksData = tasks.map(task => ({
+            title: task.content,
+            status: task.status,
+            dueDate: task.dueDate,
+            notes: task.notes,
+            account: task.accountName || 'Unknown'
+          }));
+
+          const prompt = `
+            Analyze the following tasks for today and provide:
+            1. A concise summary of what needs to be accomplished
+            2. 3-5 key insights or recommendations for productivity
+            3. Any potential conflicts or overlapping priorities
+            
+            Tasks data:
+            ${JSON.stringify(tasksData, null, 2)}
+            
+            Please provide the response in this exact JSON format:
+            {
+              "summary": "Brief summary of today's tasks",
+              "insights": ["Insight 1", "Insight 2", "Insight 3"]
+            }
+          `;
+
+          const result = await model.generateContent(prompt);
+          const response = await result.response;
+          const text = response.text();
+
+          // Try to parse the JSON response
+          try {
+            const parsedResponse = JSON.parse(text);
+            res.json({
+              summary: parsedResponse.summary || 'Unable to generate summary',
+              insights: parsedResponse.insights || []
+            });
+          } catch (parseError) {
+            // If JSON parsing fails, extract summary from text
+            const lines = text.split('\n');
+            const summary = lines.find(line => line.includes('summary') || line.includes('Summary')) || 
+                           lines.slice(0, 2).join(' ');
+            
+            res.json({
+              summary: summary.replace(/^.*?:/, '').trim() || 'AI summary generated',
+              insights: lines.filter(line => line.includes('•') || line.includes('-')).map(line => line.replace(/^[•\-]\s*/, '').trim())
+            });
+          }
+        } catch (aiError) {
+          console.error('Error calling Gemini API:', aiError);
+          res.status(500).json({ error: 'Failed to generate AI summary' });
+        }
+      }
+    );
+  } catch (error) {
+    console.error('Error in AI summary endpoint:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
@@ -496,4 +592,36 @@ process.on('SIGINT', () => {
     }
     process.exit(0);
   });
+});
+
+// Instead of deleting expired connections, mark them as expired
+app.put('/api/connections/:mainUserEmail/:gtaskAccountEmail/expire', (req, res) => {
+  const { mainUserEmail, gtaskAccountEmail } = req.params;
+  db.run(
+    `UPDATE user_connections SET status = 'expired' WHERE main_user_email = ? AND gtask_account_email = ?`,
+    [mainUserEmail, gtaskAccountEmail],
+    function(err) {
+      if (err) {
+        console.error('Error expiring connection:', err);
+        return res.status(500).json({ error: 'Failed to expire connection' });
+      }
+      res.json({ success: true });
+    }
+  );
+});
+
+// When a token is refreshed, set status back to active
+app.put('/api/connections/:mainUserEmail/:gtaskAccountEmail/activate', (req, res) => {
+  const { mainUserEmail, gtaskAccountEmail } = req.params;
+  db.run(
+    `UPDATE user_connections SET status = 'active' WHERE main_user_email = ? AND gtask_account_email = ?`,
+    [mainUserEmail, gtaskAccountEmail],
+    function(err) {
+      if (err) {
+        console.error('Error activating connection:', err);
+        return res.status(500).json({ error: 'Failed to activate connection' });
+      }
+      res.json({ success: true });
+    }
+  );
 }); 
