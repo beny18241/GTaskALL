@@ -84,6 +84,7 @@ const USER_STORAGE_KEY = 'user-data';
 const GOOGLE_ACCOUNTS_KEY = 'google-accounts';
 const GOOGLE_CLIENT_ID = "251184335563-bdf3sv4vc1sr4v2itciiepd7fllvshec.apps.googleusercontent.com";
 const DARK_MODE_KEY = 'dark-mode-preference';
+const API_BASE_URL = 'http://localhost:3001/api';
 
 // Add new view mode type
 type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate' | 'upcoming';
@@ -227,6 +228,7 @@ function App() {
   const [aiSummary, setAiSummary] = useState<{ summary: string; insights: string[] } | null>(null);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [showAISummary, setShowAISummary] = useState(false);
 
   // Dark mode toggle function
   const toggleDarkMode = () => {
@@ -1846,9 +1848,41 @@ function App() {
           color: 'white',
           boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
         }}>
-          <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 0.5 }}>
-            Today's Tasks
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 1 }}>
+            <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 0.5 }}>
+              Today's Tasks
+            </Typography>
+            {filteredTasks.length > 0 && (
+              <IconButton
+                size="small"
+                onClick={() => {
+                  if (!aiSummary) {
+                    generateAISummary(filteredTasks);
+                  }
+                  setShowAISummary(!showAISummary);
+                }}
+                disabled={isGeneratingSummary}
+                sx={{
+                  color: 'white',
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.3)',
+                  },
+                  '&.Mui-disabled': {
+                    bgcolor: 'rgba(255,255,255,0.1)',
+                    color: 'rgba(255,255,255,0.5)',
+                  }
+                }}
+                title={aiSummary ? 'Toggle AI Summary' : 'Generate AI Summary'}
+              >
+                {isGeneratingSummary ? (
+                  <CircularProgress size={16} color="inherit" />
+                ) : (
+                  <AutoAwesomeIcon fontSize="small" />
+                )}
+              </IconButton>
+            )}
+          </Box>
           <Typography variant="body2" sx={{ opacity: 0.9 }}>
             {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} for today
           </Typography>
@@ -1935,7 +1969,7 @@ function App() {
           </Box>
 
           {/* Right Column - AI Summary */}
-          {filteredTasks.length > 0 && (
+          {filteredTasks.length > 0 && showAISummary && (
             <Box sx={{ 
               width: 350, 
               flexShrink: 0,
@@ -1966,20 +2000,19 @@ function App() {
                   }}>
                     🤖 AI Summary
                   </Typography>
-                  <Button
-                    variant="outlined"
+                  <IconButton
                     size="small"
-                    onClick={() => generateAISummary(filteredTasks)}
-                    disabled={isGeneratingSummary}
-                    startIcon={isGeneratingSummary ? <CircularProgress size={16} /> : <AutoAwesomeIcon />}
+                    onClick={() => setShowAISummary(false)}
                     sx={{
-                      borderRadius: 2,
-                      textTransform: 'none',
-                      fontWeight: 'bold'
+                      color: 'text.secondary',
+                      '&:hover': {
+                        color: 'text.primary',
+                      }
                     }}
+                    title="Close AI Summary"
                   >
-                    {isGeneratingSummary ? 'Generating...' : 'Generate'}
-                  </Button>
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
                 </Box>
 
                 {summaryError && (
@@ -2038,7 +2071,7 @@ function App() {
                   }}>
                     <AutoAwesomeIcon sx={{ fontSize: 40, mb: 1, opacity: 0.5 }} />
                     <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
-                      Click "Generate" to get AI insights about your tasks
+                      Generating AI insights about your tasks...
                     </Typography>
                   </Box>
                 )}
@@ -3429,6 +3462,30 @@ function App() {
               {/* Spacer after search */}
               <Box sx={{ flexGrow: 1 }} />
 
+              {/* Google Tasks Accounts Section */}
+              {googleAccounts.length > 0 && (
+                <Box sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  bgcolor: 'rgba(255,255,255,0.08)',
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 2,
+                  boxShadow: 1,
+                  ml: 2,
+                  mr: 2,
+                  border: '1px solid',
+                  borderColor: 'rgba(255,255,255,0.15)'
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
+                    <AccountCircleIcon sx={{ color: 'primary.light', fontSize: 22, mr: 0.5 }} />
+                    <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', fontWeight: 500, letterSpacing: 0.5 }}>Accounts</span>
+                  </Box>
+                  <AccountSwitcher />
+                </Box>
+              )}
+
               {/* Dark Mode Toggle */}
               <IconButton
                 onClick={toggleDarkMode}
@@ -3469,30 +3526,6 @@ function App() {
                 >
                   <SettingsIcon fontSize="small" />
                 </IconButton>
-              )}
-
-              {/* Google Tasks Accounts Section */}
-              {googleAccounts.length > 0 && (
-                <Box sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  bgcolor: 'rgba(255,255,255,0.08)',
-                  px: 1.5,
-                  py: 0.5,
-                  borderRadius: 2,
-                  boxShadow: 1,
-                  ml: 2,
-                  mr: 2,
-                  border: '1px solid',
-                  borderColor: 'rgba(255,255,255,0.15)'
-                }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
-                    <AccountCircleIcon sx={{ color: 'primary.light', fontSize: 22, mr: 0.5 }} />
-                    <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', fontWeight: 500, letterSpacing: 0.5 }}>Accounts</span>
-                  </Box>
-                  <AccountSwitcher />
-                </Box>
               )}
 
               {/* Divider between accounts and user */}
