@@ -3486,54 +3486,50 @@ function App() {
                 </Box>
               )}
 
-              {/* Dark Mode Toggle */}
-              <IconButton
-                onClick={toggleDarkMode}
-                size="small"
-                sx={{
-                  color: 'rgba(255, 255, 255, 0.8)',
-                  transition: 'all 0.3s ease',
-                  padding: '8px',
-                  mr: 2,
-                  '&:hover': {
-                    color: '#fff',
-                    transform: 'scale(1.1)',
-                    background: 'rgba(255, 255, 255, 0.1)'
-                  }
-                }}
-                title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              >
-                {darkMode ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
-              </IconButton>
-
-              {/* Settings Button */}
-              {user && (
-                <IconButton
-                  onClick={handleOpenSettings}
-                  size="small"
-                  sx={{
-                    color: 'rgba(255, 255, 255, 0.8)',
-                    transition: 'all 0.3s ease',
-                    padding: '8px',
-                    mr: 2,
-                    '&:hover': {
-                      color: '#fff',
-                      transform: 'scale(1.1)',
-                      background: 'rgba(255, 255, 255, 0.1)'
-                    }
-                  }}
-                  title="Settings"
-                >
-                  <SettingsIcon fontSize="small" />
-                </IconButton>
-              )}
-
               {/* Divider between accounts and user */}
               <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: 'rgba(255,255,255,0.15)' }} />
 
               {/* User/Login Section */}
               {user ? (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 1 }}>
+                  {/* Dark Mode Toggle */}
+                  <IconButton
+                    onClick={toggleDarkMode}
+                    size="small"
+                    sx={{
+                      color: 'rgba(255, 255, 255, 0.8)',
+                      transition: 'all 0.3s ease',
+                      padding: '8px',
+                      '&:hover': {
+                        color: '#fff',
+                        transform: 'scale(1.1)',
+                        background: 'rgba(255, 255, 255, 0.1)'
+                      }
+                    }}
+                    title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                  >
+                    {darkMode ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
+                  </IconButton>
+
+                  {/* Settings Button */}
+                  <IconButton
+                    onClick={handleOpenSettings}
+                    size="small"
+                    sx={{
+                      color: 'rgba(255, 255, 255, 0.8)',
+                      transition: 'all 0.3s ease',
+                      padding: '8px',
+                      '&:hover': {
+                        color: '#fff',
+                        transform: 'scale(1.1)',
+                        background: 'rgba(255, 255, 255, 0.1)'
+                      }
+                    }}
+                    title="Settings"
+                  >
+                    <SettingsIcon fontSize="small" />
+                  </IconButton>
+
                   <IconButton
                     onClick={refreshTasks}
                     disabled={isRefreshing}
