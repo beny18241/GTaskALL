@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid, Checkbox, ThemeProvider, createTheme } from '@mui/material';
+import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid, Checkbox, ThemeProvider, createTheme, Menu } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -35,6 +35,8 @@ import TaskRow from './TaskRow.tsx';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import Alert from '@mui/material/Alert';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import DisconnectIcon from '@mui/icons-material/LinkOff';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -229,6 +231,12 @@ function App() {
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [showAISummary, setShowAISummary] = useState(false);
+
+  // Account management state
+  const [expiredAccounts, setExpiredAccounts] = useState<string[]>([]);
+  const [accountMenuAnchor, setAccountMenuAnchor] = useState<null | HTMLElement>(null);
+  const [selectedAccountForMenu, setSelectedAccountForMenu] = useState<number | null>(null);
+  const [apiKeyStatus, setApiKeyStatus] = useState<'configured' | 'not-configured' | 'checking'>('checking');
 
   // Dark mode toggle function
   const toggleDarkMode = () => {
@@ -722,6 +730,35 @@ function App() {
               </Typography>
             </Box>
           )}
+          
+          {/* Account menu button */}
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              setAccountMenuAnchor(e.currentTarget);
+              setSelectedAccountForMenu(index);
+            }}
+            sx={{
+              position: 'absolute',
+              top: -4,
+              right: -4,
+              width: 16,
+              height: 16,
+              bgcolor: 'rgba(0, 0, 0, 0.6)',
+              color: 'white',
+              '&:hover': {
+                bgcolor: 'rgba(0, 0, 0, 0.8)',
+                transform: 'scale(1.1)',
+              },
+              '& .MuiSvgIcon-root': {
+                fontSize: '0.7rem',
+              }
+            }}
+            title="Account options"
+          >
+            <MoreVertIcon fontSize="small" />
+          </IconButton>
         </Box>
       ))}
       <IconButton
@@ -744,6 +781,56 @@ function App() {
       >
         <AddIcon fontSize="small" />
       </IconButton>
+      
+      {/* Account menu */}
+      <Menu
+        anchorEl={accountMenuAnchor}
+        open={Boolean(accountMenuAnchor)}
+        onClose={() => {
+          setAccountMenuAnchor(null);
+          setSelectedAccountForMenu(null);
+        }}
+        PaperProps={{
+          sx: {
+            minWidth: 200,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+            border: '1px solid rgba(0,0,0,0.1)',
+          }
+        }}
+      >
+        {selectedAccountForMenu !== null && googleAccounts[selectedAccountForMenu] && (
+          <>
+            <MenuItem
+              onClick={() => {
+                setAccountMenuAnchor(null);
+                setSelectedAccountForMenu(null);
+                setSelectedAccountForRemoval(selectedAccountForMenu);
+              }}
+              sx={{
+                color: 'error.main',
+                '&:hover': {
+                  bgcolor: 'error.light',
+                  color: 'white',
+                }
+              }}
+            >
+              <DisconnectIcon sx={{ mr: 1, fontSize: '1.1rem' }} />
+              Disconnect Account
+            </MenuItem>
+            <Divider />
+            <MenuItem
+              onClick={() => {
+                setAccountMenuAnchor(null);
+                setSelectedAccountForMenu(null);
+                setActiveAccountIndex(selectedAccountForMenu);
+              }}
+            >
+              <AccountCircleIcon sx={{ mr: 1, fontSize: '1.1rem' }} />
+              Switch to this Account
+            </MenuItem>
+          </>
+        )}
+      </Menu>
     </Box>
   );
 
@@ -770,11 +857,13 @@ function App() {
         await apiService.activateConnection(user.email, tempUserData.email);
         
         // Update the account in local state
-        setGoogleAccounts(prevAccounts => prevAccounts.map(acc =>
-          acc.user.email === tempUserData.email
-            ? { ...acc, token: tokenResponse.access_token, status: 'active' }
-            : acc
-        )));
+        setGoogleAccounts(prevAccounts => 
+          prevAccounts.map(acc =>
+            acc.user.email === tempUserData.email
+              ? { ...acc, token: tokenResponse.access_token, status: 'active' }
+              : acc
+          )
+        );
         
         // Remove from expired accounts list
         setExpiredAccounts(prev => prev.filter(email => email !== tempUserData.email));
@@ -2667,7 +2756,6 @@ function App() {
 
     try {
       setIsRefreshing(true);
-      setSyncStatus('syncing');
 
       // Fetch tasks for all accounts (not just the active one)
       const allTasksPromises = googleAccounts.map(async (account, index) => {
@@ -2771,7 +2859,6 @@ function App() {
       
       if (validResults.length === 0) {
         // All tokens are expired, but don't clear accounts
-        setSyncStatus('error');
         setIsRefreshing(false);
         return;
       }
@@ -2804,12 +2891,8 @@ function App() {
       // Update columns with the combined tasks
       updateColumnsWithTasks(combinedTasksByList);
       setLastRefreshTime(new Date());
-      setLastSyncTime(new Date());
-      setSyncStatus('synced');
     } catch (error) {
       console.error('Error refreshing tasks:', error);
-      setSyncStatus('error');
-    } finally {
       setIsRefreshing(false);
     }
   }, [googleAccounts.length, activeAccountIndex, user, updateColumnsWithTasks]);
@@ -3346,6 +3429,7 @@ function App() {
     try {
       const response = await apiService.updateUserSetting(user.email, 'gemini_api_key', geminiApiKey);
       if (response.success) {
+        // Update API key status after saving
         setApiKeyStatus(geminiApiKey ? 'configured' : 'not-configured');
         setSettingsOpen(false);
       }
@@ -3362,6 +3446,12 @@ function App() {
   const generateAISummary = async (tasks: Task[]) => {
     if (!user?.email || tasks.length === 0) return;
     
+    // Check if API key is configured before making the request
+    if (geminiApiKey === '') {
+      setSummaryError('Please configure your Gemini API key in Settings to use AI features');
+      return;
+    }
+    
     setIsGeneratingSummary(true);
     setSummaryError(null);
     
@@ -3370,7 +3460,15 @@ function App() {
       setAiSummary(response);
     } catch (error: any) {
       console.error('Error generating AI summary:', error);
-      setSummaryError(error.message || 'Failed to generate AI summary');
+      
+      // Handle specific error cases
+      if (error.message?.includes('400')) {
+        setSummaryError('Gemini API key not configured. Please add your API key in Settings.');
+      } else if (error.message?.includes('500')) {
+        setSummaryError('Server error. Please try again later or check your API key.');
+      } else {
+        setSummaryError(error.message || 'Failed to generate AI summary. Please check your API key configuration.');
+      }
     } finally {
       setIsGeneratingSummary(false);
     }
@@ -3428,12 +3526,6 @@ function App() {
     flow: 'implicit',
   });
 
-  // Add new state for API key status and better sync management
-  const [apiKeyStatus, setApiKeyStatus] = useState<'configured' | 'not-configured' | 'checking'>('checking');
-  const [syncStatus, setSyncStatus] = useState<'syncing' | 'synced' | 'error' | 'idle'>('idle');
-  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
-  const [expiredAccounts, setExpiredAccounts] = useState<string[]>([]);
-
   // Check API key status on app load
   useEffect(() => {
     const checkApiKeyStatus = async () => {
@@ -3442,6 +3534,10 @@ function App() {
           const response = await apiService.getUserSettings(user.email);
           const hasApiKey = response.settings?.gemini_api_key;
           setApiKeyStatus(hasApiKey ? 'configured' : 'not-configured');
+          // Also load the API key value into state for persistence
+          if (hasApiKey) {
+            setGeminiApiKey(hasApiKey);
+          }
         } catch (error) {
           console.error('Error checking API key status:', error);
           setApiKeyStatus('not-configured');
@@ -3719,77 +3815,7 @@ function App() {
                     )}
                   </Box>
 
-                  {/* Sync Status Indicator */}
-                  {googleAccounts.length > 0 && (
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                        px: 1,
-                        py: 0.5,
-                        borderRadius: 1,
-                        bgcolor: syncStatus === 'synced' 
-                          ? 'rgba(76, 175, 80, 0.2)' 
-                          : syncStatus === 'syncing'
-                          ? 'rgba(33, 150, 243, 0.2)'
-                          : syncStatus === 'error'
-                          ? 'rgba(244, 67, 54, 0.2)'
-                          : 'rgba(158, 158, 158, 0.2)',
-                        border: '1px solid',
-                        borderColor: syncStatus === 'synced' 
-                          ? 'rgba(76, 175, 80, 0.4)' 
-                          : syncStatus === 'syncing'
-                          ? 'rgba(33, 150, 243, 0.4)'
-                          : syncStatus === 'error'
-                          ? 'rgba(244, 67, 54, 0.4)'
-                          : 'rgba(158, 158, 158, 0.4)',
-                        minWidth: 24,
-                        height: 24,
-                        justifyContent: 'center'
-                      }}
-                      title={
-                        syncStatus === 'synced' 
-                          ? `Last synced: ${lastSyncTime ? format(lastSyncTime, 'HH:mm:ss') : 'Unknown'}` 
-                          : syncStatus === 'syncing'
-                          ? 'Syncing with Google Tasks...'
-                          : syncStatus === 'error'
-                          ? 'Sync error - check connection'
-                          : 'Sync idle'
-                      }
-                    >
-                      {syncStatus === 'synced' ? (
-                        <Box 
-                          sx={{ 
-                            width: 8, 
-                            height: 8, 
-                            borderRadius: '50%', 
-                            bgcolor: '#4CAF50' 
-                          }} 
-                        />
-                      ) : syncStatus === 'syncing' ? (
-                        <CircularProgress size={8} sx={{ color: '#2196F3' }} />
-                      ) : syncStatus === 'error' ? (
-                        <Box 
-                          sx={{ 
-                            width: 8, 
-                            height: 8, 
-                            borderRadius: '50%', 
-                            bgcolor: '#F44336' 
-                          }} 
-                        />
-                      ) : (
-                        <Box 
-                          sx={{ 
-                            width: 8, 
-                            height: 8, 
-                            borderRadius: '50%', 
-                            bgcolor: '#9E9E9E' 
-                          }} 
-                        />
-                      )}
-                    </Box>
-                  )}
+                  {/* Removed Sync Status Indicator - keeping only AI key status */}
 
                   <IconButton
                     onClick={refreshTasks}
