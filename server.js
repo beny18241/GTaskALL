@@ -75,24 +75,33 @@ function initDatabase() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`);
 
+    // Table for storing API keys per account
+    db.run(`CREATE TABLE IF NOT EXISTS account_api_keys (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      main_user_email TEXT NOT NULL,
+      gtask_account_email TEXT NOT NULL,
+      encrypted_api_key TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(main_user_email, gtask_account_email),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`);
+
     // Migration: Check if encrypted_token column exists, if not add it
-    db.get("PRAGMA table_info(account_tokens)", (err, rows) => {
+    db.all("PRAGMA table_info(account_tokens)", (err, columns) => {
       if (!err) {
-        db.all("PRAGMA table_info(account_tokens)", (err, columns) => {
-          if (!err) {
-            const hasEncryptedToken = columns.some(col => col.name === 'encrypted_token');
-            if (!hasEncryptedToken) {
-              console.log('Adding encrypted_token column to account_tokens table...');
-              db.run("ALTER TABLE account_tokens ADD COLUMN encrypted_token TEXT", (err) => {
-                if (err) {
-                  console.error('Error adding encrypted_token column:', err);
-                } else {
-                  console.log('Successfully added encrypted_token column');
-                }
-              });
+        const hasEncryptedToken = columns.some(col => col.name === 'encrypted_token');
+        if (!hasEncryptedToken) {
+          console.log('Adding encrypted_token column to account_tokens table...');
+          db.run("ALTER TABLE account_tokens ADD COLUMN encrypted_token TEXT", (err) => {
+            if (err) {
+              console.error('Error adding encrypted_token column:', err);
+            } else {
+              console.log('Successfully added encrypted_token column');
             }
-          }
-        });
+          });
+        }
       }
     });
 
@@ -624,4 +633,119 @@ app.put('/api/connections/:mainUserEmail/:gtaskAccountEmail/activate', (req, res
       res.json({ success: true });
     }
   );
+});
+
+// API Key Management Endpoints
+
+// Get API key for a specific account
+app.get('/api/api-keys/:mainUserEmail/:gtaskAccountEmail', (req, res) => {
+  const { mainUserEmail, gtaskAccountEmail } = req.params;
+
+  db.get(
+    `SELECT aak.encrypted_api_key 
+     FROM account_api_keys aak
+     JOIN users u ON aak.user_id = u.id
+     WHERE u.email = ? AND aak.gtask_account_email = ?`,
+    [mainUserEmail, gtaskAccountEmail],
+    (err, row) => {
+      if (err) {
+        console.error('Error fetching API key:', err);
+        res.status(500).json({ error: 'Failed to fetch API key' });
+      } else if (row) {
+        res.json({ apiKey: row.encrypted_api_key });
+      } else {
+        res.status(404).json({ error: 'API key not found' });
+      }
+    }
+  );
+});
+
+// Update API key for a specific account
+app.put('/api/api-keys/:mainUserEmail/:gtaskAccountEmail', (req, res) => {
+  const { mainUserEmail, gtaskAccountEmail } = req.params;
+  const { apiKey } = req.body;
+
+  if (!apiKey) {
+    return res.status(400).json({ error: 'API key is required' });
+  }
+
+  db.serialize(() => {
+    // Get user ID first
+    db.get(
+      `SELECT id FROM users WHERE email = ?`,
+      [mainUserEmail],
+      (err, userRow) => {
+        if (err) {
+          console.error('Error fetching user:', err);
+          return res.status(500).json({ error: 'Failed to fetch user' });
+        }
+
+        if (!userRow) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+
+        const userId = userRow.id;
+
+        // Insert/update API key
+        db.run(
+          `INSERT OR REPLACE INTO account_api_keys 
+           (user_id, main_user_email, gtask_account_email, encrypted_api_key, updated_at) 
+           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+          [userId, mainUserEmail, gtaskAccountEmail, apiKey],
+          function(err) {
+            if (err) {
+              console.error('Error saving API key:', err);
+              return res.status(500).json({ error: 'Failed to save API key' });
+            }
+            res.json({ 
+              success: true, 
+              message: 'API key saved successfully' 
+            });
+          }
+        );
+      }
+    );
+  });
+});
+
+// Remove API key for a specific account
+app.delete('/api/api-keys/:mainUserEmail/:gtaskAccountEmail', (req, res) => {
+  const { mainUserEmail, gtaskAccountEmail } = req.params;
+
+  db.serialize(() => {
+    // Get user ID first
+    db.get(
+      `SELECT id FROM users WHERE email = ?`,
+      [mainUserEmail],
+      (err, userRow) => {
+        if (err) {
+          console.error('Error fetching user:', err);
+          return res.status(500).json({ error: 'Failed to fetch user' });
+        }
+
+        if (!userRow) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+
+        const userId = userRow.id;
+
+        // Remove API key
+        db.run(
+          `DELETE FROM account_api_keys 
+           WHERE user_id = ? AND main_user_email = ? AND gtask_account_email = ?`,
+          [userId, mainUserEmail, gtaskAccountEmail],
+          function(err) {
+            if (err) {
+              console.error('Error removing API key:', err);
+              return res.status(500).json({ error: 'Failed to remove API key' });
+            }
+            res.json({ 
+              success: true, 
+              message: 'API key removed successfully' 
+            });
+          }
+        );
+      }
+    );
+  });
 }); 
