@@ -27,7 +27,6 @@ interface ApiResponse {
   user?: User;
   userId?: number;
   settings?: { [key: string]: string };
-  apiKey?: string;
 }
 
 // API service for managing Google Tasks account connections
@@ -300,83 +299,6 @@ export const apiService = {
 
   // Mark a connection as active
   async activateConnection(mainUserEmail: string, gtaskAccountEmail: string): Promise<void> {
-    try {
-      await fetch(`${API_BASE_URL}/connections/${encodeURIComponent(mainUserEmail)}/${encodeURIComponent(gtaskAccountEmail)}/activate`, { 
-        method: 'PUT' 
-      });
-    } catch (error) {
-      console.error('Error activating connection:', error);
-      throw error;
-    }
-  },
-
-  // Get API key for a specific account
-  async getAccountApiKey(mainUserEmail: string, gtaskAccountEmail: string): Promise<string | null> {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api-keys/${encodeURIComponent(mainUserEmail)}/${encodeURIComponent(gtaskAccountEmail)}`
-      );
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          return null; // API key not found
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data: ApiResponse = await response.json();
-      return data.apiKey || null;
-    } catch (error) {
-      console.error('Error fetching API key:', error);
-      return null;
-    }
-  },
-
-  // Update API key for a specific account
-  async updateAccountApiKey(mainUserEmail: string, gtaskAccountEmail: string, apiKey: string): Promise<ApiResponse> {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api-keys/${encodeURIComponent(mainUserEmail)}/${encodeURIComponent(gtaskAccountEmail)}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ apiKey })
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data: ApiResponse = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error updating API key:', error);
-      throw error;
-    }
-  },
-
-  // Remove API key for a specific account
-  async removeAccountApiKey(mainUserEmail: string, gtaskAccountEmail: string): Promise<ApiResponse> {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api-keys/${encodeURIComponent(mainUserEmail)}/${encodeURIComponent(gtaskAccountEmail)}`,
-        {
-          method: 'DELETE',
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data: ApiResponse = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error removing API key:', error);
-      throw error;
-    }
+    await fetch(`${API_BASE_URL}/connections/${encodeURIComponent(mainUserEmail)}/${encodeURIComponent(gtaskAccountEmail)}/activate`, { method: 'PUT' });
   },
 }; 
