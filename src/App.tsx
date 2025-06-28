@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid, Checkbox, ThemeProvider, createTheme } from '@mui/material';
+import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid, Checkbox, ThemeProvider, createTheme, Menu } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -35,6 +35,8 @@ import TaskRow from './TaskRow.tsx';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import Alert from '@mui/material/Alert';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import DisconnectIcon from '@mui/icons-material/LinkOff';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -230,6 +232,12 @@ function App() {
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [showAISummary, setShowAISummary] = useState(false);
 
+  // Account management state
+  const [expiredAccounts, setExpiredAccounts] = useState<string[]>([]);
+  const [accountMenuAnchor, setAccountMenuAnchor] = useState<null | HTMLElement>(null);
+  const [selectedAccountForMenu, setSelectedAccountForMenu] = useState<number | null>(null);
+  const [apiKeyStatus, setApiKeyStatus] = useState<'configured' | 'not-configured' | 'checking'>('checking');
+
   // Dark mode toggle function
   const toggleDarkMode = () => {
     setDarkMode((prev: boolean) => !prev);
@@ -295,6 +303,8 @@ function App() {
       const connections = await apiService.getConnections(mainUserEmail);
       if (connections.length > 0) {
         const savedAccounts: GoogleAccount[] = [];
+        const expiredEmails: string[] = [];
+        
         for (const connection of connections) {
           // Try to get the stored token
           const token = await apiService.getToken(mainUserEmail, connection.gtask_account_email);
@@ -310,23 +320,34 @@ function App() {
             tasks: {},
             status
           };
+          
           if (token && status === 'active') {
             // Test if the token is still valid by making a simple API call
             try {
               await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
                 headers: { Authorization: `Bearer ${token}` }
               });
-            } catch (error) {
+            } catch (error: any) {
               // Token is expired, mark as expired in DB and locally
-              await apiService.expireConnection(mainUserEmail, connection.gtask_account_email);
-              account.status = 'expired';
-              account.token = null;
+              if (error.response?.status === 401) {
+                await apiService.expireConnection(mainUserEmail, connection.gtask_account_email);
+                account.status = 'expired';
+                account.token = null;
+                expiredEmails.push(connection.gtask_account_email);
+              }
             }
           }
           savedAccounts.push(account);
         }
+        
         setGoogleAccounts(savedAccounts);
+        setExpiredAccounts(expiredEmails);
         setActiveAccountIndex(0);
+        
+        // If we have valid accounts, start syncing immediately
+        if (savedAccounts.some(acc => acc.status === 'active')) {
+          setTimeout(() => refreshTasks(), 1000);
+        }
       } else {
         setIsInitialLoad(false);
       }
@@ -655,24 +676,90 @@ function App() {
   const AccountSwitcher = () => (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
       {googleAccounts.map((account, index) => (
-        <Avatar
-          key={account.user.email}
-          src={account.user.picture}
-          alt={account.user.name}
-          onClick={() => setActiveAccountIndex(index)}
-          sx={{
-            width: 28,
-            height: 28,
-            cursor: 'pointer',
-            border: index === activeAccountIndex ? '2px solid #fff' : '2px solid rgba(255, 255, 255, 0.3)',
-            '&:hover': {
-              opacity: 0.8,
-              transform: 'scale(1.1)',
-              transition: 'all 0.2s ease'
+        <Box key={account.user.email} sx={{ position: 'relative' }}>
+          <Avatar
+            src={account.user.picture}
+            alt={account.user.name}
+            onClick={() => setActiveAccountIndex(index)}
+            sx={{
+              width: 28,
+              height: 28,
+              cursor: account.status === 'expired' ? 'not-allowed' : 'pointer',
+              border: index === activeAccountIndex ? '2px solid #fff' : '2px solid rgba(255, 255, 255, 0.3)',
+              opacity: account.status === 'expired' ? 0.5 : 1,
+              '&:hover': {
+                opacity: account.status === 'expired' ? 0.5 : 0.8,
+                transform: account.status === 'expired' ? 'none' : 'scale(1.1)',
+                transition: 'all 0.2s ease'
+              }
+            }}
+            title={
+              account.status === 'expired' 
+                ? `${account.user.name} (${account.user.email}) - Token expired. Click to reconnect.`
+                : `${account.user.name} (${account.user.email})`
             }
-          }}
-          title={`${account.user.name} (${account.user.email})`}
-        />
+          />
+          {account.status === 'expired' && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: -2,
+                right: -2,
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                bgcolor: '#f44336',
+                border: '2px solid white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                '&:hover': {
+                  bgcolor: '#d32f2f',
+                  transform: 'scale(1.2)',
+                }
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleReconnectAccount(account);
+              }}
+              title="Reconnect account"
+            >
+              <Typography sx={{ fontSize: '0.6rem', color: 'white', fontWeight: 'bold' }}>
+                ↻
+              </Typography>
+            </Box>
+          )}
+          
+          {/* Account menu button */}
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              setAccountMenuAnchor(e.currentTarget);
+              setSelectedAccountForMenu(index);
+            }}
+            sx={{
+              position: 'absolute',
+              top: -4,
+              right: -4,
+              width: 16,
+              height: 16,
+              bgcolor: 'rgba(0, 0, 0, 0.6)',
+              color: 'white',
+              '&:hover': {
+                bgcolor: 'rgba(0, 0, 0, 0.8)',
+                transform: 'scale(1.1)',
+              },
+              '& .MuiSvgIcon-root': {
+                fontSize: '0.7rem',
+              }
+            }}
+            title="Account options"
+          >
+            <MoreVertIcon fontSize="small" />
+          </IconButton>
+        </Box>
       ))}
       <IconButton
         size="small"
@@ -694,8 +781,112 @@ function App() {
       >
         <AddIcon fontSize="small" />
       </IconButton>
+      
+      {/* Account menu */}
+      <Menu
+        anchorEl={accountMenuAnchor}
+        open={Boolean(accountMenuAnchor)}
+        onClose={() => {
+          setAccountMenuAnchor(null);
+          setSelectedAccountForMenu(null);
+        }}
+        PaperProps={{
+          sx: {
+            minWidth: 200,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+            border: '1px solid rgba(0,0,0,0.1)',
+          }
+        }}
+      >
+        {selectedAccountForMenu !== null && googleAccounts[selectedAccountForMenu] && (
+          <>
+            <MenuItem
+              onClick={() => {
+                setAccountMenuAnchor(null);
+                setSelectedAccountForMenu(null);
+                setSelectedAccountForRemoval(selectedAccountForMenu);
+              }}
+              sx={{
+                color: 'error.main',
+                '&:hover': {
+                  bgcolor: 'error.light',
+                  color: 'white',
+                }
+              }}
+            >
+              <DisconnectIcon sx={{ mr: 1, fontSize: '1.1rem' }} />
+              Disconnect Account
+            </MenuItem>
+            <Divider />
+            <MenuItem
+              onClick={() => {
+                setAccountMenuAnchor(null);
+                setSelectedAccountForMenu(null);
+                setActiveAccountIndex(selectedAccountForMenu);
+              }}
+            >
+              <AccountCircleIcon sx={{ mr: 1, fontSize: '1.1rem' }} />
+              Switch to this Account
+            </MenuItem>
+          </>
+        )}
+      </Menu>
     </Box>
   );
+
+  // Add reconnect functionality for expired accounts
+  const handleReconnectAccount = (account: GoogleAccount) => {
+    // Set the account as the one to reconnect
+    setTempUserData(account.user);
+    setGoogleTasksLoading(true);
+    
+    // Use the existing Google Tasks login flow
+    loginGoogleTasksForReconnection();
+  };
+
+  // Add Google Tasks login for reconnection
+  const loginGoogleTasksForReconnection = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        if (!user || !tempUserData) return;
+
+        // Save the new token to database
+        await apiService.updateToken(user.email, tempUserData.email, tokenResponse.access_token);
+        
+        // Activate the connection in database
+        await apiService.activateConnection(user.email, tempUserData.email);
+        
+        // Update the account in local state
+        setGoogleAccounts(prevAccounts => 
+          prevAccounts.map(acc =>
+            acc.user.email === tempUserData.email
+              ? { ...acc, token: tokenResponse.access_token, status: 'active' }
+              : acc
+          )
+        );
+        
+        // Remove from expired accounts list
+        setExpiredAccounts(prev => prev.filter(email => email !== tempUserData.email));
+        
+        // Refresh tasks to get updated data
+        setTimeout(() => refreshTasks(), 1000);
+        
+        setGoogleTasksLoading(false);
+        setTempUserData(null);
+      } catch (error) {
+        console.error('Error reconnecting account:', error);
+        setGoogleTasksLoading(false);
+        setTempUserData(null);
+      }
+    },
+    onError: (error) => {
+      console.error('Google Tasks login error:', error);
+      setGoogleTasksLoading(false);
+      setTempUserData(null);
+    },
+    scope: 'https://www.googleapis.com/auth/tasks',
+    flow: 'implicit',
+  });
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -2569,6 +2760,11 @@ function App() {
       // Fetch tasks for all accounts (not just the active one)
       const allTasksPromises = googleAccounts.map(async (account, index) => {
         try {
+          // Skip expired accounts
+          if (account.status === 'expired') {
+            return null;
+          }
+
           // Fetch task lists
           const listsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
             headers: { Authorization: `Bearer ${account.token}` }
@@ -2628,15 +2824,27 @@ function App() {
           // Handle expired token
           if (error.response?.status === 401) {
             console.log(`Token for ${account.user.email} is expired`);
-            // Remove the account from the list
-            setGoogleAccounts(prevAccounts => prevAccounts.filter((_, i) => i !== index));
             
-            // Remove from database
+            // Mark account as expired instead of removing it
+            setGoogleAccounts(prevAccounts => {
+              const newAccounts = [...prevAccounts];
+              newAccounts[index] = {
+                ...newAccounts[index],
+                status: 'expired',
+                token: null
+              };
+              return newAccounts;
+            });
+            
+            // Add to expired accounts list
+            setExpiredAccounts(prev => [...prev, account.user.email]);
+            
+            // Mark as expired in database
             if (user) {
               try {
-                await apiService.removeConnection(user.email, account.user.email);
+                await apiService.expireConnection(user.email, account.user.email);
               } catch (removeError) {
-                console.error('Error removing expired connection:', removeError);
+                console.error('Error marking connection as expired:', removeError);
               }
             }
             
@@ -2650,8 +2858,7 @@ function App() {
       const validResults = allResults.filter(result => result !== null);
       
       if (validResults.length === 0) {
-        // All tokens are expired
-        setGoogleAccounts([]);
+        // All tokens are expired, but don't clear accounts
         setIsRefreshing(false);
         return;
       }
@@ -2686,16 +2893,15 @@ function App() {
       setLastRefreshTime(new Date());
     } catch (error) {
       console.error('Error refreshing tasks:', error);
-    } finally {
       setIsRefreshing(false);
     }
   }, [googleAccounts.length, activeAccountIndex, user, updateColumnsWithTasks]);
 
-  // Update the useEffect for auto-refresh with a shorter interval
+  // Enhanced auto-refresh with better interval management
   useEffect(() => {
     if (googleAccounts.length > 0) {
-      // Set up auto-refresh every 15 seconds
-      const interval = setInterval(refreshTasks, 15000);
+      // Set up auto-refresh every 30 seconds (increased from 15 for better performance)
+      const interval = setInterval(refreshTasks, 30000);
       setRefreshInterval(interval);
 
       return () => {
@@ -3216,23 +3422,19 @@ function App() {
     setSettingsOpen(true);
   };
 
+  // Enhanced handleSaveSettings with API key status update
   const handleSaveSettings = async () => {
-    if (!user?.email) return;
-    
-    setIsLoadingSettings(true);
+    if (!user) return;
+
     try {
       const response = await apiService.updateUserSetting(user.email, 'gemini_api_key', geminiApiKey);
-      console.log('Settings save response:', response);
-      // Add a small delay to show the loading state
-      await new Promise(resolve => setTimeout(resolve, 500));
-      // Always close the dialog after attempting to save
-      setSettingsOpen(false);
+      if (response.success) {
+        // Update API key status after saving
+        setApiKeyStatus(geminiApiKey ? 'configured' : 'not-configured');
+        setSettingsOpen(false);
+      }
     } catch (error) {
       console.error('Error saving settings:', error);
-      // Even if there's an error, close the dialog
-      setSettingsOpen(false);
-    } finally {
-      setIsLoadingSettings(false);
     }
   };
 
@@ -3244,6 +3446,12 @@ function App() {
   const generateAISummary = async (tasks: Task[]) => {
     if (!user?.email || tasks.length === 0) return;
     
+    // Check if API key is configured before making the request
+    if (geminiApiKey === '') {
+      setSummaryError('Please configure your Gemini API key in Settings to use AI features');
+      return;
+    }
+    
     setIsGeneratingSummary(true);
     setSummaryError(null);
     
@@ -3252,7 +3460,15 @@ function App() {
       setAiSummary(response);
     } catch (error: any) {
       console.error('Error generating AI summary:', error);
-      setSummaryError(error.message || 'Failed to generate AI summary');
+      
+      // Handle specific error cases
+      if (error.message?.includes('400')) {
+        setSummaryError('Gemini API key not configured. Please add your API key in Settings.');
+      } else if (error.message?.includes('500')) {
+        setSummaryError('Server error. Please try again later or check your API key.');
+      } else {
+        setSummaryError(error.message || 'Failed to generate AI summary. Please check your API key configuration.');
+      }
     } finally {
       setIsGeneratingSummary(false);
     }
@@ -3309,6 +3525,28 @@ function App() {
     },
     flow: 'implicit',
   });
+
+  // Check API key status on app load
+  useEffect(() => {
+    const checkApiKeyStatus = async () => {
+      if (user) {
+        try {
+          const response = await apiService.getUserSettings(user.email);
+          const hasApiKey = response.settings?.gemini_api_key;
+          setApiKeyStatus(hasApiKey ? 'configured' : 'not-configured');
+          // Also load the API key value into state for persistence
+          if (hasApiKey) {
+            setGeminiApiKey(hasApiKey);
+          }
+        } catch (error) {
+          console.error('Error checking API key status:', error);
+          setApiKeyStatus('not-configured');
+        }
+      }
+    };
+
+    checkApiKeyStatus();
+  }, [user]);
 
   return (
     <ThemeProvider theme={theme}>
@@ -3529,6 +3767,55 @@ function App() {
                   >
                     <SettingsIcon fontSize="small" />
                   </IconButton>
+
+                  {/* API Key Status Indicator */}
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      px: 1,
+                      py: 0.5,
+                      borderRadius: 1,
+                      bgcolor: apiKeyStatus === 'configured' 
+                        ? 'rgba(76, 175, 80, 0.2)' 
+                        : apiKeyStatus === 'checking'
+                        ? 'rgba(255, 152, 0, 0.2)'
+                        : 'rgba(244, 67, 54, 0.2)',
+                      border: '1px solid',
+                      borderColor: apiKeyStatus === 'configured' 
+                        ? 'rgba(76, 175, 80, 0.4)' 
+                        : apiKeyStatus === 'checking'
+                        ? 'rgba(255, 152, 0, 0.4)'
+                        : 'rgba(244, 67, 54, 0.4)',
+                      minWidth: 24,
+                      height: 24,
+                      justifyContent: 'center'
+                    }}
+                    title={
+                      apiKeyStatus === 'configured' 
+                        ? 'Gemini API Key Configured' 
+                        : apiKeyStatus === 'checking'
+                        ? 'Checking API Key Status...'
+                        : 'Gemini API Key Not Configured'
+                    }
+                  >
+                    {apiKeyStatus === 'configured' ? (
+                      <AutoAwesomeIcon 
+                        fontSize="small" 
+                        sx={{ color: '#4CAF50', fontSize: '1rem' }} 
+                      />
+                    ) : apiKeyStatus === 'checking' ? (
+                      <CircularProgress size={12} sx={{ color: '#FF9800' }} />
+                    ) : (
+                      <AutoAwesomeIcon 
+                        fontSize="small" 
+                        sx={{ color: '#F44336', fontSize: '1rem' }} 
+                      />
+                    )}
+                  </Box>
+
+                  {/* Removed Sync Status Indicator - keeping only AI key status */}
 
                   <IconButton
                     onClick={refreshTasks}
