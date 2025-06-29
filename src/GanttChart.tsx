@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import {
   Box,
-  Paper,
   Typography,
   Chip,
   Avatar,
@@ -10,17 +9,7 @@ import {
   Grid,
   Divider,
 } from '@mui/material';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  Cell,
-} from 'recharts';
-import { format, addDays, differenceInDays, startOfDay, endOfDay } from 'date-fns';
+import { format, addDays, differenceInDays, startOfDay, endOfDay, eachDayOfInterval } from 'date-fns';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import PauseCircleIcon from '@mui/icons-material/PauseCircle';
@@ -49,19 +38,17 @@ interface GanttChartProps {
   onTaskClick?: (task: Task) => void;
 }
 
-interface GanttTaskData {
+interface TimelineTask {
   id: string;
   name: string;
-  start: number;
-  end: number;
-  duration: number;
+  dueDate: Date;
   status: string;
   color: string;
   accountEmail?: string;
   accountName?: string;
   accountPicture?: string;
-  dueDate?: Date | null;
   fullContent: string;
+  daysFromStart: number;
 }
 
 const GanttChart: React.FC<GanttChartProps> = ({
@@ -70,33 +57,32 @@ const GanttChart: React.FC<GanttChartProps> = ({
   endDate = addDays(new Date(), 30),
   onTaskClick,
 }) => {
-  const ganttData = useMemo(() => {
+  const timelineData = useMemo(() => {
     const filteredTasks = tasks.filter(task => task.dueDate);
     
-    return filteredTasks.map((task, index) => {
+    return filteredTasks.map((task) => {
       const taskDate = task.dueDate ? new Date(task.dueDate) : new Date();
       const daysFromStart = differenceInDays(taskDate, startDate);
-      
-      // Create a bar that spans 1-3 days depending on task status
-      const duration = task.status === 'completed' ? 1 : 
-                      task.status === 'in-progress' ? 2 : 3;
       
       return {
         id: task.id,
         name: task.content.length > 30 ? task.content.substring(0, 30) + '...' : task.content,
-        start: Math.max(0, daysFromStart),
-        end: Math.max(0, daysFromStart + duration),
-        duration,
+        dueDate: taskDate,
         status: task.status,
         color: task.color || '#1976d2',
         accountEmail: task.accountEmail,
         accountName: task.accountName,
         accountPicture: task.accountPicture,
-        dueDate: task.dueDate,
         fullContent: task.content,
+        daysFromStart: Math.max(0, daysFromStart),
       };
-    }).sort((a, b) => a.start - b.start);
+    }).sort((a, b) => a.daysFromStart - b.daysFromStart);
   }, [tasks, startDate]);
+
+  const timelineDays = useMemo(() => {
+    const totalDays = differenceInDays(endDate, startDate);
+    return Array.from({ length: totalDays + 1 }, (_, i) => addDays(startDate, i));
+  }, [startDate, endDate]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -120,40 +106,15 @@ const GanttChart: React.FC<GanttChartProps> = ({
     }
   };
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <Box
-          sx={{
-            bgcolor: 'background.paper',
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 1,
-            p: 2,
-            boxShadow: 3,
-          }}
-        >
-          <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-            {data.fullContent}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Status: {data.status}
-          </Typography>
-          {data.dueDate && (
-            <Typography variant="body2" color="text.secondary">
-              Due: {format(new Date(data.dueDate), 'MMM dd, yyyy')}
-            </Typography>
-          )}
-          {data.accountName && (
-            <Typography variant="body2" color="text.secondary">
-              Account: {data.accountName}
-            </Typography>
-          )}
-        </Box>
-      );
+  const getStatusBackgroundColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return '#e8f5e8';
+      case 'in-progress':
+        return '#fff3e0';
+      default:
+        return '#f5f5f5';
     }
-    return null;
   };
 
   return (
@@ -165,6 +126,9 @@ const GanttChart: React.FC<GanttChartProps> = ({
         </Typography>
         <Typography variant="body2" color="text.secondary">
           Timeline: {format(startDate, 'MMM dd, yyyy')} - {format(endDate, 'MMM dd, yyyy')}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Tasks: {timelineData.length}
         </Typography>
       </Box>
 
@@ -195,9 +159,9 @@ const GanttChart: React.FC<GanttChartProps> = ({
         </Box>
       </Box>
 
-      {/* Gantt Chart */}
+      {/* Timeline Chart */}
       <Box sx={{ flex: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider', p: 2 }}>
-        {ganttData.length === 0 ? (
+        {timelineData.length === 0 ? (
           <Box sx={{ 
             display: 'flex', 
             alignItems: 'center', 
@@ -209,50 +173,130 @@ const GanttChart: React.FC<GanttChartProps> = ({
             No tasks with due dates found
           </Box>
         ) : (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart
-              data={ganttData}
-              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-              layout="horizontal"
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-              <XAxis
-                type="number"
-                domain={[0, differenceInDays(endDate, startDate)]}
-                tickFormatter={(value) => format(addDays(startDate, value), 'MMM dd')}
-                interval={7}
-                stroke="#666"
-                fontSize={12}
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={200}
-                tick={{ fontSize: 12 }}
-                stroke="#666"
-              />
-              <RechartsTooltip content={<CustomTooltip />} />
-              <Bar
-                dataKey="duration"
-                fill="#8884d8"
-                onClick={(data) => {
-                  const task = tasks.find(t => t.id === data.id);
-                  if (task && onTaskClick) {
-                    onTaskClick(task);
+          <Box sx={{ height: 400, overflow: 'auto' }}>
+            {/* Timeline Header */}
+            <Box sx={{ 
+              display: 'flex', 
+              borderBottom: '1px solid', 
+              borderColor: 'divider',
+              position: 'sticky',
+              top: 0,
+              bgcolor: 'background.paper',
+              zIndex: 2
+            }}>
+              <Box sx={{ width: 200, p: 1, fontWeight: 'bold' }}>
+                Tasks
+              </Box>
+              {timelineDays.map((day, index) => (
+                <Box
+                  key={index}
+                  sx={{
+                    width: 60,
+                    p: 1,
+                    textAlign: 'center',
+                    fontSize: '0.75rem',
+                    borderLeft: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: index % 7 === 0 ? 'action.hover' : 'transparent'
+                  }}
+                >
+                  {format(day, 'MMM dd')}
+                </Box>
+              ))}
+            </Box>
+
+            {/* Timeline Tasks */}
+            {timelineData.map((task, taskIndex) => (
+              <Box
+                key={task.id}
+                sx={{
+                  display: 'flex',
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                  '&:hover': {
+                    bgcolor: 'action.hover'
                   }
                 }}
-                cursor="pointer"
-                radius={[2, 2, 2, 2]}
               >
-                {ganttData.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={getStatusColor(entry.status)}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+                {/* Task Name */}
+                <Box sx={{ 
+                  width: 200, 
+                  p: 1, 
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  cursor: 'pointer'
+                }}
+                onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
+                >
+                  {getStatusIcon(task.status)}
+                  <Typography variant="body2" sx={{ flex: 1 }}>
+                    {task.name}
+                  </Typography>
+                </Box>
+
+                {/* Timeline Cells */}
+                {timelineDays.map((day, dayIndex) => {
+                  const isTaskDay = task.daysFromStart === dayIndex;
+                  const isPast = dayIndex < task.daysFromStart;
+                  const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                  
+                  return (
+                    <Box
+                      key={dayIndex}
+                      sx={{
+                        width: 60,
+                        height: 40,
+                        borderLeft: '1px solid',
+                        borderColor: 'divider',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        bgcolor: isToday ? 'warning.light' : 'transparent'
+                      }}
+                    >
+                      {isTaskDay && (
+                        <Box
+                          sx={{
+                            width: 50,
+                            height: 20,
+                            bgcolor: getStatusBackgroundColor(task.status),
+                            border: `2px solid ${getStatusColor(task.status)}`,
+                            borderRadius: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            '&:hover': {
+                              transform: 'scale(1.05)',
+                              transition: 'transform 0.2s ease'
+                            }
+                          }}
+                          onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
+                          title={`${task.fullContent} - ${task.status}`}
+                        >
+                          <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 'bold' }}>
+                            {task.status === 'completed' ? '✓' : task.status === 'in-progress' ? '⟳' : '○'}
+                          </Typography>
+                        </Box>
+                      )}
+                      {isPast && !isTaskDay && (
+                        <Box
+                          sx={{
+                            width: 2,
+                            height: 20,
+                            bgcolor: 'grey.300',
+                            borderRadius: 1
+                          }}
+                        />
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
+            ))}
+          </Box>
         )}
       </Box>
 
@@ -262,7 +306,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
           Task Details
         </Typography>
         <Grid container spacing={2}>
-          {ganttData.map((task) => (
+          {timelineData.map((task) => (
             <Grid item xs={12} sm={6} md={4} key={task.id}>
               <Card
                 sx={{
@@ -303,11 +347,9 @@ const GanttChart: React.FC<GanttChartProps> = ({
                     </Box>
                   )}
                   
-                  {task.dueDate && (
-                    <Typography variant="caption" color="text.secondary">
-                      Due: {format(new Date(task.dueDate), 'MMM dd, yyyy')}
-                    </Typography>
-                  )}
+                  <Typography variant="caption" color="text.secondary">
+                    Due: {format(task.dueDate, 'MMM dd, yyyy')}
+                  </Typography>
                 </CardContent>
               </Card>
             </Grid>

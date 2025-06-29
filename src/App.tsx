@@ -3556,13 +3556,50 @@ function App() {
       return [...acc, ...column.tasks];
     }, []);
 
+    // Also get tasks from Google Tasks accounts
+    const googleTasks: Task[] = [];
+    googleAccounts.forEach((account) => {
+      Object.values(account.tasks).flat().forEach((task: any) => {
+        if (task.due) { // Only include tasks with due dates
+          googleTasks.push({
+            id: task.id,
+            content: task.title,
+            dueDate: new Date(task.due),
+            status: task.status === 'completed' ? 'completed' : 
+                    task.status === 'needsAction' ? 'todo' : 'in-progress',
+            color: '#1976d2',
+            accountEmail: account.user.email,
+            accountName: account.user.name,
+            accountPicture: account.user.picture,
+            listId: task.listId,
+            notes: task.notes || '',
+            isRecurring: false,
+            isDragging: false,
+            completedAt: task.completed ? new Date(task.completed) : null,
+            tempDate: null,
+          });
+        }
+      });
+    });
+
+    // Combine all tasks
+    const combinedTasks = [...allTasks, ...googleTasks];
+
     // Filter tasks that have due dates
-    const tasksWithDates = allTasks.filter(task => task.dueDate);
+    const tasksWithDates = combinedTasks.filter(task => task.dueDate);
 
     console.log('Gantt Chart Debug:', {
       allTasksCount: allTasks.length,
+      googleTasksCount: googleTasks.length,
+      combinedTasksCount: combinedTasks.length,
       tasksWithDatesCount: tasksWithDates.length,
-      tasksWithDates: tasksWithDates.map(t => ({ id: t.id, content: t.content, dueDate: t.dueDate, status: t.status }))
+      tasksWithDates: tasksWithDates.map(t => ({ 
+        id: t.id, 
+        content: t.content, 
+        dueDate: t.dueDate, 
+        status: t.status,
+        accountName: t.accountName 
+      }))
     });
 
     // Calculate date range for the Gantt chart
