@@ -8,7 +8,7 @@ import {
   CardContent,
   Grid,
 } from '@mui/material';
-import { format, addDays, differenceInDays } from 'date-fns';
+import { format, addDays, differenceInDays, eachDayOfInterval } from 'date-fns';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import PauseCircleIcon from '@mui/icons-material/PauseCircle';
@@ -64,6 +64,11 @@ const GanttChart: React.FC<GanttChartProps> = ({
       };
     }).sort((a, b) => a.daysFromStart - b.daysFromStart);
   }, [tasks, startDate]);
+
+  const timelineDays = useMemo(() => {
+    const totalDays = Math.min(differenceInDays(endDate, startDate), 30); // Limit to 30 days max
+    return Array.from({ length: totalDays + 1 }, (_, i) => addDays(startDate, i));
+  }, [startDate, endDate]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -140,7 +145,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
         </Box>
       </Box>
 
-      {/* Simple Timeline */}
+      {/* Gantt Chart */}
       <Box sx={{ flex: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider', p: 2 }}>
         {timelineData.length === 0 ? (
           <Box sx={{ 
@@ -155,62 +160,122 @@ const GanttChart: React.FC<GanttChartProps> = ({
           </Box>
         ) : (
           <Box sx={{ height: 400, overflow: 'auto' }}>
+            {/* Timeline Header */}
+            <Box sx={{ 
+              display: 'flex', 
+              borderBottom: '2px solid', 
+              borderColor: 'primary.main',
+              position: 'sticky',
+              top: 0,
+              bgcolor: 'background.paper',
+              zIndex: 2
+            }}>
+              <Box sx={{ width: 200, p: 1, fontWeight: 'bold', borderRight: '1px solid', borderColor: 'divider' }}>
+                Tasks
+              </Box>
+              {timelineDays.map((day, index) => (
+                <Box
+                  key={index}
+                  sx={{
+                    width: 60,
+                    p: 1,
+                    textAlign: 'center',
+                    fontSize: '0.75rem',
+                    borderRight: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: index % 7 === 0 ? 'primary.light' : 'transparent',
+                    color: index % 7 === 0 ? 'primary.contrastText' : 'text.primary',
+                    fontWeight: index % 7 === 0 ? 'bold' : 'normal'
+                  }}
+                >
+                  {format(day, 'MMM dd')}
+                </Box>
+              ))}
+            </Box>
+
+            {/* Gantt Bars */}
             {timelineData.map((task) => (
               <Box
                 key={task.id}
                 sx={{
                   display: 'flex',
-                  alignItems: 'center',
-                  p: 2,
-                  mb: 1,
-                  border: '1px solid',
+                  borderBottom: '1px solid',
                   borderColor: 'divider',
-                  borderRadius: 1,
-                  bgcolor: getStatusBackgroundColor(task.status),
-                  cursor: 'pointer',
+                  minHeight: 50,
                   '&:hover': {
-                    boxShadow: 2,
-                    transform: 'translateY(-1px)',
-                    transition: 'all 0.2s ease'
+                    bgcolor: 'action.hover'
                   }
                 }}
-                onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
               >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 200 }}>
+                {/* Task Name */}
+                <Box sx={{ 
+                  width: 200, 
+                  p: 1, 
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  cursor: 'pointer',
+                  borderRight: '1px solid',
+                  borderColor: 'divider'
+                }}
+                onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
+                >
                   {getStatusIcon(task.status)}
                   <Typography variant="body2" sx={{ flex: 1 }}>
                     {task.name}
                   </Typography>
                 </Box>
-                
-                <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Due: {format(task.dueDate, 'MMM dd, yyyy')}
-                  </Typography>
-                  <Chip
-                    label={task.status}
-                    size="small"
-                    sx={{
-                      bgcolor: getStatusColor(task.status),
-                      color: 'white',
-                      fontSize: '0.7rem'
-                    }}
-                  />
-                </Box>
 
-                {task.accountName && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Avatar
-                      src={task.accountPicture}
-                      sx={{ width: 24, height: 24 }}
+                {/* Timeline Cells */}
+                {timelineDays.map((day, dayIndex) => {
+                  const isTaskDay = task.daysFromStart === dayIndex;
+                  const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                  
+                  return (
+                    <Box
+                      key={dayIndex}
+                      sx={{
+                        width: 60,
+                        minHeight: 50,
+                        borderRight: '1px solid',
+                        borderColor: 'divider',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        bgcolor: isToday ? 'warning.light' : 'transparent'
+                      }}
                     >
-                      {task.accountName.charAt(0)}
-                    </Avatar>
-                    <Typography variant="caption" color="text.secondary">
-                      {task.accountName}
-                    </Typography>
-                  </Box>
-                )}
+                      {isTaskDay && (
+                        <Box
+                          sx={{
+                            width: 50,
+                            height: 30,
+                            bgcolor: getStatusBackgroundColor(task.status),
+                            border: `3px solid ${getStatusColor(task.status)}`,
+                            borderRadius: 2,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: 2,
+                            '&:hover': {
+                              transform: 'scale(1.05)',
+                              boxShadow: 4,
+                              transition: 'all 0.2s ease'
+                            }
+                          }}
+                          onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
+                          title={`${task.fullContent} - ${task.status} - Due: ${format(task.dueDate, 'MMM dd, yyyy')}`}
+                        >
+                          <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 'bold', color: getStatusColor(task.status) }}>
+                            {task.status === 'completed' ? '✓' : task.status === 'in-progress' ? '⟳' : '○'}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  );
+                })}
               </Box>
             ))}
           </Box>
