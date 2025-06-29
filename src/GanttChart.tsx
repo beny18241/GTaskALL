@@ -7,9 +7,8 @@ import {
   Card,
   CardContent,
   Grid,
-  Divider,
 } from '@mui/material';
-import { format, addDays, differenceInDays, startOfDay, endOfDay, eachDayOfInterval } from 'date-fns';
+import { format, addDays, differenceInDays } from 'date-fns';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import PauseCircleIcon from '@mui/icons-material/PauseCircle';
@@ -36,19 +35,6 @@ interface GanttChartProps {
   startDate?: Date;
   endDate?: Date;
   onTaskClick?: (task: Task) => void;
-}
-
-interface TimelineTask {
-  id: string;
-  name: string;
-  dueDate: Date;
-  status: string;
-  color: string;
-  accountEmail?: string;
-  accountName?: string;
-  accountPicture?: string;
-  fullContent: string;
-  daysFromStart: number;
 }
 
 const GanttChart: React.FC<GanttChartProps> = ({
@@ -78,11 +64,6 @@ const GanttChart: React.FC<GanttChartProps> = ({
       };
     }).sort((a, b) => a.daysFromStart - b.daysFromStart);
   }, [tasks, startDate]);
-
-  const timelineDays = useMemo(() => {
-    const totalDays = differenceInDays(endDate, startDate);
-    return Array.from({ length: totalDays + 1 }, (_, i) => addDays(startDate, i));
-  }, [startDate, endDate]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -159,7 +140,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
         </Box>
       </Box>
 
-      {/* Timeline Chart */}
+      {/* Simple Timeline */}
       <Box sx={{ flex: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider', p: 2 }}>
         {timelineData.length === 0 ? (
           <Box sx={{ 
@@ -174,126 +155,62 @@ const GanttChart: React.FC<GanttChartProps> = ({
           </Box>
         ) : (
           <Box sx={{ height: 400, overflow: 'auto' }}>
-            {/* Timeline Header */}
-            <Box sx={{ 
-              display: 'flex', 
-              borderBottom: '1px solid', 
-              borderColor: 'divider',
-              position: 'sticky',
-              top: 0,
-              bgcolor: 'background.paper',
-              zIndex: 2
-            }}>
-              <Box sx={{ width: 200, p: 1, fontWeight: 'bold' }}>
-                Tasks
-              </Box>
-              {timelineDays.map((day, index) => (
-                <Box
-                  key={index}
-                  sx={{
-                    width: 60,
-                    p: 1,
-                    textAlign: 'center',
-                    fontSize: '0.75rem',
-                    borderLeft: '1px solid',
-                    borderColor: 'divider',
-                    bgcolor: index % 7 === 0 ? 'action.hover' : 'transparent'
-                  }}
-                >
-                  {format(day, 'MMM dd')}
-                </Box>
-              ))}
-            </Box>
-
-            {/* Timeline Tasks */}
-            {timelineData.map((task, taskIndex) => (
+            {timelineData.map((task) => (
               <Box
                 key={task.id}
                 sx={{
                   display: 'flex',
-                  borderBottom: '1px solid',
+                  alignItems: 'center',
+                  p: 2,
+                  mb: 1,
+                  border: '1px solid',
                   borderColor: 'divider',
+                  borderRadius: 1,
+                  bgcolor: getStatusBackgroundColor(task.status),
+                  cursor: 'pointer',
                   '&:hover': {
-                    bgcolor: 'action.hover'
+                    boxShadow: 2,
+                    transform: 'translateY(-1px)',
+                    transition: 'all 0.2s ease'
                   }
                 }}
-              >
-                {/* Task Name */}
-                <Box sx={{ 
-                  width: 200, 
-                  p: 1, 
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  cursor: 'pointer'
-                }}
                 onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
-                >
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 200 }}>
                   {getStatusIcon(task.status)}
                   <Typography variant="body2" sx={{ flex: 1 }}>
                     {task.name}
                   </Typography>
                 </Box>
+                
+                <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Due: {format(task.dueDate, 'MMM dd, yyyy')}
+                  </Typography>
+                  <Chip
+                    label={task.status}
+                    size="small"
+                    sx={{
+                      bgcolor: getStatusColor(task.status),
+                      color: 'white',
+                      fontSize: '0.7rem'
+                    }}
+                  />
+                </Box>
 
-                {/* Timeline Cells */}
-                {timelineDays.map((day, dayIndex) => {
-                  const isTaskDay = task.daysFromStart === dayIndex;
-                  const isPast = dayIndex < task.daysFromStart;
-                  const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-                  
-                  return (
-                    <Box
-                      key={dayIndex}
-                      sx={{
-                        width: 60,
-                        height: 40,
-                        borderLeft: '1px solid',
-                        borderColor: 'divider',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        position: 'relative',
-                        bgcolor: isToday ? 'warning.light' : 'transparent'
-                      }}
+                {task.accountName && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Avatar
+                      src={task.accountPicture}
+                      sx={{ width: 24, height: 24 }}
                     >
-                      {isTaskDay && (
-                        <Box
-                          sx={{
-                            width: 50,
-                            height: 20,
-                            bgcolor: getStatusBackgroundColor(task.status),
-                            border: `2px solid ${getStatusColor(task.status)}`,
-                            borderRadius: 1,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            '&:hover': {
-                              transform: 'scale(1.05)',
-                              transition: 'transform 0.2s ease'
-                            }
-                          }}
-                          onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
-                          title={`${task.fullContent} - ${task.status}`}
-                        >
-                          <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 'bold' }}>
-                            {task.status === 'completed' ? '✓' : task.status === 'in-progress' ? '⟳' : '○'}
-                          </Typography>
-                        </Box>
-                      )}
-                      {isPast && !isTaskDay && (
-                        <Box
-                          sx={{
-                            width: 2,
-                            height: 20,
-                            bgcolor: 'grey.300',
-                            borderRadius: 1
-                          }}
-                        />
-                      )}
-                    </Box>
-                  );
-                })}
+                      {task.accountName.charAt(0)}
+                    </Avatar>
+                    <Typography variant="caption" color="text.secondary">
+                      {task.accountName}
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             ))}
           </Box>
