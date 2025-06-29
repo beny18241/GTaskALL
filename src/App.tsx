@@ -14,6 +14,7 @@ import Brightness7Icon from '@mui/icons-material/Brightness7';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import TimelineIcon from '@mui/icons-material/Timeline';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -32,6 +33,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { CircularProgress } from '@mui/material';
 import { apiService } from './api';
 import TaskRow from './TaskRow.tsx';
+import GanttChart from './GanttChart.tsx';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import Alert from '@mui/material/Alert';
@@ -89,7 +91,7 @@ const DARK_MODE_KEY = 'dark-mode-preference';
 const API_BASE_URL = 'http://localhost:3001/api';
 
 // Add new view mode type
-type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate' | 'upcoming';
+type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate' | 'upcoming' | 'gantt';
 
 // Add this type at the top with other interfaces
 type Timeout = ReturnType<typeof setTimeout>;
@@ -2752,9 +2754,21 @@ function App() {
   }, []);
 
   const refreshTasks = useCallback(async () => {
-    if (googleAccounts.length === 0 || isRefreshing) return;
+    console.log('refreshTasks called, googleAccounts.length:', googleAccounts.length, 'isRefreshing:', isRefreshing);
+    
+    if (googleAccounts.length === 0) {
+      console.log('No Google accounts, skipping refresh');
+      setIsRefreshing(false);
+      return;
+    }
+    
+    if (isRefreshing) {
+      console.log('Already refreshing, skipping');
+      return;
+    }
 
     try {
+      console.log('Starting refresh...');
       setIsRefreshing(true);
 
       // Fetch tasks for all accounts (not just the active one)
@@ -2891,6 +2905,8 @@ function App() {
       // Update columns with the combined tasks
       updateColumnsWithTasks(combinedTasksByList);
       setLastRefreshTime(new Date());
+      console.log('Refresh completed successfully');
+      setIsRefreshing(false);
     } catch (error) {
       console.error('Error refreshing tasks:', error);
       setIsRefreshing(false);
@@ -3427,10 +3443,14 @@ function App() {
     if (!user) return;
 
     try {
+      console.log('Saving API key for user:', user.email, 'Key length:', geminiApiKey.length);
       const response = await apiService.updateUserSetting(user.email, 'gemini_api_key', geminiApiKey);
+      console.log('Save settings response:', response);
       if (response.success) {
         // Update API key status after saving
-        setApiKeyStatus(geminiApiKey ? 'configured' : 'not-configured');
+        const newStatus = geminiApiKey && geminiApiKey.trim() !== '' ? 'configured' : 'not-configured';
+        console.log('Setting API key status to:', newStatus);
+        setApiKeyStatus(newStatus);
         setSettingsOpen(false);
       }
     } catch (error) {
@@ -3531,9 +3551,12 @@ function App() {
     const checkApiKeyStatus = async () => {
       if (user) {
         try {
+          console.log('Checking API key status for user:', user.email);
           const response = await apiService.getUserSettings(user.email);
+          console.log('User settings response:', response);
           const hasApiKey = response.settings?.gemini_api_key;
-          setApiKeyStatus(hasApiKey ? 'configured' : 'not-configured');
+          console.log('Has API key:', !!hasApiKey, 'API key length:', hasApiKey?.length);
+          setApiKeyStatus(hasApiKey && hasApiKey.trim() !== '' ? 'configured' : 'not-configured');
           // Also load the API key value into state for persistence
           if (hasApiKey) {
             setGeminiApiKey(hasApiKey);
@@ -3542,11 +3565,111 @@ function App() {
           console.error('Error checking API key status:', error);
           setApiKeyStatus('not-configured');
         }
+      } else {
+        console.log('No user found, setting API key status to not-configured');
+        setApiKeyStatus('not-configured');
       }
     };
 
     checkApiKeyStatus();
   }, [user]);
+
+  const renderGanttView = () => {
+    // Get all tasks from all columns
+    const allTasks = columns.reduce((acc: Task[], column) => {
+      return [...acc, ...column.tasks];
+    }, []);
+
+    // Filter tasks that have due dates
+    const tasksWithDates = allTasks.filter(task => task.dueDate);
+
+    const handleTaskClick = (task: Task) => {
+      handleEditTask(task, 'gantt');
+    };
+
+    const handleTaskMove = async (taskId: string, newDueDate: Date) => {
+      // Find the task in the columns
+      let foundTask: Task | null = null;
+      let foundColumnId = '';
+
+      for (const column of columns) {
+        const task = column.tasks.find(t => t.id === taskId);
+        if (task) {
+          foundTask = task;
+          foundColumnId = column.id;
+          break;
+        }
+      }
+
+      if (!foundTask) {
+        console.error('Task not found:', taskId);
+        return;
+      }
+
+      // Update the task's due date
+      const updatedTask = { ...foundTask, dueDate: newDueDate };
+
+      // Update local state
+      setColumns(prevColumns => 
+        prevColumns.map(column => 
+          column.id === foundColumnId
+            ? {
+                ...column,
+                tasks: column.tasks.map(task => 
+                  task.id === taskId ? updatedTask : task
+                )
+              }
+            : column
+        )
+      );
+
+      // Sync with Google Tasks if connected
+      if (googleAccounts.length > 0 && foundTask.accountEmail) {
+        try {
+          // Find the task in Google Tasks
+          let taskListId = '';
+          let googleTaskId = '';
+          
+          // Search through all task lists to find the task
+          for (const [listId, tasks] of Object.entries(googleAccounts[activeAccountIndex].tasks)) {
+            const foundGoogleTask = tasks.find(t => t.id === taskId);
+            if (foundGoogleTask) {
+              taskListId = listId;
+              googleTaskId = foundGoogleTask.id;
+              break;
+            }
+          }
+
+          if (taskListId && googleTaskId) {
+            // Update the task in Google Tasks
+            await axios.patch(
+              `https://www.googleapis.com/tasks/v1/lists/${taskListId}/tasks/${googleTaskId}`,
+              {
+                due: newDueDate.toISOString()
+              },
+              {
+                headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` }
+              }
+            );
+
+            console.log(`Task ${taskId} moved to ${newDueDate.toDateString()}`);
+          }
+        } catch (error) {
+          console.error('Error updating task in Google Tasks:', error);
+        }
+      }
+    };
+
+    return (
+      <Box sx={{ height: 'calc(100vh - 120px)', overflow: 'hidden' }}>
+        <GanttChart
+          tasks={tasksWithDates}
+          onTaskClick={handleTaskClick}
+          onTaskMove={handleTaskMove}
+        />
+      </Box>
+    );
+  };
 
   return (
     <ThemeProvider theme={theme}>
@@ -3646,6 +3769,13 @@ function App() {
                   title="Upcoming Tasks"
                 >
                   <ScheduleIcon fontSize="small" />
+                </IconButton>
+                <IconButton 
+                  className={viewMode === 'gantt' ? 'active' : ''}
+                  onClick={() => setViewMode('gantt')}
+                  title="Gantt Chart"
+                >
+                  <TimelineIcon fontSize="small" />
                 </IconButton>
               </Box>
 
@@ -3921,6 +4051,7 @@ function App() {
                     {viewMode === 'ultimate' && renderUltimateView()}
                     {viewMode === 'kanban' && renderKanbanView()}
                     {viewMode === 'upcoming' && renderUpcomingView()}
+                    {viewMode === 'gantt' && renderGanttView()}
                   </>
                 )
               ) : (
