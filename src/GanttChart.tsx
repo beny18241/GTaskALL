@@ -5,13 +5,10 @@ import {
   Typography,
   Chip,
   Avatar,
-  Tooltip,
-  IconButton,
   Card,
   CardContent,
   Grid,
   Divider,
-  LinearProgress,
 } from '@mui/material';
 import {
   BarChart,
@@ -24,8 +21,6 @@ import {
   Cell,
 } from 'recharts';
 import { format, addDays, differenceInDays, startOfDay, endOfDay } from 'date-fns';
-import EventIcon from '@mui/icons-material/Event';
-import ScheduleIcon from '@mui/icons-material/Schedule';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import PauseCircleIcon from '@mui/icons-material/PauseCircle';
@@ -66,6 +61,7 @@ interface GanttTaskData {
   accountName?: string;
   accountPicture?: string;
   dueDate?: Date | null;
+  fullContent: string;
 }
 
 const GanttChart: React.FC<GanttChartProps> = ({
@@ -102,17 +98,6 @@ const GanttChart: React.FC<GanttChartProps> = ({
     }).sort((a, b) => a.start - b.start);
   }, [tasks, startDate]);
 
-  const dateLabels = useMemo(() => {
-    const labels = [];
-    const totalDays = differenceInDays(endDate, startDate);
-    
-    for (let i = 0; i <= totalDays; i += 7) {
-      labels.push(format(addDays(startDate, i), 'MMM dd'));
-    }
-    
-    return labels;
-  }, [startDate, endDate]);
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
@@ -139,7 +124,16 @@ const GanttChart: React.FC<GanttChartProps> = ({
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <Paper sx={{ p: 2, boxShadow: 3 }}>
+        <Box
+          sx={{
+            bgcolor: 'background.paper',
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 1,
+            p: 2,
+            boxShadow: 3,
+          }}
+        >
           <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
             {data.fullContent}
           </Typography>
@@ -156,7 +150,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
               Account: {data.accountName}
             </Typography>
           )}
-        </Paper>
+        </Box>
       );
     }
     return null;
@@ -165,17 +159,17 @@ const GanttChart: React.FC<GanttChartProps> = ({
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <Paper sx={{ p: 2, mb: 2 }}>
+      <Box sx={{ p: 2, mb: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
         <Typography variant="h6" gutterBottom>
           Gantt Chart View
         </Typography>
         <Typography variant="body2" color="text.secondary">
           Timeline: {format(startDate, 'MMM dd, yyyy')} - {format(endDate, 'MMM dd, yyyy')}
         </Typography>
-      </Paper>
+      </Box>
 
       {/* Legend */}
-      <Paper sx={{ p: 2, mb: 2 }}>
+      <Box sx={{ p: 2, mb: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
         <Typography variant="subtitle2" gutterBottom>
           Status Legend
         </Typography>
@@ -199,49 +193,71 @@ const GanttChart: React.FC<GanttChartProps> = ({
             sx={{ bgcolor: '#e8f5e8' }}
           />
         </Box>
-      </Paper>
+      </Box>
 
       {/* Gantt Chart */}
-      <Paper sx={{ flex: 1, p: 2 }}>
-        <ResponsiveContainer width="100%" height={400}>
-          <BarChart
-            data={ganttData}
-            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-            layout="horizontal"
-          >
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              type="number"
-              domain={[0, differenceInDays(endDate, startDate)]}
-              tickFormatter={(value) => format(addDays(startDate, value), 'MMM dd')}
-              interval={7}
-            />
-            <YAxis
-              type="category"
-              dataKey="name"
-              width={200}
-              tick={{ fontSize: 12 }}
-            />
-            <RechartsTooltip content={<CustomTooltip />} />
-            <Bar
-              dataKey="duration"
-              fill="#8884d8"
-              onClick={(data) => onTaskClick && onTaskClick(tasks.find(t => t.id === data.id)!)}
-              cursor="pointer"
+      <Box sx={{ flex: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider', p: 2 }}>
+        {ganttData.length === 0 ? (
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            height: 400,
+            color: 'text.secondary',
+            fontStyle: 'italic'
+          }}>
+            No tasks with due dates found
+          </Box>
+        ) : (
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart
+              data={ganttData}
+              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+              layout="horizontal"
             >
-              {ganttData.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={getStatusColor(entry.status)}
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </Paper>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+              <XAxis
+                type="number"
+                domain={[0, differenceInDays(endDate, startDate)]}
+                tickFormatter={(value) => format(addDays(startDate, value), 'MMM dd')}
+                interval={7}
+                stroke="#666"
+                fontSize={12}
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={200}
+                tick={{ fontSize: 12 }}
+                stroke="#666"
+              />
+              <RechartsTooltip content={<CustomTooltip />} />
+              <Bar
+                dataKey="duration"
+                fill="#8884d8"
+                onClick={(data) => {
+                  const task = tasks.find(t => t.id === data.id);
+                  if (task && onTaskClick) {
+                    onTaskClick(task);
+                  }
+                }}
+                cursor="pointer"
+                radius={[2, 2, 2, 2]}
+              >
+                {ganttData.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={getStatusColor(entry.status)}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </Box>
 
       {/* Task List */}
-      <Paper sx={{ mt: 2, p: 2 }}>
+      <Box sx={{ mt: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider', p: 2 }}>
         <Typography variant="h6" gutterBottom>
           Task Details
         </Typography>
@@ -251,10 +267,19 @@ const GanttChart: React.FC<GanttChartProps> = ({
               <Card
                 sx={{
                   cursor: 'pointer',
-                  '&:hover': { boxShadow: 3 },
+                  '&:hover': { 
+                    boxShadow: 3,
+                    transform: 'translateY(-2px)',
+                    transition: 'all 0.2s ease'
+                  },
                   borderLeft: `4px solid ${getStatusColor(task.status)}`,
                 }}
-                onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
+                onClick={() => {
+                  const originalTask = tasks.find(t => t.id === task.id);
+                  if (originalTask && onTaskClick) {
+                    onTaskClick(originalTask);
+                  }
+                }}
               >
                 <CardContent sx={{ p: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -288,7 +313,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
             </Grid>
           ))}
         </Grid>
-      </Paper>
+      </Box>
     </Box>
   );
 };

@@ -3559,6 +3559,12 @@ function App() {
     // Filter tasks that have due dates
     const tasksWithDates = allTasks.filter(task => task.dueDate);
 
+    console.log('Gantt Chart Debug:', {
+      allTasksCount: allTasks.length,
+      tasksWithDatesCount: tasksWithDates.length,
+      tasksWithDates: tasksWithDates.map(t => ({ id: t.id, content: t.content, dueDate: t.dueDate, status: t.status }))
+    });
+
     // Calculate date range for the Gantt chart
     const dates = tasksWithDates.map(task => new Date(task.dueDate!));
     const startDate = dates.length > 0 ? new Date(Math.min(...dates.map(d => d.getTime()))) : new Date();
