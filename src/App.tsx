@@ -14,6 +14,7 @@ import Brightness7Icon from '@mui/icons-material/Brightness7';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import TimelineIcon from '@mui/icons-material/Timeline';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -32,6 +33,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { CircularProgress } from '@mui/material';
 import { apiService } from './api';
 import TaskRow from './TaskRow.tsx';
+import GanttChart from './GanttChart.tsx';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import Alert from '@mui/material/Alert';
@@ -89,7 +91,7 @@ const DARK_MODE_KEY = 'dark-mode-preference';
 const API_BASE_URL = 'http://localhost:3001/api';
 
 // Add new view mode type
-type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate' | 'upcoming';
+type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate' | 'upcoming' | 'gantt';
 
 // Add this type at the top with other interfaces
 type Timeout = ReturnType<typeof setTimeout>;
@@ -3548,6 +3550,40 @@ function App() {
     checkApiKeyStatus();
   }, [user]);
 
+  const renderGanttView = () => {
+    // Get all tasks from all columns
+    const allTasks = columns.reduce((acc: Task[], column) => {
+      return [...acc, ...column.tasks];
+    }, []);
+
+    // Filter tasks that have due dates
+    const tasksWithDates = allTasks.filter(task => task.dueDate);
+
+    // Calculate date range for the Gantt chart
+    const dates = tasksWithDates.map(task => new Date(task.dueDate!));
+    const startDate = dates.length > 0 ? new Date(Math.min(...dates.map(d => d.getTime()))) : new Date();
+    const endDate = dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))) : addDays(new Date(), 30);
+
+    // Extend the range by a few days on each side for better visualization
+    const chartStartDate = addDays(startDate, -7);
+    const chartEndDate = addDays(endDate, 7);
+
+    const handleTaskClick = (task: Task) => {
+      handleEditTask(task, 'gantt');
+    };
+
+    return (
+      <Box sx={{ height: 'calc(100vh - 120px)', overflow: 'auto' }}>
+        <GanttChart
+          tasks={tasksWithDates}
+          startDate={chartStartDate}
+          endDate={chartEndDate}
+          onTaskClick={handleTaskClick}
+        />
+      </Box>
+    );
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
@@ -3646,6 +3682,13 @@ function App() {
                   title="Upcoming Tasks"
                 >
                   <ScheduleIcon fontSize="small" />
+                </IconButton>
+                <IconButton 
+                  className={viewMode === 'gantt' ? 'active' : ''}
+                  onClick={() => setViewMode('gantt')}
+                  title="Gantt Chart"
+                >
+                  <TimelineIcon fontSize="small" />
                 </IconButton>
               </Box>
 
@@ -3921,6 +3964,7 @@ function App() {
                     {viewMode === 'ultimate' && renderUltimateView()}
                     {viewMode === 'kanban' && renderKanbanView()}
                     {viewMode === 'upcoming' && renderUpcomingView()}
+                    {viewMode === 'gantt' && renderGanttView()}
                   </>
                 )
               ) : (
