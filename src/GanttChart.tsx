@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Box,
   Typography,
@@ -46,10 +46,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
   onTaskClick,
   onTaskMove,
 }) => {
-  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  // Minimal state for drag feedback
   const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragPreviewRef = useRef<HTMLDivElement>(null);
 
   const timelineData = useMemo(() => {
     const filteredTasks = tasks.filter(task => task.dueDate);
@@ -125,27 +123,13 @@ const GanttChart: React.FC<GanttChartProps> = ({
     }
   };
 
-  // Enhanced drag and drop handlers for Jira-like slider
+  // Enhanced drag and drop handlers
   const handleDragStart = (e: React.DragEvent, task: any) => {
-    setIsDragging(true);
-    setDraggedTaskId(task.id);
-    
-    // Create a custom drag image
-    if (dragPreviewRef.current) {
-      e.dataTransfer.setDragImage(dragPreviewRef.current, 25, 16);
-    }
-    
     e.dataTransfer.setData('text/plain', JSON.stringify({
       taskId: task.id,
       taskName: task.name
     }));
     e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragEnd = () => {
-    setIsDragging(false);
-    setDraggedTaskId(null);
-    setDragOverDate(null);
   };
 
   const handleDragOver = (e: React.DragEvent, date: Date) => {
@@ -172,47 +156,11 @@ const GanttChart: React.FC<GanttChartProps> = ({
       console.error('Error parsing drag data:', error);
     }
     
-    handleDragEnd();
-  };
-
-  // Get the day index for a task
-  const getTaskDayIndex = (taskDueDate: Date) => {
-    return timelineDays.findIndex(day => 
-      format(day, 'yyyy-MM-dd') === format(taskDueDate, 'yyyy-MM-dd')
-    );
+    setDragOverDate(null);
   };
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Hidden drag preview element */}
-      <Box
-        ref={dragPreviewRef}
-        sx={{
-          position: 'absolute',
-          left: '-9999px',
-          top: '-9999px',
-          width: 56,
-          height: 32,
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          borderRadius: 2.5,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 4px 20px rgba(102, 126, 234, 0.4)',
-          border: '2px solid #fff',
-          zIndex: 9999,
-        }}
-      >
-        <Typography variant="caption" sx={{
-          fontSize: '0.8rem',
-          fontWeight: 700,
-          color: 'white',
-          textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-        }}>
-          Moving...
-        </Typography>
-      </Box>
-
       {/* Fancy Header */}
       <Box sx={{ 
         p: 3, 
@@ -393,7 +341,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
             <Box sx={{ minWidth: timelineDays.length * 64 + 220, display: 'flex', flexDirection: 'column', mt: 2 }}>
               {/* Timeline Header */}
               <Box sx={{ display: 'flex', borderBottom: '2px solid', borderColor: 'primary.main', bgcolor: 'background.paper', position: 'sticky', top: 0, zIndex: 10 }}>
-                {/* Empty space for task names */}
+                {/* Task Names Header */}
                 <Box sx={{
                   width: 220,
                   minWidth: 220,
@@ -413,7 +361,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
                   Tasks
                 </Box>
 
-                {/* Date headers */}
+                {/* Date Headers */}
                 {timelineDays.map((day, dayIndex) => {
                   const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
                   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
@@ -456,196 +404,188 @@ const GanttChart: React.FC<GanttChartProps> = ({
               </Box>
 
               {/* Task Rows */}
-              {timelineData.map((task, rowIdx) => {
-                const taskDayIndex = getTaskDayIndex(task.dueDate);
-                const isBeingDragged = draggedTaskId === task.id;
-                
-                return (
-                  <Box
-                    key={task.id}
-                    sx={{
-                      display: 'flex',
-                      borderBottom: '1px solid',
-                      borderColor: 'divider',
-                      minHeight: 54,
-                      alignItems: 'center',
-                      '&:hover': {
-                        bgcolor: 'rgba(102, 126, 234, 0.05)',
-                      },
-                      position: 'relative',
-                      opacity: isBeingDragged ? 0.3 : 1,
-                      transition: 'opacity 0.2s ease',
-                    }}
+              {timelineData.map((task, rowIdx) => (
+                <Box
+                  key={task.id}
+                  sx={{
+                    display: 'flex',
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    minHeight: 54,
+                    alignItems: 'center',
+                    '&:hover': {
+                      bgcolor: 'rgba(102, 126, 234, 0.05)',
+                    },
+                    position: 'relative',
+                  }}
+                >
+                  {/* Task Name - Fixed Position */}
+                  <Box sx={{
+                    width: 220,
+                    minWidth: 220,
+                    maxWidth: 220,
+                    p: 1.5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                    cursor: 'pointer',
+                    borderRight: '2px solid',
+                    borderColor: 'primary.main',
+                    bgcolor: 'background.paper',
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      bgcolor: 'primary.light',
+                      color: 'primary.contrastText',
+                    },
+                  }}
+                  onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
                   >
-                    {/* Task Name - Fixed Position */}
-                    <Box sx={{
-                      width: 220,
-                      minWidth: 220,
-                      maxWidth: 220,
-                      p: 1.5,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1.5,
-                      cursor: 'pointer',
-                      borderRight: '2px solid',
-                      borderColor: 'primary.main',
-                      bgcolor: 'background.paper',
-                      transition: 'all 0.2s ease',
-                      '&:hover': {
-                        bgcolor: 'primary.light',
-                        color: 'primary.contrastText',
-                      },
-                    }}
-                    onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
-                    >
-                      {getStatusIcon(task.status)}
-                      <Typography variant="body2" sx={{ flex: 1, fontWeight: 500 }}>
-                        {task.name}
-                      </Typography>
-                      {task.accountName && (
-                        <Avatar
-                          src={task.accountPicture}
-                          sx={{ width: 24, height: 24, border: '2px solid white' }}
-                        >
-                          {task.accountName.charAt(0)}
-                        </Avatar>
-                      )}
-                    </Box>
+                    {getStatusIcon(task.status)}
+                    <Typography variant="body2" sx={{ flex: 1, fontWeight: 500 }}>
+                      {task.name}
+                    </Typography>
+                    {task.accountName && (
+                      <Avatar
+                        src={task.accountPicture}
+                        sx={{ width: 24, height: 24, border: '2px solid white' }}
+                      >
+                        {task.accountName.charAt(0)}
+                      </Avatar>
+                    )}
+                  </Box>
 
-                    {/* Timeline Cells with Slider Indicators */}
-                    {timelineDays.map((day, dayIndex) => {
-                      const dueDate = new Date(task.dueDate);
-                      const isTaskDay = format(day, 'yyyy-MM-dd') === format(dueDate, 'yyyy-MM-dd');
-                      const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-                      const isPast = day < new Date() && !isToday;
-                      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                      const isDragOver = dragOverDate && format(dragOverDate, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
-                      
-                      return (
-                        <Box
-                          key={dayIndex}
-                          onDragOver={(e) => handleDragOver(e, day)}
-                          onDragLeave={handleDragLeave}
-                          onDrop={(e) => handleDrop(e, day)}
-                          sx={{
-                            width: 64,
-                            minWidth: 64,
-                            maxWidth: 64,
-                            height: 54,
-                            borderRight: '1px solid',
-                            borderColor: 'divider',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            position: 'relative',
+                  {/* Timeline Cells with Slider Indicators */}
+                  {timelineDays.map((day, dayIndex) => {
+                    const dueDate = new Date(task.dueDate);
+                    const isTaskDay = format(day, 'yyyy-MM-dd') === format(dueDate, 'yyyy-MM-dd');
+                    const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                    const isPast = day < new Date() && !isToday;
+                    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                    const isDragOver = dragOverDate && format(dragOverDate, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
+                    
+                    return (
+                      <Box
+                        key={dayIndex}
+                        onDragOver={(e) => handleDragOver(e, day)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, day)}
+                        sx={{
+                          width: 64,
+                          minWidth: 64,
+                          maxWidth: 64,
+                          height: 54,
+                          borderRight: '1px solid',
+                          borderColor: 'divider',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          position: 'relative',
+                          bgcolor: isDragOver
+                            ? 'rgba(102, 126, 234, 0.2)'
+                            : isToday 
+                            ? 'rgba(255, 152, 0, 0.15)'
+                            : isPast
+                            ? '#fafafa'
+                            : isWeekend
+                            ? 'rgba(102, 126, 234, 0.05)'
+                            : 'transparent',
+                          transition: 'all 0.2s ease',
+                          px: 0,
+                          py: 0,
+                          '&:hover': {
                             bgcolor: isDragOver
-                              ? 'rgba(102, 126, 234, 0.2)'
+                              ? 'rgba(102, 126, 234, 0.3)'
                               : isToday 
-                              ? 'rgba(255, 152, 0, 0.15)'
+                              ? 'rgba(255, 152, 0, 0.25)'
                               : isPast
-                              ? '#fafafa'
+                              ? '#f0f0f0'
                               : isWeekend
-                              ? 'rgba(102, 126, 234, 0.05)'
-                              : 'transparent',
-                            transition: 'all 0.2s ease',
-                            px: 0,
-                            py: 0,
-                            '&:hover': {
-                              bgcolor: isDragOver
-                                ? 'rgba(102, 126, 234, 0.3)'
-                                : isToday 
-                                ? 'rgba(255, 152, 0, 0.25)'
-                                : isPast
-                                ? '#f0f0f0'
-                                : isWeekend
-                                ? 'rgba(102, 126, 234, 0.1)'
-                                : 'rgba(0, 0, 0, 0.05)',
-                            },
-                          }}
-                        >
-                          {/* Task Slider Indicator */}
-                          {isTaskDay && !isBeingDragged && (
-                            <Tooltip 
-                              title={`${task.fullContent} - ${task.status} - Due: ${format(task.dueDate, 'MMM dd, yyyy')} (Drag to move)`}
-                              arrow
-                            >
-                              <Box
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, task)}
-                                onDragEnd={handleDragEnd}
-                                sx={{
-                                  width: 56,
-                                  height: 32,
-                                  background: getStatusGradient(task.status),
-                                  borderRadius: 2.5,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  cursor: 'grab',
-                                  boxShadow: getStatusShadow(task.status),
-                                  transition: 'all 0.3s cubic-bezier(.4,2,.6,1)',
-                                  '&:hover': {
-                                    transform: 'scale(1.08)',
-                                    boxShadow: `${getStatusShadow(task.status)}, 0 8px 25px rgba(0,0,0,0.18)`,
-                                    cursor: 'grabbing'
-                                  },
-                                  '&:active': {
-                                    cursor: 'grabbing',
-                                    transform: 'scale(1.05)'
-                                  },
-                                  border: '2px solid #fff',
-                                  position: 'absolute',
-                                  left: 4,
-                                  top: 11,
-                                  zIndex: 5,
-                                }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!);
-                                }}
-                              >
-                                <Typography variant="caption" sx={{
-                                  fontSize: '0.9rem',
-                                  fontWeight: 700,
-                                  color: 'white',
-                                  textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                                  px: 1,
-                                  overflow: 'hidden',
-                                  whiteSpace: 'nowrap',
-                                  textOverflow: 'ellipsis',
-                                  width: '100%',
-                                  textAlign: 'center',
-                                  pointerEvents: 'none',
-                                }}>
-                                  {task.name}
-                                </Typography>
-                              </Box>
-                            </Tooltip>
-                          )}
-
-                          {/* Drag Over Indicator */}
-                          {isDragOver && (
+                              ? 'rgba(102, 126, 234, 0.1)'
+                              : 'rgba(0, 0, 0, 0.05)',
+                          },
+                        }}
+                      >
+                        {/* Task Slider Indicator */}
+                        {isTaskDay && (
+                          <Tooltip 
+                            title={`${task.fullContent} - ${task.status} - Due: ${format(task.dueDate, 'MMM dd, yyyy')} (Drag to move)`}
+                            arrow
+                          >
                             <Box
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, task)}
                               sx={{
                                 width: 56,
                                 height: 32,
-                                background: 'rgba(102, 126, 234, 0.3)',
+                                background: getStatusGradient(task.status),
                                 borderRadius: 2.5,
-                                border: '2px dashed rgba(102, 126, 234, 0.8)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'grab',
+                                boxShadow: getStatusShadow(task.status),
+                                transition: 'all 0.3s cubic-bezier(.4,2,.6,1)',
+                                '&:hover': {
+                                  transform: 'scale(1.08)',
+                                  boxShadow: `${getStatusShadow(task.status)}, 0 8px 25px rgba(0,0,0,0.18)`,
+                                  cursor: 'grabbing'
+                                },
+                                '&:active': {
+                                  cursor: 'grabbing',
+                                  transform: 'scale(1.05)'
+                                },
+                                border: '2px solid #fff',
                                 position: 'absolute',
                                 left: 4,
                                 top: 11,
-                                zIndex: 4,
-                                animation: 'pulse 1s infinite',
+                                zIndex: 5,
                               }}
-                            />
-                          )}
-                        </Box>
-                      );
-                    })}
-                  </Box>
-                );
-              })}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!);
+                              }}
+                            >
+                              <Typography variant="caption" sx={{
+                                fontSize: '0.9rem',
+                                fontWeight: 700,
+                                color: 'white',
+                                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                                px: 1,
+                                overflow: 'hidden',
+                                whiteSpace: 'nowrap',
+                                textOverflow: 'ellipsis',
+                                width: '100%',
+                                textAlign: 'center',
+                                pointerEvents: 'none',
+                              }}>
+                                {task.name}
+                              </Typography>
+                            </Box>
+                          </Tooltip>
+                        )}
+
+                        {/* Drag Over Indicator */}
+                        {isDragOver && (
+                          <Box
+                            sx={{
+                              width: 56,
+                              height: 32,
+                              background: 'rgba(102, 126, 234, 0.3)',
+                              borderRadius: 2.5,
+                              border: '2px dashed rgba(102, 126, 234, 0.8)',
+                              position: 'absolute',
+                              left: 4,
+                              top: 11,
+                              zIndex: 4,
+                              animation: 'pulse 1s infinite',
+                            }}
+                          />
+                        )}
+                      </Box>
+                    );
+                  })}
+                </Box>
+              ))}
             </Box>
           </Box>
         )}
