@@ -52,7 +52,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
   const timelineData = useMemo(() => {
     const filteredTasks = tasks.filter(task => task.dueDate);
     
-    return filteredTasks.map((task) => {
+    const taskData = filteredTasks.map((task) => {
       const taskDate = task.dueDate ? new Date(task.dueDate) : new Date();
       
       return {
@@ -66,7 +66,23 @@ const GanttChart: React.FC<GanttChartProps> = ({
         accountPicture: task.accountPicture,
         fullContent: task.content,
       };
-    }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    });
+
+    // Separate active and completed tasks
+    const activeTasks = taskData.filter(task => task.status !== 'completed');
+    const completedTasks = taskData.filter(task => task.status === 'completed');
+
+    // Sort active tasks by due date
+    const sortedActiveTasks = activeTasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    
+    // Sort completed tasks by completion date (most recent first)
+    const sortedCompletedTasks = completedTasks.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+
+    return {
+      active: sortedActiveTasks,
+      completed: sortedCompletedTasks,
+      all: [...sortedActiveTasks, ...sortedCompletedTasks]
+    };
   }, [tasks]);
 
   const timelineDays = useMemo(() => {
@@ -280,7 +296,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
               {/* Task Count */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Chip 
-                  label={`${timelineData.length} Tasks`} 
+                  label={`${timelineData.all.length} Tasks`} 
                   sx={{ 
                     bgcolor: 'rgba(255,255,255,0.2)', 
                     color: 'white',
@@ -318,7 +334,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
         display: 'flex',
         flexDirection: 'column',
       }}>
-        {timelineData.length === 0 ? (
+        {timelineData.all.length === 0 ? (
           <Box sx={{ 
             display: 'flex', 
             flexDirection: 'column',
@@ -403,189 +419,369 @@ const GanttChart: React.FC<GanttChartProps> = ({
                 })}
               </Box>
 
-              {/* Task Rows */}
-              {timelineData.map((task, rowIdx) => (
-                <Box
-                  key={task.id}
-                  sx={{
-                    display: 'flex',
-                    borderBottom: '1px solid',
-                    borderColor: 'divider',
-                    minHeight: 54,
-                    alignItems: 'center',
-                    '&:hover': {
-                      bgcolor: 'rgba(102, 126, 234, 0.05)',
-                    },
-                    position: 'relative',
-                  }}
-                >
-                  {/* Task Name - Fixed Position */}
+              {/* Active Tasks Section */}
+              {timelineData.active.length > 0 && (
+                <>
+                  {/* Active Tasks Header */}
                   <Box sx={{
-                    width: 220,
-                    minWidth: 220,
-                    maxWidth: 220,
-                    p: 1.5,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 1.5,
-                    cursor: 'pointer',
-                    borderRight: '2px solid',
-                    borderColor: 'primary.main',
-                    bgcolor: 'background.paper',
-                    transition: 'all 0.2s ease',
-                    '&:hover': {
-                      bgcolor: 'primary.light',
-                      color: 'primary.contrastText',
-                    },
-                  }}
-                  onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
-                  >
-                    {getStatusIcon(task.status)}
-                    <Typography variant="body2" sx={{ flex: 1, fontWeight: 500 }}>
-                      {task.name}
+                    bgcolor: 'rgba(76, 175, 80, 0.1)',
+                    borderBottom: '2px solid',
+                    borderColor: 'success.main',
+                    py: 1,
+                    px: 2,
+                    mt: 2,
+                  }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'success.main' }}>
+                      Active Tasks ({timelineData.active.length})
                     </Typography>
-                    {task.accountName && (
-                      <Avatar
-                        src={task.accountPicture}
-                        sx={{ width: 24, height: 24, border: '2px solid white' }}
-                      >
-                        {task.accountName.charAt(0)}
-                      </Avatar>
-                    )}
                   </Box>
 
-                  {/* Timeline Cells with Slider Indicators */}
-                  {timelineDays.map((day, dayIndex) => {
-                    const dueDate = new Date(task.dueDate);
-                    const isTaskDay = format(day, 'yyyy-MM-dd') === format(dueDate, 'yyyy-MM-dd');
-                    const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-                    const isPast = day < new Date() && !isToday;
-                    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                    const isDragOver = dragOverDate && format(dragOverDate, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
-                    
-                    return (
-                      <Box
-                        key={dayIndex}
-                        onDragOver={(e) => handleDragOver(e, day)}
-                        onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDrop(e, day)}
-                        sx={{
-                          width: 64,
-                          minWidth: 64,
-                          maxWidth: 64,
-                          height: 54,
-                          borderRight: '1px solid',
-                          borderColor: 'divider',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          position: 'relative',
-                          bgcolor: isDragOver
-                            ? 'rgba(102, 126, 234, 0.2)'
-                            : isToday 
-                            ? 'rgba(255, 152, 0, 0.15)'
-                            : isPast
-                            ? '#fafafa'
-                            : isWeekend
-                            ? 'rgba(102, 126, 234, 0.05)'
-                            : 'transparent',
-                          transition: 'all 0.2s ease',
-                          px: 0,
-                          py: 0,
-                          '&:hover': {
-                            bgcolor: isDragOver
-                              ? 'rgba(102, 126, 234, 0.3)'
-                              : isToday 
-                              ? 'rgba(255, 152, 0, 0.25)'
-                              : isPast
-                              ? '#f0f0f0'
-                              : isWeekend
-                              ? 'rgba(102, 126, 234, 0.1)'
-                              : 'rgba(0, 0, 0, 0.05)',
-                          },
-                        }}
+                  {/* Active Task Rows */}
+                  {timelineData.active.map((task, rowIdx) => (
+                    <Box
+                      key={task.id}
+                      sx={{
+                        display: 'flex',
+                        borderBottom: '1px solid',
+                        borderColor: 'divider',
+                        minHeight: 54,
+                        alignItems: 'center',
+                        '&:hover': {
+                          bgcolor: 'rgba(102, 126, 234, 0.05)',
+                        },
+                        position: 'relative',
+                      }}
+                    >
+                      {/* Task Name - Fixed Position */}
+                      <Box sx={{
+                        width: 220,
+                        minWidth: 220,
+                        maxWidth: 220,
+                        p: 1.5,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.5,
+                        cursor: 'pointer',
+                        borderRight: '2px solid',
+                        borderColor: 'primary.main',
+                        bgcolor: 'background.paper',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          bgcolor: 'primary.light',
+                          color: 'primary.contrastText',
+                        },
+                      }}
+                      onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
                       >
-                        {/* Task Slider Indicator */}
-                        {isTaskDay && (
-                          <Tooltip 
-                            title={`${task.fullContent} - ${task.status} - Due: ${format(task.dueDate, 'MMM dd, yyyy')} (Drag to move)`}
-                            arrow
+                        {getStatusIcon(task.status)}
+                        <Typography variant="body2" sx={{ flex: 1, fontWeight: 500 }}>
+                          {task.name}
+                        </Typography>
+                        {task.accountName && (
+                          <Avatar
+                            src={task.accountPicture}
+                            sx={{ width: 24, height: 24, border: '2px solid white' }}
                           >
-                            <Box
-                              draggable
-                              onDragStart={(e) => handleDragStart(e, task)}
-                              sx={{
-                                width: 56,
-                                height: 32,
-                                background: getStatusGradient(task.status),
-                                borderRadius: 2.5,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'grab',
-                                boxShadow: getStatusShadow(task.status),
-                                transition: 'all 0.3s cubic-bezier(.4,2,.6,1)',
-                                '&:hover': {
-                                  transform: 'scale(1.08)',
-                                  boxShadow: `${getStatusShadow(task.status)}, 0 8px 25px rgba(0,0,0,0.18)`,
-                                  cursor: 'grabbing'
-                                },
-                                '&:active': {
-                                  cursor: 'grabbing',
-                                  transform: 'scale(1.05)'
-                                },
-                                border: '2px solid #fff',
-                                position: 'absolute',
-                                left: 4,
-                                top: 11,
-                                zIndex: 5,
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!);
-                              }}
-                            >
-                              <Typography variant="caption" sx={{
-                                fontSize: '0.9rem',
-                                fontWeight: 700,
-                                color: 'white',
-                                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                                px: 1,
-                                overflow: 'hidden',
-                                whiteSpace: 'nowrap',
-                                textOverflow: 'ellipsis',
-                                width: '100%',
-                                textAlign: 'center',
-                                pointerEvents: 'none',
-                              }}>
-                                {task.name}
-                              </Typography>
-                            </Box>
-                          </Tooltip>
-                        )}
-
-                        {/* Drag Over Indicator */}
-                        {isDragOver && (
-                          <Box
-                            sx={{
-                              width: 56,
-                              height: 32,
-                              background: 'rgba(102, 126, 234, 0.3)',
-                              borderRadius: 2.5,
-                              border: '2px dashed rgba(102, 126, 234, 0.8)',
-                              position: 'absolute',
-                              left: 4,
-                              top: 11,
-                              zIndex: 4,
-                              animation: 'pulse 1s infinite',
-                            }}
-                          />
+                            {task.accountName.charAt(0)}
+                          </Avatar>
                         )}
                       </Box>
-                    );
-                  })}
-                </Box>
-              ))}
+
+                      {/* Timeline Cells with Slider Indicators */}
+                      {timelineDays.map((day, dayIndex) => {
+                        const dueDate = new Date(task.dueDate);
+                        const isTaskDay = format(day, 'yyyy-MM-dd') === format(dueDate, 'yyyy-MM-dd');
+                        const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                        const isPast = day < new Date() && !isToday;
+                        const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                        const isDragOver = dragOverDate && format(dragOverDate, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
+                        
+                        return (
+                          <Box
+                            key={dayIndex}
+                            onDragOver={(e) => handleDragOver(e, day)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, day)}
+                            sx={{
+                              width: 64,
+                              minWidth: 64,
+                              maxWidth: 64,
+                              height: 54,
+                              borderRight: '1px solid',
+                              borderColor: 'divider',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              position: 'relative',
+                              bgcolor: isDragOver
+                                ? 'rgba(102, 126, 234, 0.2)'
+                                : isToday 
+                                ? 'rgba(255, 152, 0, 0.15)'
+                                : isPast
+                                ? '#fafafa'
+                                : isWeekend
+                                ? 'rgba(102, 126, 234, 0.05)'
+                                : 'transparent',
+                              transition: 'all 0.2s ease',
+                              px: 0,
+                              py: 0,
+                              '&:hover': {
+                                bgcolor: isDragOver
+                                  ? 'rgba(102, 126, 234, 0.3)'
+                                  : isToday 
+                                  ? 'rgba(255, 152, 0, 0.25)'
+                                  : isPast
+                                  ? '#f0f0f0'
+                                  : isWeekend
+                                  ? 'rgba(102, 126, 234, 0.1)'
+                                  : 'rgba(0, 0, 0, 0.05)',
+                              },
+                            }}
+                          >
+                            {/* Task Slider Indicator */}
+                            {isTaskDay && (
+                              <Tooltip 
+                                title={`${task.fullContent} - ${task.status} - Due: ${format(task.dueDate, 'MMM dd, yyyy')} (Drag to move)`}
+                                arrow
+                              >
+                                <Box
+                                  draggable
+                                  onDragStart={(e) => handleDragStart(e, task)}
+                                  sx={{
+                                    width: 56,
+                                    height: 32,
+                                    background: getStatusGradient(task.status),
+                                    borderRadius: 2.5,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'grab',
+                                    boxShadow: getStatusShadow(task.status),
+                                    transition: 'all 0.3s cubic-bezier(.4,2,.6,1)',
+                                    '&:hover': {
+                                      transform: 'scale(1.08)',
+                                      boxShadow: `${getStatusShadow(task.status)}, 0 8px 25px rgba(0,0,0,0.18)`,
+                                      cursor: 'grabbing'
+                                    },
+                                    '&:active': {
+                                      cursor: 'grabbing',
+                                      transform: 'scale(1.05)'
+                                    },
+                                    border: '2px solid #fff',
+                                    position: 'absolute',
+                                    left: 4,
+                                    top: 11,
+                                    zIndex: 5,
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!);
+                                  }}
+                                >
+                                  <Typography variant="caption" sx={{
+                                    fontSize: '0.9rem',
+                                    fontWeight: 700,
+                                    color: 'white',
+                                    textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                                    px: 1,
+                                    overflow: 'hidden',
+                                    whiteSpace: 'nowrap',
+                                    textOverflow: 'ellipsis',
+                                    width: '100%',
+                                    textAlign: 'center',
+                                    pointerEvents: 'none',
+                                  }}>
+                                    {task.name}
+                                  </Typography>
+                                </Box>
+                              </Tooltip>
+                            )}
+
+                            {/* Drag Over Indicator */}
+                            {isDragOver && (
+                              <Box
+                                sx={{
+                                  width: 56,
+                                  height: 32,
+                                  background: 'rgba(102, 126, 234, 0.3)',
+                                  borderRadius: 2.5,
+                                  border: '2px dashed rgba(102, 126, 234, 0.8)',
+                                  position: 'absolute',
+                                  left: 4,
+                                  top: 11,
+                                  zIndex: 4,
+                                  animation: 'pulse 1s infinite',
+                                }}
+                              />
+                            )}
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  ))}
+                </>
+              )}
+
+              {/* Completed Tasks Section */}
+              {timelineData.completed.length > 0 && (
+                <>
+                  {/* Completed Tasks Header */}
+                  <Box sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    bgcolor: 'rgba(158, 158, 158, 0.1)',
+                    borderBottom: '2px solid',
+                    borderColor: 'grey.400',
+                    py: 1,
+                    px: 2,
+                    mt: timelineData.active.length > 0 ? 2 : 2,
+                  }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'grey.600' }}>
+                      Completed Tasks ({timelineData.completed.length})
+                    </Typography>
+                  </Box>
+
+                  {/* Completed Task Rows */}
+                  {timelineData.completed.map((task, rowIdx) => (
+                    <Box
+                      key={task.id}
+                      sx={{
+                        display: 'flex',
+                        borderBottom: '1px solid',
+                        borderColor: 'divider',
+                        minHeight: 54,
+                        alignItems: 'center',
+                        bgcolor: 'rgba(158, 158, 158, 0.05)',
+                        opacity: 0.8,
+                        '&:hover': {
+                          bgcolor: 'rgba(158, 158, 158, 0.1)',
+                          opacity: 1,
+                        },
+                        position: 'relative',
+                      }}
+                    >
+                      {/* Task Name - Fixed Position */}
+                      <Box sx={{
+                        width: 220,
+                        minWidth: 220,
+                        maxWidth: 220,
+                        p: 1.5,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.5,
+                        cursor: 'pointer',
+                        borderRight: '2px solid',
+                        borderColor: 'grey.400',
+                        bgcolor: 'background.paper',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          bgcolor: 'grey.100',
+                        },
+                      }}
+                      onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
+                      >
+                        {getStatusIcon(task.status)}
+                        <Typography variant="body2" sx={{ flex: 1, fontWeight: 500, color: 'grey.600' }}>
+                          {task.name}
+                        </Typography>
+                        {task.accountName && (
+                          <Avatar
+                            src={task.accountPicture}
+                            sx={{ width: 24, height: 24, border: '2px solid white' }}
+                          >
+                            {task.accountName.charAt(0)}
+                          </Avatar>
+                        )}
+                      </Box>
+
+                      {/* Timeline Cells for Completed Tasks */}
+                      {timelineDays.map((day, dayIndex) => {
+                        const dueDate = new Date(task.dueDate);
+                        const isTaskDay = format(day, 'yyyy-MM-dd') === format(dueDate, 'yyyy-MM-dd');
+                        const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                        const isPast = day < new Date() && !isToday;
+                        const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                        
+                        return (
+                          <Box
+                            key={dayIndex}
+                            sx={{
+                              width: 64,
+                              minWidth: 64,
+                              maxWidth: 64,
+                              height: 54,
+                              borderRight: '1px solid',
+                              borderColor: 'divider',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              position: 'relative',
+                              bgcolor: isToday 
+                                ? 'rgba(255, 152, 0, 0.15)'
+                                : isPast
+                                ? '#fafafa'
+                                : isWeekend
+                                ? 'rgba(102, 126, 234, 0.05)'
+                                : 'transparent',
+                              transition: 'all 0.2s ease',
+                              px: 0,
+                              py: 0,
+                            }}
+                          >
+                            {/* Completed Task Indicator */}
+                            {isTaskDay && (
+                              <Tooltip 
+                                title={`${task.fullContent} - Completed - Due: ${format(task.dueDate, 'MMM dd, yyyy')}`}
+                                arrow
+                              >
+                                <Box
+                                  sx={{
+                                    width: 56,
+                                    height: 32,
+                                    background: getStatusGradient(task.status),
+                                    borderRadius: 2.5,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: '2px solid #fff',
+                                    position: 'absolute',
+                                    left: 4,
+                                    top: 11,
+                                    zIndex: 5,
+                                    opacity: 0.7,
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!);
+                                  }}
+                                >
+                                  <Typography variant="caption" sx={{
+                                    fontSize: '0.9rem',
+                                    fontWeight: 700,
+                                    color: 'white',
+                                    textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                                    px: 1,
+                                    overflow: 'hidden',
+                                    whiteSpace: 'nowrap',
+                                    textOverflow: 'ellipsis',
+                                    width: '100%',
+                                    textAlign: 'center',
+                                    pointerEvents: 'none',
+                                  }}>
+                                    {task.name}
+                                  </Typography>
+                                </Box>
+                              </Tooltip>
+                            )}
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  ))}
+                </>
+              )}
             </Box>
           </Box>
         )}
@@ -605,7 +801,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
           Task Details
         </Typography>
         <Grid container spacing={3}>
-          {timelineData.map((task) => (
+          {timelineData.all.map((task) => (
             <Grid item xs={12} sm={6} md={4} key={task.id}>
               <Card
                 sx={{
@@ -621,6 +817,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
                     boxShadow: '0 12px 40px rgba(0,0,0,0.15)'
                   },
                   borderLeft: `4px solid ${getStatusColor(task.status)}`,
+                  opacity: task.status === 'completed' ? 0.8 : 1,
                 }}
                 onClick={() => {
                   const originalTask = tasks.find(t => t.id === task.id);
