@@ -47,6 +47,7 @@ interface Task {
   id: string;
   content: string;
   dueDate?: Date | null;
+  startDate?: Date | null; // New: start date for task duration
   isRecurring?: boolean;
   notes?: string;
   color?: string;
@@ -58,6 +59,7 @@ interface Task {
   accountEmail?: string;
   accountName?: string;
   accountPicture?: string;
+  dependencies?: string[]; // New: array of task IDs this task depends on
 }
 
 interface Column {
@@ -101,7 +103,9 @@ interface EditTaskForm {
   notes: string;
   color: string;
   dueDate: Date | null;
+  startDate: Date | null; // New: start date for task duration
   isRecurring: boolean;
+  dependencies: string[]; // New: array of task IDs this task depends on
 }
 
 interface DateSection {
@@ -198,7 +202,9 @@ function App() {
     notes: '',
     color: '#1976d2',
     dueDate: null,
-    isRecurring: false
+    startDate: null,
+    isRecurring: false,
+    dependencies: []
   });
   const [newTask, setNewTask] = useState<Partial<Task>>({
     content: '',
@@ -219,7 +225,9 @@ function App() {
     notes: '',
     color: '#1976d2',
     dueDate: null,
-    isRecurring: false
+    startDate: null,
+    isRecurring: false,
+    dependencies: []
   });
   const [selectedListForNewTask, setSelectedListForNewTask] = useState<string>('');
   const [tempUserData, setTempUserData] = useState<User | null>(null);
@@ -1267,7 +1275,9 @@ function App() {
       notes: task.notes || '',
       color: task.color || '#1976d2',
       dueDate: task.dueDate || null,
-      isRecurring: task.isRecurring || false
+      startDate: task.startDate || null,
+      isRecurring: task.isRecurring || false,
+      dependencies: task.dependencies || []
     });
     
     // Set the editing task after form is initialized
@@ -1292,8 +1302,10 @@ function App() {
                     content: editTaskForm.content || t.content,
                     notes: editTaskForm.notes,
                     color: editTaskForm.color,
+                    startDate: editTaskForm.startDate,
                     dueDate: editTaskForm.dueDate,
-                    isRecurring: editTaskForm.isRecurring
+                    isRecurring: editTaskForm.isRecurring,
+                    dependencies: editTaskForm.dependencies
                   }
                 : t
             )
@@ -1327,6 +1339,14 @@ function App() {
             notes: editTaskForm.notes || '',
             due: editTaskForm.dueDate ? editTaskForm.dueDate.toISOString() : null
           };
+
+          // Add start date to notes if specified
+          if (editTaskForm.startDate) {
+            const startDateNote = `📅 Start: ${format(editTaskForm.startDate, 'yyyy-MM-dd')}`;
+            // Remove any existing start date from notes
+            const notesWithoutStartDate = update.notes.replace(/📅 Start: \d{4}-\d{2}-\d{2}/g, '').trim();
+            update.notes = `${notesWithoutStartDate}\n${startDateNote}`;
+          }
 
           // Add color to notes if specified
           if (editTaskForm.color) {
@@ -1437,7 +1457,9 @@ function App() {
       notes: '',
       color: '#1976d2',
       dueDate: null,
-      isRecurring: false
+      startDate: null,
+      isRecurring: false,
+      dependencies: []
     });
   };
 
@@ -1453,6 +1475,11 @@ function App() {
           notes: newTaskForm.notes || '',
           due: newTaskForm.dueDate ? newTaskForm.dueDate.toISOString() : null
         };
+
+        // Add start date to notes if specified (Google Tasks doesn't have a native start date field)
+        if (newTaskForm.startDate) {
+          taskData.notes = `${taskData.notes}\n📅 Start: ${format(newTaskForm.startDate, 'yyyy-MM-dd')}`;
+        }
 
         // Add color to notes if specified
         if (newTaskForm.color) {
@@ -1555,7 +1582,9 @@ function App() {
         notes: '',
         color: '#1976d2',
         dueDate: null,
-        isRecurring: false
+        startDate: null,
+        isRecurring: false,
+        dependencies: []
       });
       setSelectedListForNewTask('');
       setOpenNewTaskDialog(false);
@@ -1785,6 +1814,81 @@ function App() {
                   >
                     <EventIcon sx={{ fontSize: '0.7rem', mr: 0.5 }} />
                     Add Date
+                  </Box>
+                )}
+                
+                {/* Quick Reschedule Buttons */}
+                {!isNoTask && (
+                  <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={{ 
+                        minWidth: 'auto', 
+                        px: 1, 
+                        py: 0.25, 
+                        fontSize: '0.6rem',
+                        height: '24px',
+                        borderColor: 'primary.main',
+                        color: 'primary.main',
+                        '&:hover': {
+                          bgcolor: 'primary.main',
+                          color: 'white'
+                        }
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleQuickDateChange(task, columnId, new Date());
+                      }}
+                    >
+                      Today
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={{ 
+                        minWidth: 'auto', 
+                        px: 1, 
+                        py: 0.25, 
+                        fontSize: '0.6rem',
+                        height: '24px',
+                        borderColor: 'warning.main',
+                        color: 'warning.main',
+                        '&:hover': {
+                          bgcolor: 'warning.main',
+                          color: 'white'
+                        }
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleQuickDateChange(task, columnId, addDays(new Date(), 1));
+                      }}
+                    >
+                      Tomorrow
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={{ 
+                        minWidth: 'auto', 
+                        px: 1, 
+                        py: 0.25, 
+                        fontSize: '0.6rem',
+                        height: '24px',
+                        borderColor: 'success.main',
+                        color: 'success.main',
+                        '&:hover': {
+                          bgcolor: 'success.main',
+                          color: 'white'
+                        }
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleQuickDateChange(task, columnId, addWeeks(new Date(), 1));
+                      }}
+                    >
+                      Next Week
+                    </Button>
                   </Box>
                 )}
               </Box>
@@ -2410,6 +2514,86 @@ function App() {
                       }
                     }}
                   />
+                  
+                  {/* Quick Reschedule Buttons */}
+                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={{ 
+                        minWidth: 'auto', 
+                        px: 1, 
+                        py: 0.25, 
+                        fontSize: '0.6rem',
+                        height: '24px',
+                        borderColor: 'primary.main',
+                        color: 'primary.main',
+                        '&:hover': {
+                          bgcolor: 'primary.main',
+                          color: 'white'
+                        }
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Find the column for this task
+                        const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                        const columnId = column?.id || 'todo';
+                        handleQuickDateChange(task, columnId, new Date());
+                      }}
+                    >
+                      Today
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={{ 
+                        minWidth: 'auto', 
+                        px: 1, 
+                        py: 0.25, 
+                        fontSize: '0.6rem',
+                        height: '24px',
+                        borderColor: 'warning.main',
+                        color: 'warning.main',
+                        '&:hover': {
+                          bgcolor: 'warning.main',
+                          color: 'white'
+                        }
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                        const columnId = column?.id || 'todo';
+                        handleQuickDateChange(task, columnId, addDays(new Date(), 1));
+                      }}
+                    >
+                      Tomorrow
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={{ 
+                        minWidth: 'auto', 
+                        px: 1, 
+                        py: 0.25, 
+                        fontSize: '0.6rem',
+                        height: '24px',
+                        borderColor: 'success.main',
+                        color: 'success.main',
+                        '&:hover': {
+                          bgcolor: 'success.main',
+                          color: 'white'
+                        }
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                        const columnId = column?.id || 'todo';
+                        handleQuickDateChange(task, columnId, addWeeks(new Date(), 1));
+                      }}
+                    >
+                      Next Week
+                    </Button>
+                  </Box>
                 </Box>
               </Box>
             ))}
@@ -2592,7 +2776,7 @@ function App() {
                                 {task.notes}
                               </Typography>
                             )}
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, flexWrap: 'wrap' }}>
                               <Chip
                                 label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
                                 color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
@@ -2613,6 +2797,85 @@ function App() {
                                   {task.accountName?.charAt(0)}
                                 </Avatar>
                               )}
+                              
+                              {/* Quick Reschedule Buttons */}
+                              <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ 
+                                    minWidth: 'auto', 
+                                    px: 0.5, 
+                                    py: 0.25, 
+                                    fontSize: '0.55rem',
+                                    height: '20px',
+                                    borderColor: 'primary.main',
+                                    color: 'primary.main',
+                                    '&:hover': {
+                                      bgcolor: 'primary.main',
+                                      color: 'white'
+                                    }
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                                    const columnId = column?.id || 'todo';
+                                    handleQuickDateChange(task, columnId, new Date());
+                                  }}
+                                >
+                                  Today
+                                </Button>
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ 
+                                    minWidth: 'auto', 
+                                    px: 0.5, 
+                                    py: 0.25, 
+                                    fontSize: '0.55rem',
+                                    height: '20px',
+                                    borderColor: 'warning.main',
+                                    color: 'warning.main',
+                                    '&:hover': {
+                                      bgcolor: 'warning.main',
+                                      color: 'white'
+                                    }
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                                    const columnId = column?.id || 'todo';
+                                    handleQuickDateChange(task, columnId, addDays(new Date(), 1));
+                                  }}
+                                >
+                                  Tomorrow
+                                </Button>
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ 
+                                    minWidth: 'auto', 
+                                    px: 0.5, 
+                                    py: 0.25, 
+                                    fontSize: '0.55rem',
+                                    height: '20px',
+                                    borderColor: 'success.main',
+                                    color: 'success.main',
+                                    '&:hover': {
+                                      bgcolor: 'success.main',
+                                      color: 'white'
+                                    }
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                                    const columnId = column?.id || 'todo';
+                                    handleQuickDateChange(task, columnId, addWeeks(new Date(), 1));
+                                  }}
+                                >
+                                  Next Week
+                                </Button>
+                              </Box>
                             </Box>
                           </Box>
                         </Box>
@@ -2639,18 +2902,25 @@ function App() {
           Object.values(tasksByList).forEach(tasks => {
             const todoTasks = tasks
               .filter(task => !task.completed && (!task.notes || !task.notes.includes('⚡ Active')))
-              .map(task => ({
-                id: task.id,
-                content: task.title,
-                dueDate: task.due ? new Date(task.due) : null,
-                isRecurring: task.recurrence ? true : false,
-                notes: task.notes || '',
-                color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
-                status: 'todo' as const,
-                accountEmail: task.accountEmail,
-                accountName: task.accountName,
-                accountPicture: task.accountPicture
-              }));
+              .map(task => {
+                // Parse start date from notes
+                const startDateMatch = task.notes?.match(/📅 Start: (\d{4}-\d{2}-\d{2})/);
+                const startDate = startDateMatch ? new Date(startDateMatch[1]) : null;
+                
+                return {
+                  id: task.id,
+                  content: task.title,
+                  dueDate: task.due ? new Date(task.due) : null,
+                  startDate: startDate,
+                  isRecurring: task.recurrence ? true : false,
+                  notes: task.notes || '',
+                  color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
+                  status: 'todo' as const,
+                  accountEmail: task.accountEmail,
+                  accountName: task.accountName,
+                  accountPicture: task.accountPicture
+                };
+              });
             columnTasks = [...columnTasks, ...todoTasks];
           });
 
@@ -2681,18 +2951,25 @@ function App() {
           Object.values(tasksByList).forEach(tasks => {
             const inProgressTasks = tasks
               .filter(task => !task.completed && task.notes && task.notes.includes('⚡ Active'))
-              .map(task => ({
-                id: task.id,
-                content: task.title,
-                dueDate: task.due ? new Date(task.due) : null,
-                isRecurring: task.recurrence ? true : false,
-                notes: task.notes?.replace('⚡ Active', '').trim() || '',
-                color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#FFA726',
-                status: 'in-progress' as const,
-                accountEmail: task.accountEmail,
-                accountName: task.accountName,
-                accountPicture: task.accountPicture
-              }));
+              .map(task => {
+                // Parse start date from notes
+                const startDateMatch = task.notes?.match(/📅 Start: (\d{4}-\d{2}-\d{2})/);
+                const startDate = startDateMatch ? new Date(startDateMatch[1]) : null;
+                
+                return {
+                  id: task.id,
+                  content: task.title,
+                  dueDate: task.due ? new Date(task.due) : null,
+                  startDate: startDate,
+                  isRecurring: task.recurrence ? true : false,
+                  notes: task.notes?.replace('⚡ Active', '').trim() || '',
+                  color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#FFA726',
+                  status: 'in-progress' as const,
+                  accountEmail: task.accountEmail,
+                  accountName: task.accountName,
+                  accountPicture: task.accountPicture
+                };
+              });
             columnTasks = [...columnTasks, ...inProgressTasks];
           });
         } else if (column.id === 'done') {
@@ -2701,19 +2978,26 @@ function App() {
           Object.values(tasksByList).forEach(tasks => {
             const completedTasks = tasks
               .filter(task => task.completed)
-              .map(task => ({
-                id: task.id,
-                content: task.title,
-                dueDate: task.due ? new Date(task.due) : null,
-                isRecurring: task.recurrence ? true : false,
-                notes: task.notes || '',
-                color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
-                status: 'completed' as const,
-                completedAt: task.completed ? new Date(task.completed) : null,
-                accountEmail: task.accountEmail,
-                accountName: task.accountName,
-                accountPicture: task.accountPicture
-              }));
+              .map(task => {
+                // Parse start date from notes
+                const startDateMatch = task.notes?.match(/📅 Start: (\d{4}-\d{2}-\d{2})/);
+                const startDate = startDateMatch ? new Date(startDateMatch[1]) : null;
+                
+                return {
+                  id: task.id,
+                  content: task.title,
+                  dueDate: task.due ? new Date(task.due) : null,
+                  startDate: startDate,
+                  isRecurring: task.recurrence ? true : false,
+                  notes: task.notes || '',
+                  color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#66BB6A',
+                  status: 'completed' as const,
+                  completedAt: task.completed ? new Date(task.completed) : null,
+                  accountEmail: task.accountEmail,
+                  accountName: task.accountName,
+                  accountPicture: task.accountPicture
+                };
+              });
             allCompletedTasks.push(...completedTasks);
           });
           
@@ -3575,10 +3859,46 @@ function App() {
   }, [user]);
 
   const renderGanttView = () => {
-    // Get all tasks from all columns
-    const allTasks = columns.reduce((acc: Task[], column) => {
-      return [...acc, ...column.tasks];
-    }, []);
+    // Get all tasks directly from Google Tasks to avoid column limits
+    let allTasks: Task[] = [];
+    
+    if (googleAccounts.length > 0) {
+      // Get all tasks from all accounts and lists
+      googleAccounts.forEach(account => {
+        Object.values(account.tasks).forEach(tasks => {
+          const mappedTasks = tasks
+            .filter(task => task.due) // Only tasks with due dates
+            .map(task => {
+              // Parse start date from notes
+              const startDateMatch = task.notes?.match(/📅 Start: (\d{4}-\d{2}-\d{2})/);
+              const startDate = startDateMatch ? new Date(startDateMatch[1]) : null;
+              
+              return {
+                id: task.id,
+                content: task.title,
+                dueDate: task.due ? new Date(task.due) : null,
+                startDate: startDate,
+                isRecurring: task.recurrence ? true : false,
+                notes: task.notes || '',
+                color: task.notes?.match(/#([A-Fa-f0-9]{6})/)?.[1] ? `#${task.notes.match(/#([A-Fa-f0-9]{6})/)[1]}` : '#42A5F5',
+                status: task.completed ? 'completed' as const : 
+                       (task.notes && task.notes.includes('⚡ Active')) ? 'in-progress' as const : 'todo' as const,
+                completedAt: task.completed ? new Date(task.completed) : null,
+                accountEmail: task.accountEmail,
+                accountName: task.accountName,
+                accountPicture: task.accountPicture,
+                dependencies: []
+              };
+            });
+          allTasks = [...allTasks, ...mappedTasks];
+        });
+      });
+    } else {
+      // Fallback to columns if no Google Tasks
+      allTasks = columns.reduce((acc: Task[], column) => {
+        return [...acc, ...column.tasks];
+      }, []);
+    }
 
     // Filter tasks that have due dates
     const tasksWithDates = allTasks.filter(task => task.dueDate);
@@ -3606,10 +3926,10 @@ function App() {
         return;
       }
 
-      // Update the task's due date
+      // Update the task's due date (do not touch startDate)
       const updatedTask = { ...foundTask, dueDate: newDueDate };
 
-      // Update local state
+      // Update local state immediately
       setColumns(prevColumns => 
         prevColumns.map(column => 
           column.id === foundColumnId
@@ -3623,14 +3943,30 @@ function App() {
         )
       );
 
-      // Sync with Google Tasks if connected
+      // Also update Google Tasks state immediately for live UI
+      if (googleAccounts.length > 0) {
+        setGoogleAccounts(prevAccounts => 
+          prevAccounts.map(account => ({
+            ...account,
+            tasks: Object.fromEntries(
+              Object.entries(account.tasks).map(([listId, tasks]) => [
+                listId,
+                tasks.map(task => 
+                  task.id === taskId 
+                    ? { ...task, due: newDueDate.toISOString() }
+                    : task
+                )
+              ])
+            )
+          }))
+        );
+      }
+
+      // Sync with Google Tasks API if connected
       if (googleAccounts.length > 0 && foundTask.accountEmail) {
         try {
-          // Find the task in Google Tasks
           let taskListId = '';
           let googleTaskId = '';
-          
-          // Search through all task lists to find the task
           for (const [listId, tasks] of Object.entries(googleAccounts[activeAccountIndex].tasks)) {
             const foundGoogleTask = tasks.find(t => t.id === taskId);
             if (foundGoogleTask) {
@@ -3639,19 +3975,12 @@ function App() {
               break;
             }
           }
-
           if (taskListId && googleTaskId) {
-            // Update the task in Google Tasks
             await axios.patch(
               `https://www.googleapis.com/tasks/v1/lists/${taskListId}/tasks/${googleTaskId}`,
-              {
-                due: newDueDate.toISOString()
-              },
-              {
-                headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` }
-              }
+              { due: newDueDate.toISOString() },
+              { headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` } }
             );
-
             console.log(`Task ${taskId} moved to ${newDueDate.toDateString()}`);
           }
         } catch (error) {
@@ -3660,12 +3989,118 @@ function App() {
       }
     };
 
+    const handleTaskResize = async (taskId: string, newStartDate: Date, newDueDate: Date) => {
+      // Find the task in the columns
+      let foundTask: Task | null = null;
+      let foundColumnId = '';
+      for (const column of columns) {
+        const task = column.tasks.find(t => t.id === taskId);
+        if (task) {
+          foundTask = task;
+          foundColumnId = column.id;
+          break;
+        }
+      }
+      if (!foundTask) {
+        console.error('Task not found:', taskId);
+        return;
+      }
+      // Update the task's start and due date
+      const updatedTask = { ...foundTask, startDate: newStartDate, dueDate: newDueDate };
+      // Update local state immediately
+      setColumns(prevColumns => 
+        prevColumns.map(column => 
+          column.id === foundColumnId
+            ? {
+                ...column,
+                tasks: column.tasks.map(task => 
+                  task.id === taskId ? updatedTask : task
+                )
+              }
+            : column
+        )
+      );
+
+      // Also update Google Tasks state immediately for live UI
+      if (googleAccounts.length > 0) {
+        setGoogleAccounts(prevAccounts => 
+          prevAccounts.map(account => ({
+            ...account,
+            tasks: Object.fromEntries(
+              Object.entries(account.tasks).map(([listId, tasks]) => [
+                listId,
+                tasks.map(task => {
+                  if (task.id === taskId) {
+                    // Update start date in notes
+                    const startDateNote = `📅 Start: ${format(newStartDate, 'yyyy-MM-dd')}`;
+                    let notes = task.notes || '';
+                    notes = notes.replace(/📅 Start: \d{4}-\d{2}-\d{2}/g, '').trim();
+                    if (notes) {
+                      notes = `${notes}\n${startDateNote}`;
+                    } else {
+                      notes = startDateNote;
+                    }
+                    return { 
+                      ...task, 
+                      due: newDueDate.toISOString(),
+                      notes: notes
+                    };
+                  }
+                  return task;
+                })
+              ])
+            )
+          }))
+        );
+      }
+
+      // Sync with Google Tasks API if connected
+      if (googleAccounts.length > 0 && foundTask.accountEmail) {
+        try {
+          let taskListId = '';
+          let googleTaskId = '';
+          let currentTask = null;
+          for (const [listId, tasks] of Object.entries(googleAccounts[activeAccountIndex].tasks)) {
+            const foundGoogleTask = tasks.find(t => t.id === taskId);
+            if (foundGoogleTask) {
+              taskListId = listId;
+              googleTaskId = foundGoogleTask.id;
+              currentTask = foundGoogleTask;
+              break;
+            }
+          }
+          if (taskListId && googleTaskId && currentTask) {
+            const update: any = { due: newDueDate.toISOString() };
+            // Update start date in notes
+            const startDateNote = `📅 Start: ${format(newStartDate, 'yyyy-MM-dd')}`;
+            let notes = currentTask.notes || '';
+            notes = notes.replace(/📅 Start: \d{4}-\d{2}-\d{2}/g, '').trim();
+            if (notes) {
+              notes = `${notes}\n${startDateNote}`;
+            } else {
+              notes = startDateNote;
+            }
+            update.notes = notes;
+            await axios.patch(
+              `https://www.googleapis.com/tasks/v1/lists/${taskListId}/tasks/${googleTaskId}`,
+              update,
+              { headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` } }
+            );
+            console.log(`Task ${taskId} resized: ${format(newStartDate, 'yyyy-MM-dd')} to ${format(newDueDate, 'yyyy-MM-dd')}`);
+          }
+        } catch (error) {
+          console.error('Error resizing task in Google Tasks:', error);
+        }
+      }
+    };
+
     return (
-      <Box sx={{ height: 'calc(100vh - 120px)', overflow: 'hidden' }}>
+      <Box sx={{ height: 'calc(100vh - 120px)', overflow: 'auto' }}>
         <GanttChart
           tasks={tasksWithDates}
           onTaskClick={handleTaskClick}
           onTaskMove={handleTaskMove}
+          onTaskResize={handleTaskResize}
         />
       </Box>
     );
@@ -4281,7 +4716,9 @@ function App() {
                 notes: '',
                 color: '#1976d2',
                 dueDate: null,
-                isRecurring: false
+                startDate: null,
+                isRecurring: false,
+                dependencies: []
               });
             }}
             maxWidth="sm"
@@ -4310,6 +4747,16 @@ function App() {
                   rows={4}
                 />
                 <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <DatePicker
+                    label="Start Date"
+                    value={editTaskForm.startDate}
+                    onChange={(date) => setEditTaskForm(prev => ({ ...prev, startDate: date }))}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                      },
+                    }}
+                  />
                   <DatePicker
                     label="Due Date"
                     value={editTaskForm.dueDate}
@@ -4348,7 +4795,9 @@ function App() {
                     notes: '',
                     color: '#1976d2',
                     dueDate: null,
-                    isRecurring: false
+                    startDate: null,
+                    isRecurring: false,
+                    dependencies: []
                   });
                 }}
               >
@@ -4395,6 +4844,16 @@ function App() {
                   rows={4}
                 />
                 <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <DatePicker
+                    label="Start Date"
+                    value={newTaskForm.startDate}
+                    onChange={(date) => setNewTaskForm(prev => ({ ...prev, startDate: date }))}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                      },
+                    }}
+                  />
                   <DatePicker
                     label="Due Date"
                     value={newTaskForm.dueDate}

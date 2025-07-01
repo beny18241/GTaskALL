@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -10,7 +10,7 @@ import {
   LinearProgress,
   Tooltip,
 } from '@mui/material';
-import { format, addDays, differenceInDays, eachDayOfInterval } from 'date-fns';
+import { format, addDays, differenceInDays, eachDayOfInterval, startOfDay, isAfter, isBefore } from 'date-fns';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import PauseCircleIcon from '@mui/icons-material/PauseCircle';
@@ -22,6 +22,7 @@ interface Task {
   id: string;
   content: string;
   dueDate?: Date | null;
+  startDate?: Date | null; // New: start date for task duration
   isRecurring?: boolean;
   notes?: string;
   color?: string;
@@ -33,47 +34,78 @@ interface Task {
   accountEmail?: string;
   accountName?: string;
   accountPicture?: string;
+  dependencies?: string[]; // New: array of task IDs this task depends on
 }
 
 interface GanttChartProps {
   tasks: Task[];
   onTaskClick?: (task: Task) => void;
   onTaskMove?: (taskId: string, newDueDate: Date) => void;
+  onTaskResize?: (taskId: string, newStartDate: Date, newDueDate: Date) => void;
 }
 
 const GanttChart: React.FC<GanttChartProps> = ({
   tasks,
   onTaskClick,
   onTaskMove,
+  onTaskResize,
 }) => {
-  // Minimal state for drag feedback
+  // State for drag feedback and resize
   const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
+  const [resizingTask, setResizingTask] = useState<{ taskId: string; edge: 'start' | 'end' } | null>(null);
+  const isDragging = useRef(false);
+  const isResizing = useRef(false);
 
   const timelineData = useMemo(() => {
     const filteredTasks = tasks.filter(task => task.dueDate);
     
+    console.log('Timeline tasks:', filteredTasks.length);
+    console.log('All tasks:', tasks);
+    
     const taskData = filteredTasks.map((task) => {
       const taskDate = task.dueDate ? new Date(task.dueDate) : new Date();
+      const startDate = task.startDate ? new Date(task.startDate) : taskDate; // Use due date as start if no start date
+      
+      console.log(`Processing task: ${task.content}, startDate: ${startDate}, dueDate: ${taskDate}`);
       
       return {
         id: task.id,
         name: task.content.length > 25 ? task.content.substring(0, 25) + '...' : task.content,
         dueDate: taskDate,
+        startDate: startDate,
         status: task.status,
         color: task.color || '#1976d2',
         accountEmail: task.accountEmail,
         accountName: task.accountName,
         accountPicture: task.accountPicture,
         fullContent: task.content,
+        dependencies: task.dependencies || [],
       };
     });
 
-    // Separate active and completed tasks
-    const activeTasks = taskData.filter(task => task.status !== 'completed');
-    const completedTasks = taskData.filter(task => task.status === 'completed');
+    // Calculate timeline date range
+    const pastDays = 7;
+    const futureDays = 30;
+    const timelineStart = addDays(new Date(), -pastDays);
+    const timelineEnd = addDays(new Date(), futureDays);
+    
+    // Filter tasks to only include those within the timeline range
+    const tasksInRange = taskData.filter(task => {
+      const taskStartDate = startOfDay(task.startDate);
+      const taskDueDate = startOfDay(task.dueDate);
+      const rangeStart = startOfDay(timelineStart);
+      const rangeEnd = startOfDay(timelineEnd);
+      
+      // Task is in range if it overlaps with the timeline at all
+      return taskStartDate <= rangeEnd && taskDueDate >= rangeStart;
+    });
 
-    // Sort active tasks by due date
-    const sortedActiveTasks = activeTasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    // Separate active and completed tasks
+    const activeTasks = tasksInRange.filter(task => task.status !== 'completed');
+    const completedTasks = tasksInRange.filter(task => task.status === 'completed');
+
+    // Maintain original order for active tasks (don't sort by due date)
+    const sortedActiveTasks = activeTasks;
     
     // Sort completed tasks by completion date (most recent first)
     const sortedCompletedTasks = completedTasks.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
@@ -92,8 +124,68 @@ const GanttChart: React.FC<GanttChartProps> = ({
     const totalDays = pastDays + futureDays + 1; // +1 for today
     
     const timelineStart = addDays(new Date(), -pastDays);
-    return Array.from({ length: totalDays }, (_, i) => addDays(timelineStart, i));
+    const days = Array.from({ length: totalDays }, (_, i) => addDays(timelineStart, i));
+    
+    console.log('Timeline days:', days.length);
+    console.log('Timeline range:', format(days[0], 'yyyy-MM-dd'), 'to', format(days[days.length - 1], 'yyyy-MM-dd'));
+    
+    return days;
   }, []);
+
+  // Calculate task positions and connections
+  const taskPositions = useMemo(() => {
+    const positions: { [taskId: string]: { startDay: number; endDay: number; rowIndex: number } } = {};
+    const connections: Array<{ from: string; to: string; fromPos: { x: number; y: number }; toPos: { x: number; y: number } }> = [];
+    
+    // Calculate positions for all tasks
+    timelineData.all.forEach((task, index) => {
+      // Use startOfDay to normalize dates for comparison
+      const taskStartDate = startOfDay(task.startDate);
+      const taskDueDate = startOfDay(task.dueDate);
+      
+      const startDayIndex = timelineDays.findIndex(day => 
+        startOfDay(day).getTime() === taskStartDate.getTime()
+      );
+      const endDayIndex = timelineDays.findIndex(day => 
+        startOfDay(day).getTime() === taskDueDate.getTime()
+      );
+      
+      console.log(`Task ${task.name}: startDate=${format(taskStartDate, 'yyyy-MM-dd')}, dueDate=${format(taskDueDate, 'yyyy-MM-dd')}`);
+      console.log(`Found indices: startDayIndex=${startDayIndex}, endDayIndex=${endDayIndex}`);
+      
+      if (startDayIndex !== -1 && endDayIndex !== -1) {
+        positions[task.id] = {
+          startDay: startDayIndex,
+          endDay: endDayIndex,
+          rowIndex: index
+        };
+      }
+    });
+    
+    // Calculate connections between dependent tasks
+    timelineData.all.forEach(task => {
+      task.dependencies.forEach(depId => {
+        const fromTask = positions[depId];
+        const toTask = positions[task.id];
+        
+        if (fromTask && toTask) {
+          const fromX = 220 + (fromTask.endDay * 64) + 32; // End of source task
+          const fromY = 120 + (fromTask.rowIndex * 54) + 27; // Center of source task row
+          const toX = 220 + (toTask.startDay * 64) + 32; // Start of target task
+          const toY = 120 + (toTask.rowIndex * 54) + 27; // Center of target task row
+          
+          connections.push({
+            from: depId,
+            to: task.id,
+            fromPos: { x: fromX, y: fromY },
+            toPos: { x: toX, y: toY }
+          });
+        }
+      });
+    });
+    
+    return { positions, connections };
+  }, [timelineData, timelineDays]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -139,44 +231,149 @@ const GanttChart: React.FC<GanttChartProps> = ({
     }
   };
 
-  // Enhanced drag and drop handlers
-  const handleDragStart = (e: React.DragEvent, task: any) => {
-    e.dataTransfer.setData('text/plain', JSON.stringify({
-      taskId: task.id,
-      taskName: task.name
-    }));
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent, date: Date) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverDate(date);
-  };
-
-  const handleDragLeave = () => {
-    setDragOverDate(null);
-  };
-
-  const handleDrop = (e: React.DragEvent, targetDate: Date) => {
-    e.preventDefault();
+  const handleTaskDragStart = (e: React.MouseEvent, task: any) => {
+    console.log('Drag start attempt for task:', task.id);
     
-    try {
-      const dragData = JSON.parse(e.dataTransfer.getData('text/plain'));
-      const taskId = dragData.taskId;
-      
-      if (onTaskMove) {
-        onTaskMove(taskId, targetDate);
-      }
-    } catch (error) {
-      console.error('Error parsing drag data:', error);
+    // Check if we're clicking on a resize handle
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-resize-handle]') || target.hasAttribute('data-resize-handle')) {
+      console.log('Preventing drag - clicked on resize handle');
+      return;
     }
     
-    setDragOverDate(null);
+    // Block drag if resize is in progress
+    if (isResizing.current) {
+      console.log('Preventing drag - resize in progress');
+      return;
+    }
+    
+    console.log('Drag started successfully for task:', task.id);
+    isDragging.current = true;
+    
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let hasMoved = false;
+    let initialDragOverDate: Date | null = null;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizing.current) return;
+      
+      const deltaX = Math.abs(e.clientX - startX);
+      const deltaY = Math.abs(e.clientY - startY);
+      
+      if (deltaX > 5 || deltaY > 5) {
+        hasMoved = true;
+        console.log('Drag threshold reached');
+      }
+      
+      if (!hasMoved) return;
+      
+      // Find the timeline container and calculate the target date
+      const timelineContainer = document.querySelector('[data-timeline-container]');
+      if (!timelineContainer) {
+        console.log('Timeline container not found');
+        return;
+      }
+      
+      const rect = timelineContainer.getBoundingClientRect();
+      const x = e.clientX - rect.left - 220; // 220 is the task name column width
+      const dayIndex = Math.floor(x / 64); // 64 is the day column width
+      
+      console.log('Mouse position:', e.clientX, 'Container rect:', rect, 'Calculated x:', x, 'Day index:', dayIndex);
+      
+      if (dayIndex >= 0 && dayIndex < timelineDays.length) {
+        const targetDate = timelineDays[dayIndex];
+        console.log('Setting drag over date to:', targetDate);
+        setDragOverDate(targetDate);
+        initialDragOverDate = targetDate;
+      }
+    };
+    
+    const handleMouseUp = (e: MouseEvent) => {
+      console.log('Custom drag ended, hasMoved:', hasMoved, 'initialDragOverDate:', initialDragOverDate);
+      isDragging.current = false;
+      
+      if (hasMoved && initialDragOverDate) {
+        console.log('Custom drop successful for task:', task.id, 'to date:', initialDragOverDate);
+        if (onTaskMove) {
+          onTaskMove(task.id, initialDragOverDate);
+        }
+      } else {
+        console.log('No drop - either no movement or no target date');
+      }
+      
+      setDragOverDate(null);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Resize handlers
+  const handleResizeStart = (e: React.MouseEvent, taskId: string, edge: 'start' | 'end') => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    // Don't start resize if we're currently dragging
+    if (isDragging.current) {
+      console.log('Preventing resize - drag in progress');
+      return;
+    }
+    
+    isResizing.current = true;
+    setResizingTask({ taskId, edge });
+    
+    const startX = e.clientX;
+    let isActuallyResizing = false;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging.current) return;
+      const deltaX = Math.abs(e.clientX - startX);
+      if (deltaX > 5) isActuallyResizing = true;
+      if (!isActuallyResizing) return;
+      const timelineContainer = document.querySelector('[data-timeline-container]');
+      if (!timelineContainer) return;
+      const rect = timelineContainer.getBoundingClientRect();
+      const x = e.clientX - rect.left - 220;
+      const dayIndex = Math.floor(x / 64);
+      
+      if (dayIndex >= 0 && dayIndex < timelineDays.length) {
+        const newDate = timelineDays[dayIndex];
+        const task = timelineData.all.find(t => t.id === taskId);
+        if (!task) return;
+        
+        if (edge === 'start') {
+          if (newDate <= task.dueDate) {
+            if (onTaskResize) {
+              onTaskResize(taskId, newDate, task.dueDate);
+            }
+          }
+        } else {
+          if (newDate >= task.startDate) {
+            if (onTaskResize) {
+              onTaskResize(taskId, task.startDate, newDate);
+            }
+          }
+        }
+      }
+    };
+    
+    const handleMouseUp = () => {
+      console.log('Resize ended');
+      setResizingTask(null);
+      isResizing.current = false;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
   };
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
       {/* Fancy Header */}
       <Box sx={{ 
         p: 3, 
@@ -319,7 +516,6 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
       {/* Fancy Gantt Chart */}
       <Box sx={{ 
-        flex: 1, 
         background: 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
         borderRadius: 3,
         border: '1px solid',
@@ -330,7 +526,6 @@ const GanttChart: React.FC<GanttChartProps> = ({
         position: 'relative',
         overflow: 'visible',
         minHeight: 550,
-        maxHeight: '65vh',
         display: 'flex',
         flexDirection: 'column',
       }}>
@@ -353,8 +548,38 @@ const GanttChart: React.FC<GanttChartProps> = ({
             </Typography>
           </Box>
         ) : (
-          <Box sx={{ flex: 1, height: '100%', overflowY: 'auto', overflowX: 'auto', width: '100%' }}>
-            <Box sx={{ minWidth: timelineDays.length * 64 + 220, display: 'flex', flexDirection: 'column', mt: 2 }}>
+          <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'auto', width: '100%' }}>
+            <Box 
+            data-timeline-container
+            sx={{ minWidth: timelineDays.length * 64 + 220, display: 'flex', flexDirection: 'column', mt: 2 }}
+          >
+              {/* SVG Connections Layer */}
+              <Box sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}>
+                <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
+                  {taskPositions.connections.map((connection, index) => (
+                    <g key={`connection-${index}`}>
+                      {/* Connection line */}
+                      <line
+                        x1={connection.fromPos.x}
+                        y1={connection.fromPos.y}
+                        x2={connection.toPos.x}
+                        y2={connection.toPos.y}
+                        stroke="#1976d2"
+                        strokeWidth="2"
+                        strokeDasharray="5,5"
+                        opacity="0.7"
+                      />
+                      {/* Arrow head */}
+                      <polygon
+                        points={`${connection.toPos.x - 8},${connection.toPos.y - 4} ${connection.toPos.x - 8},${connection.toPos.y + 4} ${connection.toPos.x},${connection.toPos.y}`}
+                        fill="#1976d2"
+                        opacity="0.7"
+                      />
+                    </g>
+                  ))}
+                </svg>
+              </Box>
+
               {/* Timeline Header */}
               <Box sx={{ display: 'flex', borderBottom: '2px solid', borderColor: 'primary.main', bgcolor: 'background.paper', position: 'sticky', top: 0, zIndex: 10 }}>
                 {/* Task Names Header */}
@@ -473,7 +698,26 @@ const GanttChart: React.FC<GanttChartProps> = ({
                           color: 'primary.contrastText',
                         },
                       }}
-                      onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
+                      onClick={(e) => {
+                        // Don't trigger click if we're resizing
+                        if (resizingTask) {
+                          e.stopPropagation();
+                          return;
+                        }
+                        // Don't trigger click if we're on a resize handle
+                        const target = e.target as HTMLElement;
+                        if (target.closest('[data-resize-handle]')) {
+                          e.stopPropagation();
+                          return;
+                        }
+                        // Don't trigger click if we're dragging
+                        if (isDragging.current) {
+                          e.stopPropagation();
+                          return;
+                        }
+                        e.stopPropagation();
+                        onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!);
+                      }}
                       >
                         {getStatusIcon(task.status)}
                         <Typography variant="body2" sx={{ flex: 1, fontWeight: 500 }}>
@@ -489,10 +733,17 @@ const GanttChart: React.FC<GanttChartProps> = ({
                         )}
                       </Box>
 
-                      {/* Timeline Cells with Slider Indicators */}
+                      {/* Timeline Cells with Task Duration Bars */}
                       {timelineDays.map((day, dayIndex) => {
-                        const dueDate = new Date(task.dueDate);
-                        const isTaskDay = format(day, 'yyyy-MM-dd') === format(dueDate, 'yyyy-MM-dd');
+                        const taskStartDate = startOfDay(new Date(task.startDate));
+                        const taskDueDate = startOfDay(new Date(task.dueDate));
+                        const currentDay = startOfDay(new Date(day));
+                        
+                        // Check if this day is within the task duration
+                        const isTaskStartDay = currentDay.getTime() === taskStartDate.getTime();
+                        const isTaskEndDay = currentDay.getTime() === taskDueDate.getTime();
+                        const isTaskDurationDay = currentDay >= taskStartDate && currentDay <= taskDueDate;
+                        
                         const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
                         const isPast = day < new Date() && !isToday;
                         const isWeekend = day.getDay() === 0 || day.getDay() === 6;
@@ -501,9 +752,6 @@ const GanttChart: React.FC<GanttChartProps> = ({
                         return (
                           <Box
                             key={dayIndex}
-                            onDragOver={(e) => handleDragOver(e, day)}
-                            onDragLeave={handleDragLeave}
-                            onDrop={(e) => handleDrop(e, day)}
                             sx={{
                               width: 64,
                               minWidth: 64,
@@ -540,17 +788,34 @@ const GanttChart: React.FC<GanttChartProps> = ({
                               },
                             }}
                           >
-                            {/* Task Slider Indicator */}
-                            {isTaskDay && (
+                            {/* Debug: Show task name on task days */}
+                            {isTaskDurationDay && (
+                              <Typography 
+                                variant="caption" 
+                                sx={{ 
+                                  position: 'absolute', 
+                                  top: 2, 
+                                  left: 2, 
+                                  fontSize: '8px',
+                                  color: 'red',
+                                  zIndex: 10,
+                                  fontWeight: 'bold'
+                                }}
+                              >
+                                TASK
+                              </Typography>
+                            )}
+                            {/* Task Duration Bar - Only render on start day to avoid duplication */}
+                            {isTaskStartDay && (
                               <Tooltip 
-                                title={`${task.fullContent} - ${task.status} - Due: ${format(task.dueDate, 'MMM dd, yyyy')} (Drag to move)`}
+                                title={`${task.fullContent} - ${task.status} - Duration: ${format(task.startDate, 'MMM dd')} to ${format(task.dueDate, 'MMM dd, yyyy')} (Drag to move, resize edges to change dates)`}
                                 arrow
                               >
                                 <Box
-                                  draggable
-                                  onDragStart={(e) => handleDragStart(e, task)}
+                                  data-task-id={task.id}
+                                  onMouseDown={(e) => handleTaskDragStart(e, task)}
                                   sx={{
-                                    width: 56,
+                                    width: `${Math.max(1, differenceInDays(task.dueDate, task.startDate) + 1) * 64}px`,
                                     height: 32,
                                     background: getStatusGradient(task.status),
                                     borderRadius: 2.5,
@@ -561,25 +826,108 @@ const GanttChart: React.FC<GanttChartProps> = ({
                                     boxShadow: getStatusShadow(task.status),
                                     transition: 'all 0.3s cubic-bezier(.4,2,.6,1)',
                                     '&:hover': {
-                                      transform: 'scale(1.08)',
+                                      transform: 'scale(1.02)',
                                       boxShadow: `${getStatusShadow(task.status)}, 0 8px 25px rgba(0,0,0,0.18)`,
                                       cursor: 'grabbing'
                                     },
                                     '&:active': {
                                       cursor: 'grabbing',
-                                      transform: 'scale(1.05)'
+                                      transform: 'scale(1.01)'
                                     },
                                     border: '2px solid #fff',
                                     position: 'absolute',
                                     left: 4,
                                     top: 11,
                                     zIndex: 5,
+                                    animation: resizingTask?.taskId === task.id ? 'resize 0.2s ease-out' : 'slideIn 0.3s ease-out',
                                   }}
                                   onClick={(e) => {
+                                    // Don't trigger click if we're resizing
+                                    if (resizingTask) {
+                                      e.stopPropagation();
+                                      return;
+                                    }
+                                    // Don't trigger click if we're on a resize handle
+                                    const target = e.target as HTMLElement;
+                                    if (target.closest('[data-resize-handle]')) {
+                                      e.stopPropagation();
+                                      return;
+                                    }
+                                    // Don't trigger click if we're dragging
+                                    if (isDragging.current) {
+                                      e.stopPropagation();
+                                      return;
+                                    }
                                     e.stopPropagation();
                                     onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!);
                                   }}
                                 >
+                                  {/* Resize Handle - Left (Start Date) */}
+                                  <Box
+                                    data-resize-handle="start"
+                                    onMouseDown={(e) => handleResizeStart(e, task.id, 'start')}
+                                    sx={{
+                                      cursor: 'ew-resize',
+                                      position: 'absolute',
+                                      left: -4,
+                                      top: 0,
+                                      width: 8,
+                                      height: '100%',
+                                      backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                      borderRadius: '4px 0 0 4px',
+                                      border: '1px solid rgba(0, 0, 0, 0.2)',
+                                      zIndex: 10,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      '&:hover': {
+                                        backgroundColor: 'rgba(255, 255, 255, 1)',
+                                        transform: 'scaleX(1.2)',
+                                      },
+                                      '&::after': {
+                                        content: '""',
+                                        width: 2,
+                                        height: 16,
+                                        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                                        borderRadius: 1,
+                                      }
+                                    }}
+                                    tabIndex={-1}
+                                  />
+                                  
+                                  {/* Resize Handle - Right (End Date) */}
+                                  <Box
+                                    data-resize-handle="end"
+                                    onMouseDown={(e) => handleResizeStart(e, task.id, 'end')}
+                                    sx={{
+                                      cursor: 'ew-resize',
+                                      position: 'absolute',
+                                      right: -4,
+                                      top: 0,
+                                      width: 8,
+                                      height: '100%',
+                                      backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                      borderRadius: '0 4px 4px 0',
+                                      border: '1px solid rgba(0, 0, 0, 0.2)',
+                                      zIndex: 10,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      '&:hover': {
+                                        backgroundColor: 'rgba(255, 255, 255, 1)',
+                                        transform: 'scaleX(1.2)',
+                                      },
+                                      '&::after': {
+                                        content: '""',
+                                        width: 2,
+                                        height: 16,
+                                        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                                        borderRadius: 1,
+                                      }
+                                    }}
+                                    tabIndex={-1}
+                                  />
+                                  
                                   <Typography variant="caption" sx={{
                                     fontSize: '0.9rem',
                                     fontWeight: 700,
@@ -680,7 +1028,26 @@ const GanttChart: React.FC<GanttChartProps> = ({
                           bgcolor: 'grey.100',
                         },
                       }}
-                      onClick={() => onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!)}
+                      onClick={(e) => {
+                        // Don't trigger click if we're resizing
+                        if (resizingTask) {
+                          e.stopPropagation();
+                          return;
+                        }
+                        // Don't trigger click if we're on a resize handle
+                        const target = e.target as HTMLElement;
+                        if (target.closest('[data-resize-handle]')) {
+                          e.stopPropagation();
+                          return;
+                        }
+                        // Don't trigger click if we're dragging
+                        if (isDragging.current) {
+                          e.stopPropagation();
+                          return;
+                        }
+                        e.stopPropagation();
+                        onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!);
+                      }}
                       >
                         {getStatusIcon(task.status)}
                         <Typography variant="body2" sx={{ flex: 1, fontWeight: 500, color: 'grey.600' }}>
@@ -698,8 +1065,15 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
                       {/* Timeline Cells for Completed Tasks */}
                       {timelineDays.map((day, dayIndex) => {
-                        const dueDate = new Date(task.dueDate);
-                        const isTaskDay = format(day, 'yyyy-MM-dd') === format(dueDate, 'yyyy-MM-dd');
+                        const taskStartDate = startOfDay(new Date(task.startDate));
+                        const taskDueDate = startOfDay(new Date(task.dueDate));
+                        const currentDay = startOfDay(new Date(day));
+                        
+                        // Check if this day is within the task duration
+                        const isTaskStartDay = currentDay.getTime() === taskStartDate.getTime();
+                        const isTaskEndDay = currentDay.getTime() === taskDueDate.getTime();
+                        const isTaskDurationDay = currentDay >= taskStartDate && currentDay <= taskDueDate;
+                        
                         const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
                         const isPast = day < new Date() && !isToday;
                         const isWeekend = day.getDay() === 0 || day.getDay() === 6;
@@ -730,15 +1104,17 @@ const GanttChart: React.FC<GanttChartProps> = ({
                               py: 0,
                             }}
                           >
-                            {/* Completed Task Indicator */}
-                            {isTaskDay && (
+                            {/* Completed Task Duration Bar - Only render on start day to avoid duplication */}
+                            {isTaskStartDay && (
                               <Tooltip 
-                                title={`${task.fullContent} - Completed - Due: ${format(task.dueDate, 'MMM dd, yyyy')}`}
+                                title={`${task.fullContent} - Completed - Duration: ${format(task.startDate, 'MMM dd')} to ${format(task.dueDate, 'MMM dd, yyyy')} (Resize edges to change dates)`}
                                 arrow
                               >
                                 <Box
+                                  data-task-id={task.id}
+                                  onMouseDown={(e) => handleTaskDragStart(e, task)}
                                   sx={{
-                                    width: 56,
+                                    width: `${Math.max(1, differenceInDays(task.dueDate, task.startDate) + 1) * 64}px`,
                                     height: 32,
                                     background: getStatusGradient(task.status),
                                     borderRadius: 2.5,
@@ -751,12 +1127,95 @@ const GanttChart: React.FC<GanttChartProps> = ({
                                     top: 11,
                                     zIndex: 5,
                                     opacity: 0.7,
+                                    animation: resizingTask?.taskId === task.id ? 'resize 0.2s ease-out' : 'slideIn 0.3s ease-out',
                                   }}
                                   onClick={(e) => {
+                                    // Don't trigger click if we're resizing
+                                    if (resizingTask) {
+                                      e.stopPropagation();
+                                      return;
+                                    }
+                                    // Don't trigger click if we're on a resize handle
+                                    const target = e.target as HTMLElement;
+                                    if (target.closest('[data-resize-handle]')) {
+                                      e.stopPropagation();
+                                      return;
+                                    }
+                                    // Don't trigger click if we're dragging
+                                    if (isDragging.current) {
+                                      e.stopPropagation();
+                                      return;
+                                    }
                                     e.stopPropagation();
                                     onTaskClick && onTaskClick(tasks.find(t => t.id === task.id)!);
                                   }}
                                 >
+                                  {/* Resize Handle - Left (Start Date) */}
+                                  <Box
+                                    data-resize-handle="start"
+                                    onMouseDown={(e) => handleResizeStart(e, task.id, 'start')}
+                                    sx={{
+                                      cursor: 'ew-resize',
+                                      position: 'absolute',
+                                      left: -4,
+                                      top: 0,
+                                      width: 8,
+                                      height: '100%',
+                                      backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                      borderRadius: '4px 0 0 4px',
+                                      border: '1px solid rgba(0, 0, 0, 0.2)',
+                                      zIndex: 10,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      '&:hover': {
+                                        backgroundColor: 'rgba(255, 255, 255, 1)',
+                                        transform: 'scaleX(1.2)',
+                                      },
+                                      '&::after': {
+                                        content: '""',
+                                        width: 2,
+                                        height: 16,
+                                        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                                        borderRadius: 1,
+                                      }
+                                    }}
+                                    tabIndex={-1}
+                                  />
+                                  
+                                  {/* Resize Handle - Right (End Date) */}
+                                  <Box
+                                    data-resize-handle="end"
+                                    onMouseDown={(e) => handleResizeStart(e, task.id, 'end')}
+                                    sx={{
+                                      cursor: 'ew-resize',
+                                      position: 'absolute',
+                                      right: -4,
+                                      top: 0,
+                                      width: 8,
+                                      height: '100%',
+                                      backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                      borderRadius: '0 4px 4px 0',
+                                      border: '1px solid rgba(0, 0, 0, 0.2)',
+                                      zIndex: 10,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      '&:hover': {
+                                        backgroundColor: 'rgba(255, 255, 255, 1)',
+                                        transform: 'scaleX(1.2)',
+                                      },
+                                      '&::after': {
+                                        content: '""',
+                                        width: 2,
+                                        height: 16,
+                                        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                                        borderRadius: 1,
+                                      }
+                                    }}
+                                    tabIndex={-1}
+                                  />
+                                  
                                   <Typography variant="caption" sx={{
                                     fontSize: '0.9rem',
                                     fontWeight: 700,
@@ -819,7 +1278,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
                   borderLeft: `4px solid ${getStatusColor(task.status)}`,
                   opacity: task.status === 'completed' ? 0.8 : 1,
                 }}
-                onClick={() => {
+                onClick={(e) => {
                   const originalTask = tasks.find(t => t.id === task.id);
                   if (originalTask && onTaskClick) {
                     onTaskClick(originalTask);
@@ -864,6 +1323,23 @@ const GanttChart: React.FC<GanttChartProps> = ({
             0% { transform: scale(1); opacity: 0.5; }
             50% { transform: scale(1.1); opacity: 0.3; }
             100% { transform: scale(1); opacity: 0.5; }
+          }
+          
+          @keyframes slideIn {
+            0% { 
+              opacity: 0; 
+              transform: translateY(-10px) scale(0.95);
+            }
+            100% { 
+              opacity: 1; 
+              transform: translateY(0) scale(1);
+            }
+          }
+          
+          @keyframes resize {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
           }
         `}
       </style>
