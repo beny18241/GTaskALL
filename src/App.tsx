@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid, Checkbox, ThemeProvider, createTheme, Menu } from '@mui/material';
+import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid, Checkbox, ThemeProvider, createTheme, Menu, Tabs, Tab } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -30,6 +30,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import ListIcon from '@mui/icons-material/List';
 import EditIcon from '@mui/icons-material/Edit';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { CircularProgress } from '@mui/material';
 import { apiService } from './api';
 import TaskRow from './TaskRow.tsx';
@@ -39,6 +40,11 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import Alert from '@mui/material/Alert';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DisconnectIcon from '@mui/icons-material/LinkOff';
+import Snackbar from '@mui/material/Snackbar';
+import ChatIcon from '@mui/icons-material/Chat';
+import SendIcon from '@mui/icons-material/Send';
+import NoteAddIcon from '@mui/icons-material/NoteAdd';
+
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 65;
@@ -236,11 +242,22 @@ function App() {
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [isLoadingSettings, setIsLoadingSettings] = useState(false);
 
-  // AI Summary state
+  // AI Panel state (combined Summary, Chat, and Notes)
   const [aiSummary, setAiSummary] = useState<{ summary: string; insights: string[] } | null>(null);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
-  const [showAISummary, setShowAISummary] = useState(false);
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [aiPanelTab, setAiPanelTab] = useState(0); // 0 = summary, 1 = chat, 2 = notes
+
+  // AI Chat state
+  const [chatMessages, setChatMessages] = useState<Array<{ type: 'user' | 'ai'; message: string; timestamp: Date }>>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
+  // Notes state
+  const [notes, setNotes] = useState<string>('');
+  const [isSavingNote, setIsSavingNote] = useState(false);
+
 
   // Account management state
   const [expiredAccounts, setExpiredAccounts] = useState<string[]>([]);
@@ -1165,33 +1182,49 @@ function App() {
     }));
 
     // Sync with Google Tasks if connected
-    if (googleAccounts.length > 0 && task.listId) {
+    if (googleAccounts.length > 0) {
       try {
-        axios.patch(
-          `https://www.googleapis.com/tasks/v1/lists/${task.listId}/tasks/${task.id}`,
-          {
-            due: date ? date.toISOString() : null
-          },
-          {
-            headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` }
+        // Find the task in Google Tasks
+        let taskListId = '';
+        let taskId = '';
+        
+        // Search through all task lists to find the task
+        for (const [listId, tasks] of Object.entries(googleAccounts[activeAccountIndex].tasks)) {
+          const foundTask = tasks.find(t => t.id === task.id);
+          if (foundTask) {
+            taskListId = listId;
+            taskId = foundTask.id;
+            break;
           }
-        ).catch(error => {
-          console.error('Error updating due date in Google Tasks:', error);
-          // Revert the local state if the Google Tasks update fails
-          setColumns(columns.map(column => {
-            if (column.id === columnId) {
-              return {
-                ...column,
-                tasks: column.tasks.map(t => 
-                  t.id === task.id 
-                    ? { ...t, dueDate: task.dueDate }
-                    : t
-                )
-              };
+        }
+
+        if (taskListId && taskId) {
+          axios.patch(
+            `https://www.googleapis.com/tasks/v1/lists/${taskListId}/tasks/${taskId}`,
+            {
+              due: date ? date.toISOString() : null
+            },
+            {
+              headers: { Authorization: `Bearer ${googleAccounts[activeAccountIndex].token}` }
             }
-            return column;
-          }));
-        });
+          ).catch(error => {
+            console.error('Error updating due date in Google Tasks:', error);
+            // Revert the local state if the Google Tasks update fails
+            setColumns(columns.map(column => {
+              if (column.id === columnId) {
+                return {
+                  ...column,
+                  tasks: column.tasks.map(t => 
+                    t.id === task.id 
+                      ? { ...t, dueDate: task.dueDate }
+                      : t
+                  )
+                };
+              }
+              return column;
+            }));
+          });
+        }
       } catch (error) {
         console.error('Error updating due date in Google Tasks:', error);
       }
@@ -1604,24 +1637,27 @@ function App() {
         key={task.id}
         className="task-card"
         sx={{ 
-          p: 1.5,
+          p: isDoneColumn ? 1.5 : 2,
           cursor: 'grab',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           transform: task.isDragging ? 'scale(1.02) rotate(1deg)' : 'scale(1) rotate(0deg)',
           opacity: task.isDragging ? 0.5 : 1,
-          boxShadow: task.isDragging ? 3 : 1,
+          boxShadow: task.isDragging ? 4 : '0 2px 8px rgba(0,0,0,0.08)',
           position: 'relative',
           '&:hover': {
-            boxShadow: 2,
-            transform: 'translateY(-2px)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+            transform: 'translateY(-3px)',
           },
           borderLeft: task.color ? `4px solid ${task.color}` : 'none',
-          bgcolor: task.color ? `${task.color}10` : 'background.paper',
+          bgcolor: task.color ? `${task.color}08` : 'background.paper',
           maxWidth: '100%',
           overflow: 'hidden',
-          mb: 1,
+          mb: isDoneColumn ? 1 : 1.5,
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          borderRadius: 2,
+          border: '1px solid',
+          borderColor: 'divider'
         }}
         draggable
         onDragStart={() => handleDragStart(task, columnId)}
@@ -1630,8 +1666,8 @@ function App() {
         {!isNoTask && (
           <Box sx={{ 
             position: 'absolute', 
-            top: 8, 
-            left: 8, 
+            top: isDoneColumn ? 8 : 12, 
+            left: isDoneColumn ? 8 : 12, 
             zIndex: 2,
             display: 'flex',
             alignItems: 'center',
@@ -1651,12 +1687,14 @@ function App() {
             />
           </Box>
         )}
-        {task.accountPicture && !isNoTask && (
+        
+        {/* Account Avatar - Only show in Done column if space allows */}
+        {task.accountPicture && !isNoTask && !isDoneColumn && (
           <Box
             sx={{
               position: 'absolute',
-              top: 8,
-              right: 8,
+              top: 12,
+              right: 12,
               zIndex: 1,
             }}
           >
@@ -1664,26 +1702,28 @@ function App() {
               src={task.accountPicture}
               alt={task.accountName}
               sx={{
-                width: 24,
-                height: 24,
+                width: 28,
+                height: 28,
                 border: '2px solid white',
-                boxShadow: 1,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
               }}
             />
           </Box>
         )}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%' }}>
+        
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: isDoneColumn ? 1 : 1.5, width: '100%' }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
+            {/* Task Title */}
             <Typography 
               variant="subtitle1" 
               sx={{ 
                 wordBreak: 'break-word',
                 fontWeight: 600,
-                fontSize: '0.9rem',
-                lineHeight: 1.3,
-                mb: 0.5,
-                pr: task.accountPicture ? 4 : 0,
-                pl: !isNoTask ? 4 : 0, // Add left padding for checkbox
+                fontSize: isDoneColumn ? '0.85rem' : '0.95rem',
+                lineHeight: 1.4,
+                mb: isDoneColumn ? 0.5 : 1,
+                pr: (task.accountPicture && !isDoneColumn) ? 5 : 0,
+                pl: !isNoTask ? (isDoneColumn ? 3 : 5) : 0,
                 textDecoration: task.status === 'completed' ? 'line-through' : 'none',
                 color: task.status === 'completed' ? 'text.secondary' : 'text.primary'
               }}
@@ -1691,13 +1731,14 @@ function App() {
               {task.content}
             </Typography>
             
-            {!isNoTask && task.notes && (
+            {/* Task Notes - Hide in Done column to save space */}
+            {!isNoTask && task.notes && !isDoneColumn && (
               <Typography 
                 variant="body2" 
                 color="text.secondary"
                 sx={{ 
-                  mb: 1,
-                  fontSize: '0.75rem',
+                  mb: 1.5,
+                  fontSize: '0.8rem',
                   lineHeight: 1.5,
                   wordBreak: 'break-word',
                   whiteSpace: 'pre-wrap',
@@ -1709,128 +1750,109 @@ function App() {
               </Typography>
             )}
 
-            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
-              {!isNoTask && task.isRecurring && (
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  bgcolor: 'primary.main',
-                  color: 'white',
-                  px: 1,
-                  py: 0.25,
-                  borderRadius: 1,
-                  fontSize: '0.65rem',
-                  flexShrink: 0
-                }}>
-                  🔄 Recurring
-                </Box>
-              )}
-              {!isNoTask && task.status === 'in-progress' && (
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  bgcolor: 'warning.main',
-                  color: 'white',
-                  px: 1,
-                  py: 0.25,
-                  borderRadius: 1,
-                  fontSize: '0.65rem',
-                  flexShrink: 0
-                }}>
-                  ⚡ Active
-                </Box>
-              )}
-              {!isNoTask && task.status === 'completed' && (
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  bgcolor: 'success.main',
-                  color: 'white',
-                  px: 1,
-                  py: 0.25,
-                  borderRadius: 1,
-                  fontSize: '0.65rem',
-                  flexShrink: 0
-                }}>
-                  ✓ Done
-                </Box>
-              )}
-              {!isNoTask && task.accountName && (
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  bgcolor: 'grey.700',
-                  color: 'white',
-                  px: 1,
-                  py: 0.25,
-                  borderRadius: 1,
-                  fontSize: '0.65rem',
-                  flexShrink: 0
-                }}>
-                  {task.accountName}
-                </Box>
-              )}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                {!isNoTask && task.dueDate ? (
-                  <Box 
+            {/* Status Badges - Simplified for Done column */}
+            {!isDoneColumn && (
+              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.75, alignItems: 'center', mb: 1 }}>
+                {!isNoTask && task.isRecurring && (
+                  <Chip
+                    icon={<span>🔄</span>}
+                    label="Recurring"
+                    size="small"
                     sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      bgcolor: isOverdue ? 'error.main' : 'info.main',
+                      fontSize: '0.7rem',
+                      height: '24px',
+                      bgcolor: 'primary.main',
                       color: 'white',
-                      px: 1,
-                      py: 0.25,
-                      borderRadius: 1,
-                      fontSize: '0.65rem',
-                      flexShrink: 0,
-                      cursor: 'pointer',
-                      '&:hover': {
-                        opacity: 0.9
-                      }
+                      '& .MuiChip-label': { px: 1 }
                     }}
-                    onClick={() => setSelectedTask({ task, columnId })}
-                  >
-                    <EventIcon sx={{ fontSize: '0.7rem', mr: 0.5 }} />
-                    {format(new Date(task.dueDate), 'MMM d')}
-                  </Box>
-                ) : !isNoTask && (
-                  <Box 
-                    sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      bgcolor: 'grey.500',
-                      color: 'white',
-                      px: 1,
-                      py: 0.25,
-                      borderRadius: 1,
-                      fontSize: '0.65rem',
-                      flexShrink: 0,
-                      cursor: 'pointer',
-                      '&:hover': {
-                        opacity: 0.9
-                      }
-                    }}
-                    onClick={() => setSelectedTask({ task, columnId })}
-                  >
-                    <EventIcon sx={{ fontSize: '0.7rem', mr: 0.5 }} />
-                    Add Date
-                  </Box>
+                  />
                 )}
+                {!isNoTask && task.status === 'in-progress' && (
+                  <Chip
+                    icon={<span>⚡</span>}
+                    label="Active"
+                    size="small"
+                    sx={{ 
+                      fontSize: '0.7rem',
+                      height: '24px',
+                      bgcolor: 'warning.main',
+                      color: 'white',
+                      '& .MuiChip-label': { px: 1 }
+                    }}
+                  />
+                )}
+                {!isNoTask && task.status === 'completed' && (
+                  <Chip
+                    icon={<span>✓</span>}
+                    label="Done"
+                    size="small"
+                    sx={{ 
+                      fontSize: '0.7rem',
+                      height: '24px',
+                      bgcolor: 'success.main',
+                      color: 'white',
+                      '& .MuiChip-label': { px: 1 }
+                    }}
+                  />
+                )}
+              </Stack>
+            )}
+
+            {/* Date and Quick Actions - Simplified for Done column */}
+            {!isDoneColumn ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+                {/* Due Date */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                  {!isNoTask && task.dueDate ? (
+                    <Chip
+                      icon={<EventIcon sx={{ fontSize: '0.8rem' }} />}
+                      label={format(new Date(task.dueDate), 'MMM d')}
+                      size="small"
+                      sx={{ 
+                        fontSize: '0.7rem',
+                        height: '24px',
+                        bgcolor: isOverdue ? 'error.main' : 'info.main',
+                        color: 'white',
+                        cursor: 'pointer',
+                        '&:hover': { opacity: 0.9 },
+                        '& .MuiChip-label': { px: 1 }
+                      }}
+                      onClick={() => setSelectedTask({ task, columnId })}
+                    />
+                  ) : !isNoTask && (
+                    <Chip
+                      icon={<EventIcon sx={{ fontSize: '0.8rem' }} />}
+                      label="Add Date"
+                      size="small"
+                      sx={{ 
+                        fontSize: '0.7rem',
+                        height: '24px',
+                        bgcolor: 'grey.500',
+                        color: 'white',
+                        cursor: 'pointer',
+                        '&:hover': { opacity: 0.9 },
+                        '& .MuiChip-label': { px: 1 }
+                      }}
+                      onClick={() => setSelectedTask({ task, columnId })}
+                    />
+                  )}
+                </Box>
                 
                 {/* Quick Reschedule Buttons */}
                 {!isNoTask && (
-                  <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
+                  <Box sx={{ display: 'flex', gap: 0.5 }}>
                     <Button
                       size="small"
                       variant="outlined"
                       sx={{ 
                         minWidth: 'auto', 
-                        px: 1, 
-                        py: 0.25, 
-                        fontSize: '0.6rem',
+                        px: 1.5, 
+                        py: 0.5, 
+                        fontSize: '0.65rem',
                         height: '24px',
                         borderColor: 'primary.main',
                         color: 'primary.main',
+                        borderRadius: 1,
                         '&:hover': {
                           bgcolor: 'primary.main',
                           color: 'white'
@@ -1848,12 +1870,13 @@ function App() {
                       variant="outlined"
                       sx={{ 
                         minWidth: 'auto', 
-                        px: 1, 
-                        py: 0.25, 
-                        fontSize: '0.6rem',
+                        px: 1.5, 
+                        py: 0.5, 
+                        fontSize: '0.65rem',
                         height: '24px',
                         borderColor: 'warning.main',
                         color: 'warning.main',
+                        borderRadius: 1,
                         '&:hover': {
                           bgcolor: 'warning.main',
                           color: 'white'
@@ -1871,12 +1894,13 @@ function App() {
                       variant="outlined"
                       sx={{ 
                         minWidth: 'auto', 
-                        px: 1, 
-                        py: 0.25, 
-                        fontSize: '0.6rem',
+                        px: 1.5, 
+                        py: 0.5, 
+                        fontSize: '0.65rem',
                         height: '24px',
                         borderColor: 'success.main',
                         color: 'success.main',
+                        borderRadius: 1,
                         '&:hover': {
                           bgcolor: 'success.main',
                           color: 'white'
@@ -1892,9 +1916,30 @@ function App() {
                   </Box>
                 )}
               </Box>
-            </Stack>
+            ) : (
+              /* Done column: Show only completion date if available */
+              task.completedAt && (
+                <Box sx={{ mt: 0.5 }}>
+                  <Typography 
+                    variant="caption" 
+                    color="text.secondary"
+                    sx={{ 
+                      fontSize: '0.7rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5
+                    }}
+                  >
+                    <CheckCircleIcon sx={{ fontSize: '0.8rem' }} />
+                    Completed {format(new Date(task.completedAt), 'MMM d')}
+                  </Typography>
+                </Box>
+              )
+            )}
           </Box>
         </Box>
+        
+        {/* Edit Button - Smaller for Done column */}
         <IconButton
           size="small"
           onClick={(e) => {
@@ -1903,26 +1948,28 @@ function App() {
           }}
           sx={{
             position: 'absolute',
-            top: 8,
-            right: task.accountPicture ? 40 : 8,
-            opacity: 1,
+            top: isDoneColumn ? 8 : 12,
+            right: (task.accountPicture && !isDoneColumn) ? 48 : (isDoneColumn ? 8 : 12),
+            opacity: 0.7,
             transition: 'all 0.3s ease',
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
             '&:hover': {
               backgroundColor: 'primary.main',
               color: 'white',
-              transform: 'scale(1.1) rotate(5deg)',
-              boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+              transform: 'scale(1.1)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+              opacity: 1,
             },
             '& .MuiSvgIcon-root': {
               fontSize: '1rem',
             },
             zIndex: 2,
-            width: '28px',
-            height: '28px',
+            width: isDoneColumn ? '28px' : '32px',
+            height: isDoneColumn ? '28px' : '32px',
             border: '1px solid',
             borderColor: 'divider',
+            borderRadius: 1,
           }}
         >
           <EditIcon fontSize="small" />
@@ -2149,14 +2196,19 @@ function App() {
             <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 0.5 }}>
               Today's Tasks
             </Typography>
-            {filteredTasks.length > 0 && (
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
               <IconButton
                 size="small"
                 onClick={() => {
-                  if (!aiSummary) {
-                    generateAISummary(filteredTasks);
+                  if (!showAIPanel) {
+                    setShowAIPanel(true);
+                    setAiPanelTab(0); // Show summary tab
+                    if (!aiSummary) {
+                      generateAISummary(filteredTasks);
+                    }
+                  } else {
+                    setShowAIPanel(!showAIPanel);
                   }
-                  setShowAISummary(!showAISummary);
                 }}
                 disabled={isGeneratingSummary}
                 sx={{
@@ -2170,7 +2222,7 @@ function App() {
                     color: 'rgba(255,255,255,0.5)',
                   }
                 }}
-                title={aiSummary ? 'Toggle AI Summary' : 'Generate AI Summary'}
+                title="AI Assistant (Summary, Chat, Notes)"
               >
                 {isGeneratingSummary ? (
                   <CircularProgress size={16} color="inherit" />
@@ -2178,7 +2230,7 @@ function App() {
                   <AutoAwesomeIcon fontSize="small" />
                 )}
               </IconButton>
-            )}
+            </Box>
           </Box>
           <Typography variant="body2" sx={{ opacity: 0.9 }}>
             {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} for today
@@ -2265,8 +2317,8 @@ function App() {
             )}
           </Box>
 
-          {/* Right Column - AI Summary */}
-          {filteredTasks.length > 0 && showAISummary && (
+          {/* Right Column - AI Panel (Summary, Chat, Notes) */}
+          {showAIPanel && (
             <Box sx={{ 
               width: 350, 
               flexShrink: 0,
@@ -2276,17 +2328,21 @@ function App() {
               <Box sx={{ 
                 bgcolor: 'background.paper',
                 borderRadius: 2,
-                p: 2,
                 border: '1px solid',
                 borderColor: 'divider',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                height: 'fit-content'
+                height: '500px',
+                display: 'flex',
+                flexDirection: 'column'
               }}>
+                {/* Panel Header */}
                 <Box sx={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  mb: 2
+                  p: 2,
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
                 }}>
                   <Typography variant="h6" sx={{ 
                     color: 'primary.main',
@@ -2295,83 +2351,340 @@ function App() {
                     alignItems: 'center',
                     gap: 1
                   }}>
-                    🤖 AI Summary
+                    🤖 AI Assistant
                   </Typography>
                   <IconButton
                     size="small"
-                    onClick={() => setShowAISummary(false)}
+                    onClick={() => setShowAIPanel(false)}
                     sx={{
                       color: 'text.secondary',
                       '&:hover': {
                         color: 'text.primary',
                       }
                     }}
-                    title="Close AI Summary"
+                    title="Close AI Panel"
                   >
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </Box>
 
-                {summaryError && (
-                  <Alert severity="error" sx={{ mb: 2 }}>
-                    {summaryError}
-                  </Alert>
-                )}
+                {/* Tabs */}
+                <Tabs 
+                  value={aiPanelTab} 
+                  onChange={(e, newValue) => {
+                    setAiPanelTab(newValue);
+                    // Initialize chat messages when switching to chat tab
+                    if (newValue === 1 && chatMessages.length === 0) {
+                      setChatMessages([{
+                        type: 'ai',
+                        message: 'Cześć! Jestem tutaj, aby pomóc Ci z zarządzaniem zadaniami. Możesz mnie zapytać o wszystko związane z Twoimi zadaniami na dziś.',
+                        timestamp: new Date()
+                      }]);
+                    }
+                    // Load notes when switching to notes tab
+                    if (newValue === 2) {
+                      loadNote();
+                    }
+                  }}
+                  sx={{ 
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    px: 2
+                  }}
+                >
+                  <Tab 
+                    label="Summary" 
+                    sx={{ 
+                      fontSize: '0.8rem',
+                      minHeight: 40,
+                      textTransform: 'none'
+                    }}
+                  />
+                  <Tab 
+                    label="Chat" 
+                    sx={{ 
+                      fontSize: '0.8rem',
+                      minHeight: 40,
+                      textTransform: 'none'
+                    }}
+                  />
+                  <Tab 
+                    label="Notes" 
+                    sx={{ 
+                      fontSize: '0.8rem',
+                      minHeight: 40,
+                      textTransform: 'none'
+                    }}
+                  />
+                </Tabs>
 
-                {aiSummary ? (
-                  <Box>
-                    <Typography variant="body1" sx={{ 
-                      mb: 2,
-                      fontWeight: 'medium',
-                      color: 'text.primary',
-                      fontSize: '0.9rem',
-                      lineHeight: 1.5
-                    }}>
-                      {aiSummary.summary}
-                    </Typography>
-                    
-                    {aiSummary.insights.length > 0 && (
-                      <Box>
-                        <Typography variant="subtitle2" sx={{ 
-                          mb: 1,
-                          fontWeight: 'bold',
-                          color: 'primary.main',
-                          fontSize: '0.85rem'
-                        }}>
-                          Key Insights:
-                        </Typography>
-                        <Box component="ul" sx={{ m: 0, pl: 2 }}>
-                          {aiSummary.insights.map((insight, index) => (
-                            <Typography 
-                              key={index} 
-                              component="li" 
-                              variant="body2" 
-                              sx={{ 
-                                mb: 0.5,
-                                color: 'text.secondary',
-                                fontSize: '0.8rem',
-                                lineHeight: 1.4
-                              }}
-                            >
-                              {insight}
-                            </Typography>
-                          ))}
+                {/* Tab Content */}
+                <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                  {/* Summary Tab */}
+                  {aiPanelTab === 0 && (
+                    <Box sx={{ p: 2, height: '100%', overflow: 'auto' }}>
+                      {summaryError && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                          {summaryError}
+                        </Alert>
+                      )}
+
+                      {aiSummary ? (
+                        <Box>
+                          <Typography variant="body1" sx={{ 
+                            mb: 2,
+                            fontWeight: 'medium',
+                            color: 'text.primary',
+                            fontSize: '0.9rem',
+                            lineHeight: 1.5
+                          }}>
+                            {aiSummary.summary}
+                          </Typography>
+                          
+                          {aiSummary.insights.length > 0 && (
+                            <Box>
+                              <Typography variant="subtitle2" sx={{ 
+                                mb: 1,
+                                fontWeight: 'bold',
+                                color: 'primary.main',
+                                fontSize: '0.85rem'
+                              }}>
+                                Key Insights:
+                              </Typography>
+                              <Box component="ul" sx={{ m: 0, pl: 2 }}>
+                                {aiSummary.insights.map((insight, index) => (
+                                  <Typography 
+                                    key={index} 
+                                    component="li" 
+                                    variant="body2" 
+                                    sx={{ 
+                                      mb: 0.5,
+                                      color: 'text.secondary',
+                                      fontSize: '0.8rem',
+                                      lineHeight: 1.4
+                                    }}
+                                  >
+                                    {insight}
+                                  </Typography>
+                                ))}
+                              </Box>
+                            </Box>
+                          )}
                         </Box>
+                      ) : (
+                        <Box sx={{ 
+                          textAlign: 'center', 
+                          py: 3,
+                          color: 'text.secondary'
+                        }}>
+                          <AutoAwesomeIcon sx={{ fontSize: 40, mb: 1, opacity: 0.5 }} />
+                          <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
+                            Generating AI insights about your tasks...
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  )}
+
+                  {/* Chat Tab */}
+                  {aiPanelTab === 1 && (
+                    <Box sx={{ 
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}>
+                      {/* Chat Messages */}
+                      <Box sx={{ 
+                        flex: 1,
+                        overflow: 'auto',
+                        p: 2,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 1
+                      }}>
+                        {chatMessages.length === 0 && (
+                          <Box sx={{ 
+                            textAlign: 'center', 
+                            py: 3,
+                            color: 'text.secondary'
+                          }}>
+                            <ChatIcon sx={{ fontSize: 40, mb: 1, opacity: 0.5 }} />
+                            <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
+                              Cześć! Jestem tutaj, aby pomóc Ci z zarządzaniem zadaniami.
+                            </Typography>
+                          </Box>
+                        )}
+                        {chatMessages.map((msg, index) => (
+                          <Box
+                            key={index}
+                            sx={{
+                              display: 'flex',
+                              justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start',
+                              mb: 1
+                            }}
+                          >
+                                                    <Box
+                          sx={{
+                            maxWidth: '80%',
+                            p: 1.5,
+                            borderRadius: 2,
+                            bgcolor: msg.type === 'user' ? 'primary.main' : 'grey.100',
+                            color: msg.type === 'user' ? 'white' : 'text.primary',
+                            fontSize: '0.85rem',
+                            lineHeight: 1.4,
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word'
+                          }}
+                        >
+                          {msg.type === 'ai' ? (
+                            <Box sx={{ 
+                              '& strong': { fontWeight: 'bold' },
+                              '& em': { fontStyle: 'italic' },
+                              '& ul, & ol': { 
+                                margin: '8px 0', 
+                                paddingLeft: '20px' 
+                              },
+                              '& li': { 
+                                margin: '4px 0' 
+                              },
+                              '& blockquote': { 
+                                borderLeft: '3px solid #ccc',
+                                margin: '8px 0',
+                                paddingLeft: '12px',
+                                fontStyle: 'italic',
+                                color: 'text.secondary'
+                              },
+                              '& h3': {
+                                fontSize: '1rem',
+                                fontWeight: 'bold',
+                                margin: '12px 0 8px 0',
+                                color: 'primary.main'
+                              }
+                            }}>
+                              {msg.message}
+                            </Box>
+                          ) : (
+                            msg.message
+                          )}
+                        </Box>
+                          </Box>
+                        ))}
+                        {isChatLoading && (
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 1 }}>
+                            <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'grey.100' }}>
+                              <CircularProgress size={16} />
+                            </Box>
+                          </Box>
+                        )}
                       </Box>
-                    )}
-                  </Box>
-                ) : (
-                  <Box sx={{ 
-                    textAlign: 'center', 
-                    py: 3,
-                    color: 'text.secondary'
-                  }}>
-                    <AutoAwesomeIcon sx={{ fontSize: 40, mb: 1, opacity: 0.5 }} />
-                    <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
-                      Generating AI insights about your tasks...
-                    </Typography>
-                  </Box>
-                )}
+
+                      {/* Chat Input */}
+                      <Box sx={{ 
+                        p: 2,
+                        borderTop: '1px solid',
+                        borderColor: 'divider',
+                        display: 'flex',
+                        gap: 1
+                      }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          placeholder="Zapytaj o swoje zadania..."
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              sendChatMessage(chatInput);
+                            }
+                          }}
+                          disabled={isChatLoading}
+                        />
+                        <IconButton
+                          onClick={() => sendChatMessage(chatInput)}
+                          disabled={!chatInput.trim() || isChatLoading}
+                          sx={{
+                            bgcolor: 'primary.main',
+                            color: 'white',
+                            '&:hover': {
+                              bgcolor: 'primary.dark',
+                            },
+                            '&.Mui-disabled': {
+                              bgcolor: 'grey.300',
+                              color: 'grey.500',
+                            }
+                          }}
+                        >
+                          <SendIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* Notes Tab */}
+                  {aiPanelTab === 2 && (
+                    <Box sx={{ 
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}>
+                      {/* Notes Content */}
+                      <Box sx={{ 
+                        flex: 1,
+                        p: 2,
+                        display: 'flex',
+                        flexDirection: 'column'
+                      }}>
+                        <TextField
+                          multiline
+                          fullWidth
+                          rows={15}
+                          placeholder="Dodaj notatki o swoich zadaniach na dziś..."
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          variant="outlined"
+                          size="small"
+                          sx={{
+                            flex: 1,
+                            '& .MuiOutlinedInput-root': {
+                              fontSize: '0.85rem',
+                              lineHeight: 1.4
+                            }
+                          }}
+                        />
+                      </Box>
+
+                      {/* Notes Actions */}
+                      <Box sx={{ 
+                        p: 2,
+                        borderTop: '1px solid',
+                        borderColor: 'divider',
+                        display: 'flex',
+                        gap: 1
+                      }}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => setNotes('')}
+                          disabled={!notes.trim()}
+                          sx={{ flex: 1 }}
+                        >
+                          Clear
+                        </Button>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={saveNote}
+                          disabled={isSavingNote}
+                          sx={{ flex: 1 }}
+                        >
+                          {isSavingNote ? <CircularProgress size={16} /> : 'Save'}
+                        </Button>
+
+                      </Box>
+                    </Box>
+                  )}
+                </Box>
               </Box>
             </Box>
           )}
@@ -3616,14 +3929,27 @@ function App() {
       ? filteredTasks.slice(0, maxTasksToRender) 
       : filteredTasks;
 
+    // Define column widths based on column type
+    const getColumnWidth = () => {
+      switch (column.id) {
+        case 'todo':
+          return { flex: 2, minWidth: 400 }; // Wider for todo column
+        case 'done':
+          return { flex: 0.6, minWidth: 250 }; // Smaller for done column
+        default:
+          return { flex: 1, minWidth: 300 }; // Default for other columns
+      }
+    };
+
+    const columnWidth = getColumnWidth();
+
     return (
       <Paper
         key={column.id}
         sx={{
           p: 2,
-          minWidth: 300,
+          ...columnWidth,
           maxWidth: 'none',
-          flex: 1,
           bgcolor: 'background.paper',
           borderRadius: 2,
           display: 'flex',
@@ -3707,15 +4033,14 @@ function App() {
   // Settings management functions
   const handleOpenSettings = async () => {
     if (!user?.email) return;
-    
     setIsLoadingSettings(true);
     try {
-      const response = await apiService.getUserSettings(user.email);
-      if (response.settings) {
-        setGeminiApiKey(response.settings.gemini_api_key || '');
-      }
+      // Always use the main user email for API key storage (not individual account emails)
+      const apiKey = await apiService.getApiKey(user.email, user.email);
+      setGeminiApiKey(apiKey || '');
     } catch (error) {
-      console.error('Error loading settings:', error);
+      console.error('Error loading API key:', error);
+      setGeminiApiKey('');
     } finally {
       setIsLoadingSettings(false);
     }
@@ -3725,20 +4050,23 @@ function App() {
   // Enhanced handleSaveSettings with API key status update
   const handleSaveSettings = async () => {
     if (!user) return;
-
+    setIsLoadingSettings(true);
     try {
-      console.log('Saving API key for user:', user.email, 'Key length:', geminiApiKey.length);
-      const response = await apiService.updateUserSetting(user.email, 'gemini_api_key', geminiApiKey);
-      console.log('Save settings response:', response);
+      // Always save API key with main user email (not individual account emails)
+      const response = await apiService.saveApiKey(user.email, user.email, geminiApiKey);
       if (response.success) {
-        // Update API key status after saving
         const newStatus = geminiApiKey && geminiApiKey.trim() !== '' ? 'configured' : 'not-configured';
-        console.log('Setting API key status to:', newStatus);
         setApiKeyStatus(newStatus);
         setSettingsOpen(false);
+        setSnackbar({ open: true, message: 'Klucz API został zapisany pomyślnie!', severity: 'success' });
+      } else {
+        setSnackbar({ open: true, message: 'Nie udało się zapisać klucza API.', severity: 'error' });
       }
     } catch (error) {
-      console.error('Error saving settings:', error);
+      setSnackbar({ open: true, message: 'Błąd podczas zapisywania klucza API.', severity: 'error' });
+      console.error('Error saving API key:', error);
+    } finally {
+      setIsLoadingSettings(false);
     }
   };
 
@@ -3752,7 +4080,7 @@ function App() {
     
     // Check if API key is configured before making the request
     if (geminiApiKey === '') {
-      setSummaryError('Please configure your Gemini API key in Settings to use AI features');
+      setSummaryError('Skonfiguruj swój klucz API Gemini w Ustawieniach, aby korzystać z funkcji AI');
       return;
     }
     
@@ -3760,23 +4088,95 @@ function App() {
     setSummaryError(null);
     
     try {
-      const response = await apiService.generateTaskSummary(user.email, tasks);
+      // Always use main user email for API key lookup
+      const response = await apiService.generateTaskSummary(user.email, tasks, user.email);
       setAiSummary(response);
     } catch (error: any) {
       console.error('Error generating AI summary:', error);
       
       // Handle specific error cases
       if (error.message?.includes('400')) {
-        setSummaryError('Gemini API key not configured. Please add your API key in Settings.');
+        setSummaryError('Klucz API Gemini nie jest skonfigurowany. Dodaj swój klucz API w Ustawieniach.');
       } else if (error.message?.includes('500')) {
-        setSummaryError('Server error. Please try again later or check your API key.');
+        setSummaryError('Błąd serwera. Spróbuj ponownie później lub sprawdź swój klucz API.');
       } else {
-        setSummaryError(error.message || 'Failed to generate AI summary. Please check your API key configuration.');
+        setSummaryError(error.message || 'Nie udało się wygenerować podsumowania AI. Sprawdź konfigurację klucza API.');
       }
     } finally {
       setIsGeneratingSummary(false);
     }
   };
+
+  // AI Chat function
+  const sendChatMessage = async (message: string) => {
+    if (!user?.email || !message.trim()) return;
+    
+    // Check if API key is configured
+    if (geminiApiKey === '') {
+      setSnackbar({ open: true, message: 'Skonfiguruj swój klucz API Gemini w Ustawieniach', severity: 'error' });
+      return;
+    }
+    
+    // Add user message to chat
+    const userMessage = { type: 'user' as const, message: message.trim(), timestamp: new Date() };
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setIsChatLoading(true);
+    
+    try {
+      // Get current tasks for context
+      const currentTasks = columns.reduce((acc: Task[], column) => {
+        if (column.id !== 'done') {
+          return [...acc, ...column.tasks];
+        }
+        return acc;
+      }, []);
+      
+      const response = await apiService.chatWithAI(user.email, currentTasks, message.trim(), user.email);
+      
+      // Add AI response to chat
+      const aiMessage = { type: 'ai' as const, message: response.response, timestamp: new Date() };
+      setChatMessages(prev => [...prev, aiMessage]);
+    } catch (error: any) {
+      console.error('Error chatting with AI:', error);
+      const errorMessage = { type: 'ai' as const, message: 'Przepraszam, wystąpił błąd podczas generowania odpowiedzi.', timestamp: new Date() };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  // Notes functions
+  const saveNote = async () => {
+    if (!user?.email || !notes.trim()) return;
+    
+    setIsSavingNote(true);
+    try {
+      await apiService.updateUserSetting(user.email, 'daily_notes', notes.trim());
+      setSnackbar({ open: true, message: 'Notatka została zapisana!', severity: 'success' });
+      // Note saved successfully
+    } catch (error) {
+      console.error('Error saving note:', error);
+      setSnackbar({ open: true, message: 'Błąd podczas zapisywania notatki', severity: 'error' });
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
+  const loadNote = async () => {
+    if (!user?.email) return;
+    
+    try {
+      const response = await apiService.getUserSettings(user.email);
+      if (response.settings?.daily_notes) {
+        setNotes(response.settings.daily_notes);
+      }
+    } catch (error) {
+      console.error('Error loading note:', error);
+    }
+  };
+
+
 
   // Add apiService methods for expiring/activating connections
   apiService.expireConnection = async (mainUserEmail: string, gtaskAccountEmail: string) => {
@@ -3830,31 +4230,22 @@ function App() {
     flow: 'implicit',
   });
 
-  // Check API key status on app load
+  // Check API key status on app load or when user/account changes
   useEffect(() => {
     const checkApiKeyStatus = async () => {
       if (user) {
         try {
-          console.log('Checking API key status for user:', user.email);
-          const response = await apiService.getUserSettings(user.email);
-          console.log('User settings response:', response);
-          const hasApiKey = response.settings?.gemini_api_key;
-          console.log('Has API key:', !!hasApiKey, 'API key length:', hasApiKey?.length);
-          setApiKeyStatus(hasApiKey && hasApiKey.trim() !== '' ? 'configured' : 'not-configured');
-          // Also load the API key value into state for persistence
-          if (hasApiKey) {
-            setGeminiApiKey(hasApiKey);
-          }
+          // Always check API key status using main user email
+          const apiKey = await apiService.getApiKey(user.email, user.email);
+          setApiKeyStatus(apiKey && apiKey.trim() !== '' ? 'configured' : 'not-configured');
+          if (apiKey) setGeminiApiKey(apiKey);
         } catch (error) {
-          console.error('Error checking API key status:', error);
           setApiKeyStatus('not-configured');
         }
       } else {
-        console.log('No user found, setting API key status to not-configured');
         setApiKeyStatus('not-configured');
       }
     };
-
     checkApiKeyStatus();
   }, [user]);
 
@@ -3952,9 +4343,7 @@ function App() {
               Object.entries(account.tasks).map(([listId, tasks]) => [
                 listId,
                 tasks.map(task => 
-                  task.id === taskId 
-                    ? { ...task, due: newDueDate.toISOString() }
-                    : task
+                  task.id === taskId ? updatedTask : task
                 )
               ])
             )
@@ -4106,6 +4495,8 @@ function App() {
     );
   };
 
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
+
   return (
     <ThemeProvider theme={theme}>
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
@@ -4164,6 +4555,20 @@ function App() {
                 }
               }}>
                 <IconButton 
+                  className={viewMode === 'today' ? 'active' : ''}
+                  onClick={() => setViewMode('today')}
+                  title="Today's Tasks"
+                >
+                  <EventIcon fontSize="small" />
+                </IconButton>
+                <IconButton 
+                  className={viewMode === 'ultimate' ? 'active' : ''}
+                  onClick={() => setViewMode('ultimate')}
+                  title="Ultimate Board"
+                >
+                  <StarIcon fontSize="small" />
+                </IconButton>
+                <IconButton 
                   className={viewMode === 'kanban' ? 'active' : ''}
                   onClick={() => setViewMode('kanban')}
                   title="Kanban View"
@@ -4183,20 +4588,6 @@ function App() {
                   title="Calendar View"
                 >
                   <CalendarTodayIcon fontSize="small" />
-                </IconButton>
-                <IconButton 
-                  className={viewMode === 'today' ? 'active' : ''}
-                  onClick={() => setViewMode('today')}
-                  title="Today's Tasks"
-                >
-                  <EventIcon fontSize="small" />
-                </IconButton>
-                <IconButton 
-                  className={viewMode === 'ultimate' ? 'active' : ''}
-                  onClick={() => setViewMode('ultimate')}
-                  title="Ultimate Board"
-                >
-                  <StarIcon fontSize="small" />
                 </IconButton>
                 <IconButton 
                   className={viewMode === 'upcoming' ? 'active' : ''}
@@ -4926,8 +5317,11 @@ function App() {
                   <Typography variant="h6" gutterBottom>
                     Gemini API Configuration
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                     Add your Gemini API key to enable AI-powered features in the application.
+                  </Typography>
+                  <Typography variant="caption" color="primary" sx={{ mb: 2, display: 'block' }}>
+                    💡 API key is shared across all Google Tasks accounts
                   </Typography>
                   <TextField
                     label="Gemini API Key"
@@ -4954,7 +5348,7 @@ function App() {
               </Stack>
             </DialogContent>
             <DialogActions>
-              <Button onClick={handleCloseSettings}>
+              <Button onClick={handleCloseSettings} disabled={isLoadingSettings}>
                 Cancel
               </Button>
               <Button 
@@ -4970,6 +5364,17 @@ function App() {
           </Dialog>
         </Box>
       </GoogleOAuthProvider>
+      {/* Snackbar for feedback */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </ThemeProvider>
   );
 }
