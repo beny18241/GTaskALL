@@ -2066,7 +2066,7 @@ function App() {
               {filteredTasks.map((task, index) => {
                 const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
                 const isOverdue = task.dueDate && new Date(task.dueDate) < startOfDay(new Date()) && task.status !== 'completed';
-                const isToday = task.dueDate && isToday(new Date(task.dueDate));
+                const isTaskToday = task.dueDate && isToday(new Date(task.dueDate));
                 
                 return (
                   <Box
@@ -2219,21 +2219,21 @@ function App() {
                         mb: 2,
                         p: 1.5,
                         bgcolor: isOverdue ? 'rgba(244, 67, 54, 0.1)' : 
-                                isToday ? 'rgba(255, 152, 0, 0.1)' : 'rgba(33, 150, 243, 0.1)',
+                                isTaskToday ? 'rgba(255, 152, 0, 0.1)' : 'rgba(33, 150, 243, 0.1)',
                         borderRadius: 2,
                         border: '1px solid',
                         borderColor: isOverdue ? 'rgba(244, 67, 54, 0.3)' : 
-                                   isToday ? 'rgba(255, 152, 0, 0.3)' : 'rgba(33, 150, 243, 0.3)'
+                                   isTaskToday ? 'rgba(255, 152, 0, 0.3)' : 'rgba(33, 150, 243, 0.3)'
                       }}>
                         <EventIcon sx={{ 
                           fontSize: '1.2rem',
-                          color: isOverdue ? '#F44336' : isToday ? '#FF9800' : '#2196F3'
+                          color: isOverdue ? '#F44336' : isTaskToday ? '#FF9800' : '#2196F3'
                         }} />
                         <Typography 
                           variant="body2" 
                           sx={{ 
                             fontWeight: 600,
-                            color: isOverdue ? '#F44336' : isToday ? '#FF9800' : '#2196F3'
+                            color: isOverdue ? '#F44336' : isTaskToday ? '#FF9800' : '#2196F3'
                           }}
                         >
                           {format(new Date(task.dueDate), 'EEEE, MMMM d, yyyy')}
