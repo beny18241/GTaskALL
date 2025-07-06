@@ -2102,14 +2102,47 @@ function App() {
         <Paper sx={{ p: 2, bgcolor: 'background.paper' }}>
           {calendarShowAll ? (
             <>
-              <Typography variant="h6" gutterBottom color="text.primary">
-                All Tasks
-              </Typography>
-              <Box sx={{ bgcolor: 'background.paper', borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ 
+                mb: 2, 
+                textAlign: 'center',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: 2,
+                p: 2,
+                color: 'white',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+              }}>
+                <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                  All Tasks
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} total
+                </Typography>
+              </Box>
+
+              <Box sx={{ 
+                bgcolor: 'background.paper', 
+                borderRadius: 1.5,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)', 
+                overflow: 'hidden', 
+                border: '1px solid', 
+                borderColor: 'divider'
+              }}>
                 {filteredTasks.length === 0 ? (
-                  <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                    No tasks scheduled
-                  </Typography>
+                  <Box sx={{ 
+                    p: 3, 
+                    textAlign: 'center',
+                    bgcolor: 'background.paper',
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider'
+                  }}>
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                      🎉 No tasks found!
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Create some tasks to get started.
+                    </Typography>
+                  </Box>
                 ) : (
                   filteredTasks.map((task, index) => {
                     const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
@@ -2127,17 +2160,84 @@ function App() {
                   })
                 )}
               </Box>
+
+              {/* Progress Summary - Compact */}
+              {filteredTasks.length > 0 && (
+                <Box sx={{ 
+                  mt: 1.5, 
+                  p: 1.5,
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  borderRadius: 1.5
+                }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
+                      Progress: {filteredTasks.filter(t => t.status === 'completed').length} of {filteredTasks.length} completed
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
+                      {Math.round((filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100)}%
+                    </Typography>
+                  </Box>
+                  <Box sx={{ 
+                    mt: 0.75, 
+                    height: 3, 
+                    bgcolor: 'rgba(255,255,255,0.2)', 
+                    borderRadius: 1.5,
+                    overflow: 'hidden'
+                  }}>
+                    <Box sx={{ 
+                      height: '100%', 
+                      bgcolor: 'white',
+                      width: `${(filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100}%`,
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </Box>
+                </Box>
+              )}
             </>
           ) : (
             <>
-              <Typography variant="h6" gutterBottom color="text.primary">
-                {format(selectedDate, 'MMMM d, yyyy')}
-              </Typography>
-              <Box sx={{ bgcolor: 'background.paper', borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ 
+                mb: 2, 
+                textAlign: 'center',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: 2,
+                p: 2,
+                color: 'white',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+              }}>
+                <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                  {format(selectedDate, 'MMMM d, yyyy')}
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  {tasksForSelectedDay.length} task{tasksForSelectedDay.length !== 1 ? 's' : ''} for this date
+                </Typography>
+              </Box>
+
+              <Box sx={{ 
+                bgcolor: 'background.paper', 
+                borderRadius: 1.5,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)', 
+                overflow: 'hidden', 
+                border: '1px solid', 
+                borderColor: 'divider'
+              }}>
                 {tasksForSelectedDay.length === 0 ? (
-                  <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                    No tasks scheduled for this date
-                  </Typography>
+                  <Box sx={{ 
+                    p: 3, 
+                    textAlign: 'center',
+                    bgcolor: 'background.paper',
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider'
+                  }}>
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                      🎉 No tasks for this date!
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      You're all caught up for {format(selectedDate, 'MMMM d')}.
+                    </Typography>
+                  </Box>
                 ) : (
                   tasksForSelectedDay.map((task, index, arr) => {
                     const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
@@ -2155,6 +2255,40 @@ function App() {
                   })
                 )}
               </Box>
+
+              {/* Progress Summary - Compact */}
+              {tasksForSelectedDay.length > 0 && (
+                <Box sx={{ 
+                  mt: 1.5, 
+                  p: 1.5,
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  borderRadius: 1.5
+                }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
+                      Progress: {tasksForSelectedDay.filter(t => t.status === 'completed').length} of {tasksForSelectedDay.length} completed
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
+                      {Math.round((tasksForSelectedDay.filter(t => t.status === 'completed').length / tasksForSelectedDay.length) * 100)}%
+                    </Typography>
+                  </Box>
+                  <Box sx={{ 
+                    mt: 0.75, 
+                    height: 3, 
+                    bgcolor: 'rgba(255,255,255,0.2)', 
+                    borderRadius: 1.5,
+                    overflow: 'hidden'
+                  }}>
+                    <Box sx={{ 
+                      height: '100%', 
+                      bgcolor: 'white',
+                      width: `${(tasksForSelectedDay.filter(t => t.status === 'completed').length / tasksForSelectedDay.length) * 100}%`,
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </Box>
+                </Box>
+              )}
             </>
           )}
         </Paper>
