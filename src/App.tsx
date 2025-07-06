@@ -1991,6 +1991,34 @@ function App() {
     }, []);
 
     const filteredTasks = filterTasks(allTasks);
+    
+    // Sort tasks by priority: Active (in-progress) first, then Todo, then Completed
+    const sortedTasks = [...filteredTasks].sort((a, b) => {
+      const statusPriority = {
+        'in-progress': 0,
+        'todo': 1,
+        'completed': 2
+      };
+      
+      const aPriority = statusPriority[a.status];
+      const bPriority = statusPriority[b.status];
+      
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      
+      // If same status, sort by due date (earliest first, then no date)
+      if (a.dueDate && b.dueDate) {
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      } else if (a.dueDate) {
+        return -1; // a has date, b doesn't
+      } else if (b.dueDate) {
+        return 1; // b has date, a doesn't
+      }
+      
+      // If no due dates, sort alphabetically by content
+      return a.content.localeCompare(b.content);
+    });
 
     return (
       <Box sx={{ 
@@ -2021,7 +2049,7 @@ function App() {
               letterSpacing: 1
             }}
           >
-            {filteredTasks.length} Active Tasks
+            {sortedTasks.length} Active Tasks
           </Typography>
         </Box>
 
@@ -2032,7 +2060,7 @@ function App() {
           position: 'relative'
         }}>
           {/* Tasks List */}
-          {filteredTasks.length === 0 ? (
+          {sortedTasks.length === 0 ? (
             <Box sx={{ 
               textAlign: 'center',
               py: 8
@@ -2060,7 +2088,7 @@ function App() {
               borderColor: 'divider',
               overflow: 'hidden'
             }}>
-              {filteredTasks.map((task, index) => {
+              {sortedTasks.map((task, index) => {
                 const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
                 const isOverdue = task.dueDate && new Date(task.dueDate) < startOfDay(new Date()) && task.status !== 'completed';
                 const isTaskToday = task.dueDate && isToday(new Date(task.dueDate));
@@ -2073,7 +2101,7 @@ function App() {
                       display: 'flex',
                       alignItems: 'center',
                       gap: 2,
-                      borderBottom: index < filteredTasks.length - 1 ? '1px solid' : 'none',
+                      borderBottom: index < sortedTasks.length - 1 ? '1px solid' : 'none',
                       borderColor: 'rgba(0, 0, 0, 0.08)',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
@@ -2345,7 +2373,7 @@ function App() {
           )}
 
           {/* Progress Summary */}
-          {filteredTasks.length > 0 && (
+          {sortedTasks.length > 0 && (
             <Box sx={{ 
               mt: 3,
               p: 2.5,
@@ -2366,10 +2394,10 @@ function App() {
                 mb: 2
               }}>
                 <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                  {filteredTasks.filter(t => t.status === 'completed').length} of {filteredTasks.length} completed
+                  {sortedTasks.filter(t => t.status === 'completed').length} of {sortedTasks.length} completed
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                  {Math.round((filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100)}%
+                  {Math.round((sortedTasks.filter(t => t.status === 'completed').length / sortedTasks.length) * 100)}%
                 </Typography>
               </Box>
               <Box sx={{ 
@@ -2381,7 +2409,7 @@ function App() {
                 <Box sx={{ 
                   height: '100%', 
                   background: 'linear-gradient(90deg, #4CAF50, #66BB6A)',
-                  width: `${(filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100}%`,
+                  width: `${(sortedTasks.filter(t => t.status === 'completed').length / sortedTasks.length) * 100}%`,
                   transition: 'width 0.5s ease',
                   borderRadius: 4
                 }} />
