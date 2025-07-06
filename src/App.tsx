@@ -2241,8 +2241,9 @@ function App() {
                     
                     {/* Quick Actions */}
                     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                      <IconButton
+                      <Button
                         size="small"
+                        variant="outlined"
                         onClick={(e) => {
                           e.stopPropagation();
                           const column = columns.find(col => col.tasks.some(t => t.id === task.id));
@@ -2250,9 +2251,10 @@ function App() {
                           handleQuickDateChange(task, columnId, new Date());
                         }}
                         sx={{
-                          width: '24px',
+                          fontSize: '0.65rem',
                           height: '24px',
-                          border: '1px solid',
+                          minWidth: 'auto',
+                          px: 1,
                           borderColor: '#4CAF50',
                           color: '#4CAF50',
                           '&:hover': {
@@ -2260,13 +2262,13 @@ function App() {
                             color: 'white',
                           }
                         }}
-                        title="Reschedule to today"
                       >
-                        <Typography sx={{ fontSize: '0.7rem', fontWeight: 'bold' }}>T</Typography>
-                      </IconButton>
+                        Today
+                      </Button>
                       
-                      <IconButton
+                      <Button
                         size="small"
+                        variant="outlined"
                         onClick={(e) => {
                           e.stopPropagation();
                           const column = columns.find(col => col.tasks.some(t => t.id === task.id));
@@ -2274,9 +2276,10 @@ function App() {
                           handleQuickDateChange(task, columnId, addDays(new Date(), 1));
                         }}
                         sx={{
-                          width: '24px',
+                          fontSize: '0.65rem',
                           height: '24px',
-                          border: '1px solid',
+                          minWidth: 'auto',
+                          px: 1,
                           borderColor: '#FF9800',
                           color: '#FF9800',
                           '&:hover': {
@@ -2284,13 +2287,13 @@ function App() {
                             color: 'white',
                           }
                         }}
-                        title="Reschedule to tomorrow"
                       >
-                        <Typography sx={{ fontSize: '0.7rem', fontWeight: 'bold' }}>M</Typography>
-                      </IconButton>
+                        Tomorrow
+                      </Button>
                       
-                      <IconButton
+                      <Button
                         size="small"
+                        variant="outlined"
                         onClick={(e) => {
                           e.stopPropagation();
                           const column = columns.find(col => col.tasks.some(t => t.id === task.id));
@@ -2298,9 +2301,10 @@ function App() {
                           handleQuickDateChange(task, columnId, addWeeks(new Date(), 1));
                         }}
                         sx={{
-                          width: '24px',
+                          fontSize: '0.65rem',
                           height: '24px',
-                          border: '1px solid',
+                          minWidth: 'auto',
+                          px: 1,
                           borderColor: '#2196F3',
                           color: '#2196F3',
                           '&:hover': {
@@ -2308,21 +2312,22 @@ function App() {
                             color: 'white',
                           }
                         }}
-                        title="Reschedule to next week"
                       >
-                        <Typography sx={{ fontSize: '0.7rem', fontWeight: 'bold' }}>W</Typography>
-                      </IconButton>
+                        Next Week
+                      </Button>
                       
-                      <IconButton
+                      <Button
                         size="small"
+                        variant="outlined"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleEditTask(task, task.listId || 'todo');
                         }}
                         sx={{
-                          width: '24px',
+                          fontSize: '0.65rem',
                           height: '24px',
-                          border: '1px solid',
+                          minWidth: 'auto',
+                          px: 1,
                           borderColor: '#9C27B0',
                           color: '#9C27B0',
                           '&:hover': {
@@ -2330,10 +2335,9 @@ function App() {
                             color: 'white',
                           }
                         }}
-                        title="Edit task"
                       >
-                        <EditIcon sx={{ fontSize: '0.9rem' }} />
-                      </IconButton>
+                        Edit
+                      </Button>
                     </Box>
                   </Box>
                 );
