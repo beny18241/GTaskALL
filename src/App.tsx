@@ -220,7 +220,7 @@ function App() {
     color: '#1976d2',
     status: 'todo'
   });
-  const [sidebarWidth, setSidebarWidth] = useState(400);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
@@ -371,9 +371,13 @@ function App() {
         setExpiredAccounts(expiredEmails);
         setActiveAccountIndex(0);
         
-        // If we have valid accounts, start syncing immediately
-        if (savedAccounts.some(acc => acc.status === 'active')) {
+        // Always refresh tasks when loading saved connections, regardless of account status
+        // This ensures we get the latest data from Google Tasks
+        if (savedAccounts.length > 0) {
+          console.log('Loading saved connections, refreshing tasks...');
           setTimeout(() => refreshTasks(), 1000);
+        } else {
+          setIsInitialLoad(false);
         }
       } else {
         setIsInitialLoad(false);
@@ -1978,7 +1982,7 @@ function App() {
     );
   };
 
-  const renderListView = () => {
+    const renderListView = () => {
     const allTasks = columns.reduce((acc: Task[], column) => {
       if (column.id !== 'done') {
         return [...acc, ...column.tasks];
@@ -1987,52 +1991,503 @@ function App() {
     }, []);
 
     const filteredTasks = filterTasks(allTasks);
+    
+    // Group tasks by date sections
+    const groupTasksByDate = (tasks: Task[]) => {
+      const today = startOfDay(new Date());
+      const tomorrow = addDays(today, 1);
+      const nextWeek = addWeeks(today, 1);
+      
+      const sections: { [key: string]: Task[] } = {
+        'overdue': [],
+        'today': [],
+        'tomorrow': [],
+        'this-week': [],
+        'next-week': [],
+        'future': [],
+        'no-date': []
+      };
+      
+      tasks.forEach(task => {
+        if (!task.dueDate) {
+          sections['no-date'].push(task);
+          return;
+        }
+        
+        const taskDate = startOfDay(new Date(task.dueDate));
+        
+        if (taskDate < today) {
+          sections['overdue'].push(task);
+        } else if (isToday(taskDate)) {
+          sections['today'].push(task);
+        } else if (isToday(addDays(taskDate, -1))) {
+          sections['tomorrow'].push(task);
+        } else if (taskDate < nextWeek) {
+          sections['this-week'].push(task);
+        } else if (taskDate < addWeeks(nextWeek, 1)) {
+          sections['next-week'].push(task);
+        } else {
+          sections['future'].push(task);
+        }
+      });
+      
+      return sections;
+    };
+    
+    const dateSections = groupTasksByDate(filteredTasks);
 
     return (
-      <Box sx={{ p: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          All Tasks
-        </Typography>
-        <Stack spacing={2}>
-          {filteredTasks.map((task) => (
-            <Paper
-              key={task.id}
-              sx={{
-                p: 2,
-                display: 'flex',
+      <Box sx={{ 
+        minHeight: '100vh',
+        bgcolor: 'background.default',
+        p: 3
+      }}>
+        {/* Modern Header */}
+        <Box sx={{ 
+          mb: 4,
+          textAlign: 'center'
+        }}>
+          <Typography 
+            variant="h3" 
+            sx={{ 
+              fontWeight: 800,
+              mb: 1,
+              color: 'text.primary'
+            }}
+          >
+            Task List
+          </Typography>
+          <Typography 
+            variant="h6" 
+            sx={{ 
+              color: 'text.secondary',
+              fontWeight: 300,
+              letterSpacing: 1
+            }}
+          >
+            {filteredTasks.length} Active Tasks
+          </Typography>
+        </Box>
+
+        {/* Main Content Container */}
+        <Box sx={{ 
+          maxWidth: '1000px', 
+          mx: 'auto',
+          position: 'relative'
+        }}>
+          {/* Tasks List */}
+          {filteredTasks.length === 0 ? (
+            <Box sx={{ 
+              textAlign: 'center',
+              py: 8
+            }}>
+              <Box sx={{ 
+                fontSize: '4rem', 
+                mb: 2,
+                opacity: 0.7
+              }}>
+                ✨
+              </Box>
+              <Typography variant="h5" sx={{ mb: 1, fontWeight: 600, color: 'text.primary' }}>
+                All Caught Up!
+              </Typography>
+              <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+                No active tasks at the moment. Time to celebrate! 🎉
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ 
+              bgcolor: 'background.paper',
+              borderRadius: 2,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+              border: '1px solid',
+              borderColor: 'divider',
+              overflow: 'hidden'
+              {Object.entries(dateSections).map(([sectionKey, tasks]) => {
+                if (tasks.length === 0) return null;
+                
+                const sectionTitles = {
+                  'overdue': '🚨 Overdue',
+                  'today': '📅 Today',
+                  'tomorrow': '⏰ Tomorrow',
+                  'this-week': '📆 This Week',
+                  'next-week': '📋 Next Week',
+                  'future': '🔮 Future',
+                  'no-date': '📝 No Due Date'
+                };
+                
+                const sectionColors = {
+                  'overdue': '#F44336',
+                  'today': '#FF9800',
+                  'tomorrow': '#2196F3',
+                  'this-week': '#4CAF50',
+                  'next-week': '#9C27B0',
+                  'future': '#607D8B',
+                  'no-date': '#757575'
+                };
+                
+                return (
+                  <Box key={sectionKey}>
+                    {/* Section Header */}
+                    <Box sx={{ 
+                      p: 2,
+                      bgcolor: 'rgba(0, 0, 0, 0.03)',
+                      borderBottom: '1px solid',
+                      borderColor: 'divider',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <Box sx={{ 
+                        width: 4, 
+                        height: 20, 
+                        bgcolor: sectionColors[sectionKey as keyof typeof sectionColors],
+                        borderRadius: 1
+                      }} />
+                      <Typography 
+                        variant="subtitle2" 
+                        sx={{ 
+                          fontWeight: 600,
+                          color: 'text.primary'
+                        }}
+                      >
+                        {sectionTitles[sectionKey as keyof typeof sectionTitles]} ({tasks.length})
+                      </Typography>
+                    </Box>
+                    
+                    {/* Tasks in this section */}
+                    {tasks.map((task: Task, index: number) => {
+                      const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
+                      const isOverdue = task.dueDate && new Date(task.dueDate) < startOfDay(new Date()) && task.status !== 'completed';
+                      const isTaskToday = task.dueDate && isToday(new Date(task.dueDate));
+                      
+                      return (
+                        <Box
+                          key={task.id}
+                          sx={{
+                            p: 2.5,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 2,
+                            borderBottom: index < tasks.length - 1 ? '1px solid' : 'none',
+                            borderColor: 'rgba(0, 0, 0, 0.08)',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            position: 'relative',
+                            '&:hover': {
+                              bgcolor: 'rgba(0, 0, 0, 0.02)',
+                              transform: 'translateX(4px)',
+                            },
+                            '&::before': {
+                              content: '""',
+                              position: 'absolute',
+                              left: 0,
+                              top: 0,
+                              bottom: 0,
+                              width: '4px',
+                              background: `linear-gradient(180deg, ${task.color || accountColor}, ${accountColor})`,
+                            }
+                          }}
+                          onClick={() => handleEditTask(task, task.listId || 'todo')}
+                        >
+                          {/* Checkbox */}
+                          <Checkbox
+                            checked={task.status === 'completed'}
+                            onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
+                            sx={{ 
+                              color: task.color || accountColor,
+                              '&.Mui-checked': {
+                                color: task.color || accountColor,
+                              },
+                              '&:hover': {
+                                backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                              }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          
+                          {/* Task Content */}
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 0.5 }}>
+                              <Typography 
+                                variant="subtitle1" 
+                                sx={{ 
+                                  fontWeight: 600,
+                                  textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                                  color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
+                                  fontSize: '1rem',
+                                  lineHeight: 1.3,
+                                  flex: 1
+                                }}
+                              >
+                                {task.content}
+                              </Typography>
+                              
+                              {/* Status Chip */}
+                              <Chip
+                                label={task.status === 'in-progress' ? '⚡ Active' : task.status === 'completed' ? '✓ Done' : '📋 To Do'}
+                                size="small"
+                                sx={{ 
+                                  height: '22px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600,
+                                  bgcolor: task.status === 'in-progress' ? '#FF9800' : 
+                                          task.status === 'completed' ? '#4CAF50' : '#2196F3',
+                                  color: 'white',
+                                  '& .MuiChip-label': { px: 1 }
+                                }}
+                              />
+                            </Box>
+                            
+                            {/* Notes */}
+                            {task.notes && (
+                              <Typography 
+                                variant="body2" 
+                                color="text.secondary"
+                                sx={{ 
+                                  mb: 0.5,
+                                  fontSize: '0.8rem',
+                                  lineHeight: 1.3,
+                                  fontStyle: 'italic'
+                                }}
+                              >
+                                {task.notes}
+                              </Typography>
+                            )}
+                            
+                            {/* Meta Info Row */}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                              {/* Account Avatar */}
+                              {task.accountPicture && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <Avatar
+                                    src={task.accountPicture}
+                                    alt={task.accountName}
+                                    sx={{
+                                      width: 20,
+                                      height: 20,
+                                      fontSize: '0.6rem',
+                                      border: '1px solid',
+                                      borderColor: accountColor
+                                    }}
+                                  />
+                                  <Typography 
+                                    variant="caption" 
+                                    sx={{ 
+                                      color: 'text.secondary',
+                                      fontSize: '0.7rem'
+                                    }}
+                                  >
+                                    {task.accountName}
+                                  </Typography>
+                                </Box>
+                              )}
+                              
+                              {/* Due Date */}
+                              {task.dueDate && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <EventIcon sx={{ 
+                                    fontSize: '0.9rem',
+                                    color: isOverdue ? '#F44336' : isTaskToday ? '#FF9800' : '#2196F3'
+                                  }} />
+                                  <Typography 
+                                    variant="caption" 
+                                    sx={{ 
+                                      fontWeight: 500,
+                                      color: isOverdue ? '#F44336' : isTaskToday ? '#FF9800' : '#2196F3',
+                                      fontSize: '0.7rem'
+                                    }}
+                                  >
+                                    {format(new Date(task.dueDate), 'MMM d, yyyy')}
+                                  </Typography>
+                                  {isOverdue && (
+                                    <Chip
+                                      label="OVERDUE"
+                                      size="small"
+                                      sx={{ 
+                                        height: '16px',
+                                        fontSize: '0.6rem',
+                                        bgcolor: '#F44336',
+                                        color: 'white',
+                                        fontWeight: 700,
+                                        ml: 0.5
+                                      }}
+                                    />
+                                  )}
+                                </Box>
+                              )}
+                              
+                              {/* Recurring Badge */}
+                              {task.isRecurring && (
+                                <Chip
+                                  icon={<span>🔄</span>}
+                                  label="Recurring"
+                                  size="small"
+                                  sx={{ 
+                                    height: '16px',
+                                    fontSize: '0.6rem',
+                                    bgcolor: '#9C27B0',
+                                    color: 'white',
+                                    fontWeight: 600
+                                  }}
+                                />
+                              )}
+                            </Box>
+                          </Box>
+                          
+                          {/* Quick Actions */}
+                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                                const columnId = column?.id || 'todo';
+                                handleQuickDateChange(task, columnId, new Date());
+                              }}
+                              sx={{
+                                fontSize: '0.65rem',
+                                height: '24px',
+                                minWidth: 'auto',
+                                px: 1,
+                                borderColor: '#4CAF50',
+                                color: '#4CAF50',
+                                '&:hover': {
+                                  bgcolor: '#4CAF50',
+                                  color: 'white',
+                                }
+                              }}
+                            >
+                              Today
+                            </Button>
+                            
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                                const columnId = column?.id || 'todo';
+                                handleQuickDateChange(task, columnId, addDays(new Date(), 1));
+                              }}
+                              sx={{
+                                fontSize: '0.65rem',
+                                height: '24px',
+                                minWidth: 'auto',
+                                px: 1,
+                                borderColor: '#FF9800',
+                                color: '#FF9800',
+                                '&:hover': {
+                                  bgcolor: '#FF9800',
+                                  color: 'white',
+                                }
+                              }}
+                            >
+                              Tomorrow
+                            </Button>
+                            
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                                const columnId = column?.id || 'todo';
+                                handleQuickDateChange(task, columnId, addWeeks(new Date(), 1));
+                              }}
+                              sx={{
+                                fontSize: '0.65rem',
+                                height: '24px',
+                                minWidth: 'auto',
+                                px: 1,
+                                borderColor: '#2196F3',
+                                color: '#2196F3',
+                                '&:hover': {
+                                  bgcolor: '#2196F3',
+                                  color: 'white',
+                                }
+                              }}
+                            >
+                              Next Week
+                            </Button>
+                            
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditTask(task, task.listId || 'todo');
+                              }}
+                              sx={{
+                                width: '24px',
+                                height: '24px',
+                                border: '1px solid',
+                                borderColor: '#9C27B0',
+                                color: '#9C27B0',
+                                '&:hover': {
+                                  bgcolor: '#9C27B0',
+                                  color: 'white',
+                                }
+                              }}
+                              title="Edit task"
+                            >
+                              <EditIcon sx={{ fontSize: '0.9rem' }} />
+                            </IconButton>
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
+
+          {/* Progress Summary */}
+          {filteredTasks.length > 0 && (
+            <Box sx={{ 
+              mt: 3,
+              p: 2.5,
+              bgcolor: 'background.paper',
+              borderRadius: 2,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+              border: '1px solid',
+              borderColor: 'divider',
+              textAlign: 'center'
+            }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Progress Overview
+              </Typography>
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
                 alignItems: 'center',
-                gap: 2,
-                '&:hover': {
-                  boxShadow: 2,
-                },
-              }}
-            >
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="subtitle1">{task.content}</Typography>
-                {task.notes && (
-                  <Typography variant="body2" color="text.secondary">
-                    {task.notes}
-                  </Typography>
-                )}
+                mb: 2
+              }}>
+                <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                  {filteredTasks.filter(t => t.status === 'completed').length} of {filteredTasks.length} completed
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                  {Math.round((filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100)}%
+                </Typography>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {task.dueDate && (
-                  <Chip
-                    icon={<EventIcon />}
-                    label={format(new Date(task.dueDate), 'MMM d, yyyy')}
-                    color={new Date(task.dueDate) < new Date() ? 'error' : 'primary'}
-                    size="small"
-                  />
-                )}
-                <Chip
-                  label={task.status === 'in-progress' ? 'In Progress' : 'To Do'}
-                  color={task.status === 'in-progress' ? 'warning' : 'info'}
-                  size="small"
-                />
+              <Box sx={{ 
+                height: 8, 
+                bgcolor: 'rgba(0,0,0,0.1)', 
+                borderRadius: 4,
+                overflow: 'hidden'
+              }}>
+                <Box sx={{ 
+                  height: '100%', 
+                  background: 'linear-gradient(90deg, #4CAF50, #66BB6A)',
+                  width: `${(filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100}%`,
+                  transition: 'width 0.5s ease',
+                  borderRadius: 4
+                }} />
               </Box>
-            </Paper>
-          ))}
-        </Stack>
+            </Box>
+          )}
+        </Box>
       </Box>
     );
   };
@@ -2098,14 +2553,47 @@ function App() {
         <Paper sx={{ p: 2, bgcolor: 'background.paper' }}>
           {calendarShowAll ? (
             <>
-              <Typography variant="h6" gutterBottom color="text.primary">
-                All Tasks
-              </Typography>
-              <Box sx={{ bgcolor: 'background.paper', borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ 
+                mb: 2, 
+                textAlign: 'center',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: 2,
+                p: 2,
+                color: 'white',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+              }}>
+                <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                  All Tasks
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} total
+                </Typography>
+              </Box>
+
+              <Box sx={{ 
+                bgcolor: 'background.paper', 
+                borderRadius: 1.5,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)', 
+                overflow: 'hidden', 
+                border: '1px solid', 
+                borderColor: 'divider'
+              }}>
                 {filteredTasks.length === 0 ? (
-                  <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                    No tasks scheduled
-                  </Typography>
+                  <Box sx={{ 
+                    p: 3, 
+                    textAlign: 'center',
+                    bgcolor: 'background.paper',
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider'
+                  }}>
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                      🎉 No tasks found!
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Create some tasks to get started.
+                    </Typography>
+                  </Box>
                 ) : (
                   filteredTasks.map((task, index) => {
                     const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
@@ -2123,17 +2611,84 @@ function App() {
                   })
                 )}
               </Box>
+
+              {/* Progress Summary - Compact */}
+              {filteredTasks.length > 0 && (
+                <Box sx={{ 
+                  mt: 1.5, 
+                  p: 1.5,
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  borderRadius: 1.5
+                }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
+                      Progress: {filteredTasks.filter(t => t.status === 'completed').length} of {filteredTasks.length} completed
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
+                      {Math.round((filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100)}%
+                    </Typography>
+                  </Box>
+                  <Box sx={{ 
+                    mt: 0.75, 
+                    height: 3, 
+                    bgcolor: 'rgba(255,255,255,0.2)', 
+                    borderRadius: 1.5,
+                    overflow: 'hidden'
+                  }}>
+                    <Box sx={{ 
+                      height: '100%', 
+                      bgcolor: 'white',
+                      width: `${(filteredTasks.filter(t => t.status === 'completed').length / filteredTasks.length) * 100}%`,
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </Box>
+                </Box>
+              )}
             </>
           ) : (
             <>
-              <Typography variant="h6" gutterBottom color="text.primary">
-                {format(selectedDate, 'MMMM d, yyyy')}
-              </Typography>
-              <Box sx={{ bgcolor: 'background.paper', borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ 
+                mb: 2, 
+                textAlign: 'center',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: 2,
+                p: 2,
+                color: 'white',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+              }}>
+                <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                  {format(selectedDate, 'MMMM d, yyyy')}
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  {tasksForSelectedDay.length} task{tasksForSelectedDay.length !== 1 ? 's' : ''} for this date
+                </Typography>
+              </Box>
+
+              <Box sx={{ 
+                bgcolor: 'background.paper', 
+                borderRadius: 1.5,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)', 
+                overflow: 'hidden', 
+                border: '1px solid', 
+                borderColor: 'divider'
+              }}>
                 {tasksForSelectedDay.length === 0 ? (
-                  <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                    No tasks scheduled for this date
-                  </Typography>
+                  <Box sx={{ 
+                    p: 3, 
+                    textAlign: 'center',
+                    bgcolor: 'background.paper',
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider'
+                  }}>
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                      🎉 No tasks for this date!
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      You're all caught up for {format(selectedDate, 'MMMM d')}.
+                    </Typography>
+                  </Box>
                 ) : (
                   tasksForSelectedDay.map((task, index, arr) => {
                     const accountColor = task.accountEmail ? getAccountColor(task.accountEmail) : '#9C27B0';
@@ -2151,6 +2706,40 @@ function App() {
                   })
                 )}
               </Box>
+
+              {/* Progress Summary - Compact */}
+              {tasksForSelectedDay.length > 0 && (
+                <Box sx={{ 
+                  mt: 1.5, 
+                  p: 1.5,
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  borderRadius: 1.5
+                }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
+                      Progress: {tasksForSelectedDay.filter(t => t.status === 'completed').length} of {tasksForSelectedDay.length} completed
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
+                      {Math.round((tasksForSelectedDay.filter(t => t.status === 'completed').length / tasksForSelectedDay.length) * 100)}%
+                    </Typography>
+                  </Box>
+                  <Box sx={{ 
+                    mt: 0.75, 
+                    height: 3, 
+                    bgcolor: 'rgba(255,255,255,0.2)', 
+                    borderRadius: 1.5,
+                    overflow: 'hidden'
+                  }}>
+                    <Box sx={{ 
+                      height: '100%', 
+                      bgcolor: 'white',
+                      width: `${(tasksForSelectedDay.filter(t => t.status === 'completed').length / tasksForSelectedDay.length) * 100}%`,
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </Box>
+                </Box>
+              )}
             </>
           )}
         </Paper>
@@ -2703,7 +3292,7 @@ function App() {
         </Box>
         <Paper 
           sx={{ 
-            p: 2, 
+            p: 1.5, 
             height: 'calc(100vh - 100px)', 
             overflow: 'auto',
             width: sidebarWidth,
@@ -2713,14 +3302,14 @@ function App() {
             bgcolor: 'background.paper',
             borderLeft: '2px solid',
             borderColor: 'primary.main',
-            boxShadow: '-8px 0 16px rgba(0, 0, 0, 0.15)',
+            boxShadow: '-4px 0 12px rgba(0, 0, 0, 0.1)',
             '&::before': {
               content: '""',
               position: 'absolute',
               top: 0,
               left: 0,
               right: 0,
-              height: '4px',
+              height: '3px',
               background: 'linear-gradient(90deg, #1976d2, #42a5f5)'
             }
           }}
@@ -2742,7 +3331,7 @@ function App() {
             
             const handleMouseMove = (e: MouseEvent) => {
               const deltaX = e.clientX - startX;
-              const newWidth = Math.max(200, Math.min(800, startWidth - deltaX));
+              const newWidth = Math.max(280, Math.min(600, startWidth - deltaX));
               setSidebarWidth(newWidth);
             };
             
@@ -2755,23 +3344,48 @@ function App() {
             document.addEventListener('mouseup', handleMouseUp);
           }}
           />
-          <Typography 
-            variant="h6" 
-            gutterBottom
-            sx={{
-              color: 'primary.main',
-              fontWeight: 'bold',
-              pb: 2,
-              borderBottom: '2px solid',
-              borderColor: 'primary.main',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              fontSize: '1.1rem'
-            }}
-          >
-            Today's Tasks
-          </Typography>
-          <Stack spacing={1}>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            pb: 1.5,
+            mb: 1,
+            borderBottom: '1px solid',
+            borderColor: 'primary.main'
+          }}>
+            <Typography 
+              variant="h6" 
+              sx={{
+                color: 'primary.main',
+                fontWeight: 'bold',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                fontSize: '1rem'
+              }}
+            >
+              Today's Tasks
+            </Typography>
+            <Chip
+              label={columns.reduce((acc: Task[], column) => {
+                const todayTasks = column.tasks.filter(task => 
+                  task.dueDate && isToday(new Date(task.dueDate))
+                );
+                return [...acc, ...todayTasks];
+              }, []).length}
+              size="small"
+              sx={{
+                bgcolor: 'primary.main',
+                color: 'white',
+                fontWeight: 'bold',
+                height: '24px',
+                '& .MuiChip-label': {
+                  px: 1,
+                  fontSize: '0.75rem'
+                }
+              }}
+            />
+          </Box>
+          <Stack spacing={0.5}>
             {columns.reduce((acc: Task[], column) => {
               const todayTasks = column.tasks.filter(task => 
                 task.dueDate && isToday(new Date(task.dueDate))
@@ -2781,10 +3395,10 @@ function App() {
               <Box
                 key={task.id}
                 sx={{
-                  p: 1.5,
+                  p: 1,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 1.5,
+                  gap: 1,
                   borderLeft: `3px solid ${task.color || '#42A5F5'}`,
                   '&:hover': {
                     bgcolor: 'action.hover',
@@ -2793,120 +3407,100 @@ function App() {
                   bgcolor: 'background.paper',
                   borderBottom: '1px solid',
                   borderColor: 'divider',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  borderRadius: 1
                 }}
+                onClick={() => handleEditTask(task, 'ultimate')}
               >
+                {/* Status Checkbox */}
+                <Checkbox
+                  checked={task.status === 'completed'}
+                  onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
+                  size="small"
+                  sx={{ 
+                    p: 0.5,
+                    color: task.color || 'primary.main',
+                    '&:hover': {
+                      backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                    }
+                  }}
+                />
+                
+                {/* Task Content */}
                 <Box sx={{ 
                   flex: 1, 
                   minWidth: 0,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 1
+                  gap: 0.5
                 }}>
                   <Typography 
                     variant="body2" 
                     sx={{ 
                       wordBreak: 'break-word',
                       fontWeight: 500,
-                      color: 'text.primary',
-                      flex: 1
+                      color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
+                      textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                      flex: 1,
+                      fontSize: '0.85rem',
+                      lineHeight: 1.3
                     }}
                   >
                     {task.content}
                   </Typography>
+                  
+                  {/* Account Avatar */}
+                  {task.accountPicture && (
+                    <Avatar
+                      src={task.accountPicture}
+                      alt={task.accountName}
+                      sx={{
+                        width: 20,
+                        height: 20,
+                        fontSize: '0.7rem',
+                        border: '1px solid',
+                        borderColor: 'divider'
+                      }}
+                    />
+                  )}
+                  
+                  {/* Status Badge */}
                   <Chip
-                    label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
+                    label={task.status === 'in-progress' ? 'Active' : task.status === 'completed' ? 'Done' : 'Todo'}
                     color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
                     size="small"
                     sx={{ 
-                      fontWeight: 500,
-                      height: '24px',
+                      height: '20px',
                       '& .MuiChip-label': {
-                        px: 1,
-                        fontSize: '0.75rem'
+                        px: 0.5,
+                        fontSize: '0.65rem',
+                        fontWeight: 500
                       }
                     }}
                   />
                   
-                  {/* Quick Reschedule Buttons */}
-                  <Box sx={{ display: 'flex', gap: 0.5 }}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      sx={{ 
-                        minWidth: 'auto', 
-                        px: 1, 
-                        py: 0.25, 
-                        fontSize: '0.6rem',
-                        height: '24px',
-                        borderColor: 'primary.main',
+                  {/* Quick Actions Menu */}
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Show quick actions menu
+                      const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                      const columnId = column?.id || 'todo';
+                      handleQuickDateChange(task, columnId, addDays(new Date(), 1));
+                    }}
+                    sx={{
+                      p: 0.5,
+                      color: 'text.secondary',
+                      '&:hover': {
                         color: 'primary.main',
-                        '&:hover': {
-                          bgcolor: 'primary.main',
-                          color: 'white'
-                        }
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Find the column for this task
-                        const column = columns.find(col => col.tasks.some(t => t.id === task.id));
-                        const columnId = column?.id || 'todo';
-                        handleQuickDateChange(task, columnId, new Date());
-                      }}
-                    >
-                      Today
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      sx={{ 
-                        minWidth: 'auto', 
-                        px: 1, 
-                        py: 0.25, 
-                        fontSize: '0.6rem',
-                        height: '24px',
-                        borderColor: 'warning.main',
-                        color: 'warning.main',
-                        '&:hover': {
-                          bgcolor: 'warning.main',
-                          color: 'white'
-                        }
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const column = columns.find(col => col.tasks.some(t => t.id === task.id));
-                        const columnId = column?.id || 'todo';
-                        handleQuickDateChange(task, columnId, addDays(new Date(), 1));
-                      }}
-                    >
-                      Tomorrow
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      sx={{ 
-                        minWidth: 'auto', 
-                        px: 1, 
-                        py: 0.25, 
-                        fontSize: '0.6rem',
-                        height: '24px',
-                        borderColor: 'success.main',
-                        color: 'success.main',
-                        '&:hover': {
-                          bgcolor: 'success.main',
-                          color: 'white'
-                        }
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const column = columns.find(col => col.tasks.some(t => t.id === task.id));
-                        const columnId = column?.id || 'todo';
-                        handleQuickDateChange(task, columnId, addWeeks(new Date(), 1));
-                      }}
-                    >
-                      Next Week
-                    </Button>
-                  </Box>
+                        bgcolor: 'primary.light',
+                      }
+                    }}
+                    title="Reschedule to tomorrow"
+                  >
+                    <EventIcon sx={{ fontSize: '0.8rem' }} />
+                  </IconButton>
                 </Box>
               </Box>
             ))}
@@ -3356,11 +3950,13 @@ function App() {
     if (googleAccounts.length === 0) {
       console.log('No Google accounts, skipping refresh');
       setIsRefreshing(false);
+      setIsInitialLoad(false); // Mark initial load as complete when no accounts
       return;
     }
     
     if (isRefreshing) {
       console.log('Already refreshing, skipping');
+      setIsInitialLoad(false); // Mark initial load as complete even if already refreshing
       return;
     }
 
@@ -3471,6 +4067,7 @@ function App() {
       if (validResults.length === 0) {
         // All tokens are expired, but don't clear accounts
         setIsRefreshing(false);
+        setIsInitialLoad(false); // Mark initial load as complete even if all tokens are expired
         return;
       }
       
@@ -3504,9 +4101,11 @@ function App() {
       setLastRefreshTime(new Date());
       console.log('Refresh completed successfully');
       setIsRefreshing(false);
+      setIsInitialLoad(false); // Always mark initial load as complete
     } catch (error) {
       console.error('Error refreshing tasks:', error);
       setIsRefreshing(false);
+      setIsInitialLoad(false); // Always mark initial load as complete, even on error
     }
   }, [googleAccounts.length, activeAccountIndex, user, updateColumnsWithTasks]);
 

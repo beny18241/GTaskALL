@@ -5,6 +5,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { google } from 'googleapis';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,6 +71,19 @@ function initDatabase() {
       main_user_email TEXT NOT NULL,
       gtask_account_email TEXT NOT NULL,
       encrypted_token TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(main_user_email, gtask_account_email),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`);
+
+    // Table for storing API keys for AI features
+    db.run(`CREATE TABLE IF NOT EXISTS account_api_keys (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      main_user_email TEXT NOT NULL,
+      gtask_account_email TEXT NOT NULL,
+      encrypted_api_key TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(main_user_email, gtask_account_email),
@@ -482,31 +496,39 @@ app.put('/api/users/:email/settings', (req, res) => {
 
 // Generate AI summary for tasks
 app.post('/api/ai/summary', async (req, res) => {
-  const { email, tasks } = req.body;
+  const { email, tasks, gtaskAccountEmail } = req.body;
 
   if (!email || !tasks) {
     return res.status(400).json({ error: 'Email and tasks are required' });
   }
 
   try {
-    // Get user's Gemini API key
+    // Get user's Gemini API key from the new persistent storage
+    const accountEmail = gtaskAccountEmail || email; // Use provided account email or fall back to main user email
     db.get(
-      `SELECT s.setting_value 
-       FROM user_settings s
-       JOIN users u ON s.user_id = u.id
-       WHERE u.email = ? AND s.setting_key = 'gemini_api_key'`,
-      [email],
+      `SELECT ak.encrypted_api_key 
+       FROM account_api_keys ak
+       JOIN users u ON ak.user_id = u.id
+       WHERE u.email = ? AND ak.gtask_account_email = ?`,
+      [email, accountEmail],
       async (err, row) => {
         if (err) {
           console.error('Error fetching API key:', err);
           return res.status(500).json({ error: 'Failed to fetch API key' });
         }
 
-        if (!row || !row.setting_value) {
+        if (!row || !row.encrypted_api_key) {
           return res.status(400).json({ error: 'Gemini API key not configured' });
         }
 
-        const apiKey = row.setting_value;
+        // Decrypt the API key
+        let apiKey;
+        try {
+          apiKey = Buffer.from(row.encrypted_api_key, 'base64').toString('utf8');
+        } catch (decryptError) {
+          console.error('Error decrypting API key:', decryptError);
+          return res.status(500).json({ error: 'Failed to decrypt API key' });
+        }
 
         try {
           // Initialize Google AI
@@ -523,19 +545,21 @@ app.post('/api/ai/summary', async (req, res) => {
           }));
 
           const prompt = `
-            Analyze the following tasks for today and provide:
-            1. A concise summary of what needs to be accomplished
-            2. 3-5 key insights or recommendations for productivity
-            3. Any potential conflicts or overlapping priorities
+            Przeanalizuj poniższe zadania na dzisiaj i podaj odpowiedź w języku polskim:
+            1. Krótkie podsumowanie tego, co należy wykonać
+            2. 3-5 kluczowych spostrzeżeń lub rekomendacji dotyczących produktywności
+            3. Potencjalne konflikty lub nakładające się priorytety
             
-            Tasks data:
+            Dane zadań:
             ${JSON.stringify(tasksData, null, 2)}
             
-            Please provide the response in this exact JSON format:
+            Proszę podać odpowiedź w dokładnie tym formacie JSON:
             {
-              "summary": "Brief summary of today's tasks",
-              "insights": ["Insight 1", "Insight 2", "Insight 3"]
+              "summary": "Krótkie podsumowanie zadań na dzisiaj",
+              "insights": ["Spostrzeżenie 1", "Spostrzeżenie 2", "Spostrzeżenie 3"]
             }
+            
+            Odpowiedź musi być w języku polskim.
           `;
 
           const result = await model.generateContent(prompt);
@@ -570,6 +594,147 @@ app.post('/api/ai/summary', async (req, res) => {
     console.error('Error in AI summary endpoint:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// AI Chat Endpoint
+app.post('/api/ai/chat', async (req, res) => {
+  const { email, tasks, message, gtaskAccountEmail } = req.body;
+
+  if (!email || !tasks || !message) {
+    return res.status(400).json({ error: 'Email, tasks, and message are required' });
+  }
+
+  try {
+    // Get user's Gemini API key from the new persistent storage
+    const accountEmail = gtaskAccountEmail || email; // Use provided account email or fall back to main user email
+    db.get(
+      `SELECT ak.encrypted_api_key 
+       FROM account_api_keys ak
+       JOIN users u ON ak.user_id = u.id
+       WHERE u.email = ? AND ak.gtask_account_email = ?`,
+      [email, accountEmail],
+      async (err, row) => {
+        if (err) {
+          console.error('Error fetching API key:', err);
+          return res.status(500).json({ error: 'Failed to fetch API key' });
+        }
+
+        if (!row || !row.encrypted_api_key) {
+          return res.status(400).json({ error: 'Gemini API key not configured' });
+        }
+
+        // Decrypt the API key
+        let apiKey;
+        try {
+          apiKey = Buffer.from(row.encrypted_api_key, 'base64').toString('utf8');
+        } catch (decryptError) {
+          console.error('Error decrypting API key:', decryptError);
+          return res.status(500).json({ error: 'Failed to decrypt API key' });
+        }
+
+        try {
+          // Initialize Google AI
+          const genAI = new GoogleGenerativeAI(apiKey);
+          const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+
+          // Prepare tasks data for analysis
+          const tasksData = tasks.map(task => ({
+            title: task.content,
+            status: task.status,
+            dueDate: task.dueDate,
+            notes: task.notes,
+            account: task.accountName || 'Unknown'
+          }));
+
+          const prompt = `
+            Jesteś asystentem pomagającym w zarządzaniu zadaniami. Masz dostęp do poniższych zadań użytkownika.
+            
+            Zadania użytkownika:
+            ${JSON.stringify(tasksData, null, 2)}
+            
+            Pytanie użytkownika: "${message}"
+            
+            Odpowiedz na pytanie użytkownika w języku polskim, bazując na dostępnych zadaniach. 
+            Bądź pomocny, konkretny i praktyczny. Jeśli pytanie nie dotyczy zadań, możesz odpowiedzieć ogólnie.
+            
+            Odpowiedz bezpośrednio w języku polskim, bez formatowania JSON. Używaj markdown dla lepszego formatowania:
+            - Używaj **pogrubienia** dla ważnych informacji
+            - Używaj list z * lub - dla list zadań
+            - Używaj > dla cytatów lub ważnych uwag
+            - Używaj ### dla nagłówków sekcji
+          `;
+
+          const result = await model.generateContent(prompt);
+          const response = await result.response;
+          const text = response.text();
+
+          // Return the text directly since we're not using JSON format anymore
+          res.json({
+            response: text || 'Nie udało się wygenerować odpowiedzi'
+          });
+        } catch (aiError) {
+          console.error('Error calling Gemini API:', aiError);
+          res.status(500).json({ error: 'Failed to generate AI response' });
+        }
+      }
+    );
+  } catch (error) {
+    console.error('Error in AI chat endpoint:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- API Key Management Endpoints ---
+
+// Store or update an API key
+app.post('/api/api-keys', (req, res) => {
+  const { mainUserEmail, gtaskAccountEmail, apiKey } = req.body;
+  if (!mainUserEmail || !gtaskAccountEmail || !apiKey) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  // Simple encryption (in production, use proper encryption)
+  const encryptedApiKey = Buffer.from(apiKey).toString('base64');
+  db.run(
+    `INSERT OR REPLACE INTO account_api_keys 
+     (main_user_email, gtask_account_email, encrypted_api_key, updated_at) 
+     VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+    [mainUserEmail, gtaskAccountEmail, encryptedApiKey],
+    function(err) {
+      if (err) {
+        console.error('Error saving API key:', err);
+        return res.status(500).json({ error: 'Failed to save API key' });
+      }
+      res.json({ success: true, message: 'API key saved successfully' });
+    }
+  );
+});
+
+// Retrieve an API key
+app.get('/api/api-keys/:mainUserEmail/:gtaskAccountEmail', (req, res) => {
+  const { mainUserEmail, gtaskAccountEmail } = req.params;
+  db.get(
+    `SELECT encrypted_api_key 
+     FROM account_api_keys
+     WHERE main_user_email = ? AND gtask_account_email = ?`,
+    [mainUserEmail, gtaskAccountEmail],
+    (err, row) => {
+      if (err) {
+        console.error('Error fetching API key:', err);
+        return res.status(500).json({ error: 'Failed to fetch API key' });
+      } else if (row) {
+        // Decrypt the API key
+        try {
+          const decryptedApiKey = Buffer.from(row.encrypted_api_key, 'base64').toString('utf8');
+          res.json({ apiKey: decryptedApiKey });
+        } catch (decryptError) {
+          console.error('Error decrypting API key:', decryptError);
+          return res.status(500).json({ error: 'Failed to decrypt API key' });
+        }
+      } else {
+        res.status(404).json({ error: 'API key not found' });
+      }
+    }
+  );
 });
 
 // Health check endpoint
@@ -625,4 +790,5 @@ app.put('/api/connections/:mainUserEmail/:gtaskAccountEmail/activate', (req, res
       res.json({ success: true });
     }
   );
-}); 
+});
+

@@ -267,7 +267,7 @@ export const apiService = {
   // AI Summary Methods
 
   // Generate AI summary for tasks
-  async generateTaskSummary(email: string, tasks: any[]): Promise<{ summary: string; insights: string[] }> {
+  async generateTaskSummary(email: string, tasks: any[], gtaskAccountEmail?: string): Promise<{ summary: string; insights: string[] }> {
     try {
       const response = await fetch(`${API_BASE_URL}/ai/summary`, {
         method: 'POST',
@@ -276,7 +276,8 @@ export const apiService = {
         },
         body: JSON.stringify({
           email,
-          tasks
+          tasks,
+          gtaskAccountEmail
         }),
       });
       
@@ -292,6 +293,34 @@ export const apiService = {
     }
   },
 
+  // Chat with AI about tasks
+  async chatWithAI(email: string, tasks: any[], message: string, gtaskAccountEmail?: string): Promise<{ response: string }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/ai/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          tasks,
+          message,
+          gtaskAccountEmail
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error chatting with AI:', error);
+      throw error;
+    }
+  },
+
   // Mark a connection as expired
   async expireConnection(mainUserEmail: string, gtaskAccountEmail: string): Promise<void> {
     await fetch(`${API_BASE_URL}/connections/${encodeURIComponent(mainUserEmail)}/${encodeURIComponent(gtaskAccountEmail)}/expire`, { method: 'PUT' });
@@ -301,4 +330,40 @@ export const apiService = {
   async activateConnection(mainUserEmail: string, gtaskAccountEmail: string): Promise<void> {
     await fetch(`${API_BASE_URL}/connections/${encodeURIComponent(mainUserEmail)}/${encodeURIComponent(gtaskAccountEmail)}/activate`, { method: 'PUT' });
   },
+
+  // Save API key for a user/account
+  async saveApiKey(mainUserEmail: string, gtaskAccountEmail: string, apiKey: string): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api-keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mainUserEmail, gtaskAccountEmail, apiKey })
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error saving API key:', error);
+      throw error;
+    }
+  },
+
+  // Retrieve API key for a user/account
+  async getApiKey(mainUserEmail: string, gtaskAccountEmail: string): Promise<string | null> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api-keys/${encodeURIComponent(mainUserEmail)}/${encodeURIComponent(gtaskAccountEmail)}`);
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.apiKey || null;
+    } catch (error) {
+      console.error('Error fetching API key:', error);
+      return null;
+    }
+  },
+
+
 }; 
