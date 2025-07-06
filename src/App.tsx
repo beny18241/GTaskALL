@@ -371,9 +371,13 @@ function App() {
         setExpiredAccounts(expiredEmails);
         setActiveAccountIndex(0);
         
-        // If we have valid accounts, start syncing immediately
-        if (savedAccounts.some(acc => acc.status === 'active')) {
+        // Always refresh tasks when loading saved connections, regardless of account status
+        // This ensures we get the latest data from Google Tasks
+        if (savedAccounts.length > 0) {
+          console.log('Loading saved connections, refreshing tasks...');
           setTimeout(() => refreshTasks(), 1000);
+        } else {
+          setIsInitialLoad(false);
         }
       } else {
         setIsInitialLoad(false);
@@ -3356,11 +3360,13 @@ function App() {
     if (googleAccounts.length === 0) {
       console.log('No Google accounts, skipping refresh');
       setIsRefreshing(false);
+      setIsInitialLoad(false); // Mark initial load as complete when no accounts
       return;
     }
     
     if (isRefreshing) {
       console.log('Already refreshing, skipping');
+      setIsInitialLoad(false); // Mark initial load as complete even if already refreshing
       return;
     }
 
@@ -3471,6 +3477,7 @@ function App() {
       if (validResults.length === 0) {
         // All tokens are expired, but don't clear accounts
         setIsRefreshing(false);
+        setIsInitialLoad(false); // Mark initial load as complete even if all tokens are expired
         return;
       }
       
@@ -3504,9 +3511,11 @@ function App() {
       setLastRefreshTime(new Date());
       console.log('Refresh completed successfully');
       setIsRefreshing(false);
+      setIsInitialLoad(false); // Always mark initial load as complete
     } catch (error) {
       console.error('Error refreshing tasks:', error);
       setIsRefreshing(false);
+      setIsInitialLoad(false); // Always mark initial load as complete, even on error
     }
   }, [googleAccounts.length, activeAccountIndex, user, updateColumnsWithTasks]);
 
