@@ -2046,10 +2046,10 @@ function App() {
                 <Box
                   key={task.id}
                   sx={{
-                    p: 2,
+                    p: 1.5,
                     display: 'flex',
                     alignItems: 'flex-start',
-                    gap: 2,
+                    gap: 1.5,
                     borderBottom: index < filteredTasks.length - 1 ? '1px solid' : 'none',
                     borderColor: 'divider',
                     cursor: 'pointer',
@@ -2087,105 +2087,158 @@ function App() {
                     onClick={(e) => e.stopPropagation()}
                   />
                   
-                  {/* Task Content */}
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                      <Typography 
-                        variant="subtitle1" 
-                        sx={{ 
-                          fontWeight: 600,
-                          textDecoration: task.status === 'completed' ? 'line-through' : 'none',
-                          color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
-                          flex: 1
-                        }}
-                      >
-                        {task.content}
-                      </Typography>
-                      
-                      {/* Account Avatar */}
-                      {task.accountPicture && (
-                        <Avatar
-                          src={task.accountPicture}
-                          alt={task.accountName}
-                          sx={{
-                            width: 24,
-                            height: 24,
-                            fontSize: '0.7rem',
-                            border: '1px solid',
-                            borderColor: 'divider'
-                          }}
-                        />
-                      )}
-                    </Box>
+                                     {/* Task Content */}
+                   <Box sx={{ flex: 1, minWidth: 0 }}>
+                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 0.5 }}>
+                       <Typography 
+                         variant="subtitle1" 
+                         sx={{ 
+                           fontWeight: 600,
+                           textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                           color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
+                           flex: 1,
+                           fontSize: '0.9rem',
+                           lineHeight: 1.3
+                         }}
+                       >
+                         {task.content}
+                       </Typography>
+                       
+                       {/* Account Avatar */}
+                       {task.accountPicture && (
+                         <Avatar
+                           src={task.accountPicture}
+                           alt={task.accountName}
+                           sx={{
+                             width: 20,
+                             height: 20,
+                             fontSize: '0.6rem',
+                             border: '1px solid',
+                             borderColor: 'divider'
+                           }}
+                         />
+                       )}
+                     </Box>
+                     
+                     {/* Notes */}
+                     {task.notes && (
+                       <Typography 
+                         variant="body2" 
+                         color="text.secondary"
+                         sx={{ 
+                           mb: 0.5,
+                           fontSize: '0.75rem',
+                           lineHeight: 1.3,
+                           wordBreak: 'break-word'
+                         }}
+                       >
+                         {task.notes}
+                       </Typography>
+                     )}
                     
-                    {/* Notes */}
-                    {task.notes && (
-                      <Typography 
-                        variant="body2" 
-                        color="text.secondary"
-                        sx={{ 
-                          mb: 1,
-                          fontSize: '0.85rem',
-                          lineHeight: 1.4,
-                          wordBreak: 'break-word'
-                        }}
-                      >
-                        {task.notes}
-                      </Typography>
-                    )}
-                    
-                    {/* Status and Date Row */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                      {/* Status Chip */}
-                      <Chip
-                        label={task.status === 'in-progress' ? 'Active' : task.status === 'completed' ? 'Done' : 'To Do'}
-                        color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
-                        size="small"
-                        sx={{ 
-                          height: '20px',
-                          fontSize: '0.7rem',
-                          fontWeight: 500
-                        }}
-                      />
-                      
-                      {/* Due Date */}
-                      {task.dueDate && (
-                        <Chip
-                          icon={<EventIcon sx={{ fontSize: '0.8rem' }} />}
-                          label={format(new Date(task.dueDate), 'MMM d')}
-                          size="small"
-                          sx={{ 
-                            height: '20px',
-                            fontSize: '0.7rem',
-                            bgcolor: isOverdue ? 'error.main' : 'info.main',
-                            color: 'white',
-                            '& .MuiChip-label': { px: 1 }
-                          }}
-                        />
-                      )}
-                      
-                      {/* Recurring Badge */}
-                      {task.isRecurring && (
-                        <Chip
-                          icon={<span>🔄</span>}
-                          label="Recurring"
-                          size="small"
-                          sx={{ 
-                            height: '20px',
-                            fontSize: '0.7rem',
-                            bgcolor: 'primary.main',
-                            color: 'white',
-                            '& .MuiChip-label': { px: 1 }
-                          }}
-                        />
-                      )}
-                    </Box>
+                                         {/* Status and Date Row */}
+                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                       {/* Status Chip with Colors */}
+                       <Chip
+                         label={task.status === 'in-progress' ? '⚡ Active' : task.status === 'completed' ? '✓ Done' : '📋 To Do'}
+                         size="small"
+                         sx={{ 
+                           height: '20px',
+                           fontSize: '0.7rem',
+                           fontWeight: 500,
+                           bgcolor: task.status === 'in-progress' ? '#FF9800' : 
+                                   task.status === 'completed' ? '#4CAF50' : '#2196F3',
+                           color: 'white',
+                           '& .MuiChip-label': { px: 1 }
+                         }}
+                       />
+                       
+                       {/* Due Date with Better Colors */}
+                       {task.dueDate && (
+                         <Chip
+                           icon={<EventIcon sx={{ fontSize: '0.8rem' }} />}
+                           label={format(new Date(task.dueDate), 'MMM d')}
+                           size="small"
+                           sx={{ 
+                             height: '20px',
+                             fontSize: '0.7rem',
+                             bgcolor: isOverdue ? '#F44336' : 
+                                     isToday(new Date(task.dueDate)) ? '#FF9800' : '#2196F3',
+                             color: 'white',
+                             '& .MuiChip-label': { px: 1 }
+                           }}
+                         />
+                       )}
+                       
+                       {/* Recurring Badge */}
+                       {task.isRecurring && (
+                         <Chip
+                           icon={<span>🔄</span>}
+                           label="Recurring"
+                           size="small"
+                           sx={{ 
+                             height: '20px',
+                             fontSize: '0.7rem',
+                             bgcolor: '#9C27B0',
+                             color: 'white',
+                             '& .MuiChip-label': { px: 1 }
+                           }}
+                         />
+                       )}
+                       
+                       {/* Account Color Badge */}
+                       {task.accountEmail && (
+                         <Chip
+                           label={task.accountName?.split(' ')[0] || 'User'}
+                           size="small"
+                           sx={{ 
+                             height: '20px',
+                             fontSize: '0.7rem',
+                             bgcolor: accountColor,
+                             color: 'white',
+                             '& .MuiChip-label': { px: 1 }
+                           }}
+                         />
+                       )}
+                     </Box>
                   </Box>
                   
                   {/* Quick Actions */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <IconButton
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                    {/* Today Button */}
+                    <Button
                       size="small"
+                      variant="outlined"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                        const columnId = column?.id || 'todo';
+                        handleQuickDateChange(task, columnId, new Date());
+                      }}
+                      sx={{
+                        minWidth: 'auto',
+                        px: 1,
+                        py: 0.5,
+                        fontSize: '0.65rem',
+                        height: '22px',
+                        borderColor: '#4CAF50',
+                        color: '#4CAF50',
+                        borderRadius: 1,
+                        '&:hover': {
+                          bgcolor: '#4CAF50',
+                          color: 'white',
+                          transform: 'scale(1.05)',
+                        }
+                      }}
+                      title="Reschedule to today"
+                    >
+                      Today
+                    </Button>
+                    
+                    {/* Tomorrow Button */}
+                    <Button
+                      size="small"
+                      variant="outlined"
                       onClick={(e) => {
                         e.stopPropagation();
                         const column = columns.find(col => col.tasks.some(t => t.id === task.id));
@@ -2193,36 +2246,82 @@ function App() {
                         handleQuickDateChange(task, columnId, addDays(new Date(), 1));
                       }}
                       sx={{
-                        p: 0.5,
-                        color: 'text.secondary',
+                        minWidth: 'auto',
+                        px: 1,
+                        py: 0.5,
+                        fontSize: '0.65rem',
+                        height: '22px',
+                        borderColor: '#FF9800',
+                        color: '#FF9800',
+                        borderRadius: 1,
                         '&:hover': {
-                          color: 'primary.main',
-                          bgcolor: 'primary.light',
+                          bgcolor: '#FF9800',
+                          color: 'white',
+                          transform: 'scale(1.05)',
                         }
                       }}
                       title="Reschedule to tomorrow"
                     >
-                      <EventIcon sx={{ fontSize: '0.8rem' }} />
-                    </IconButton>
+                      Tomorrow
+                    </Button>
                     
-                    <IconButton
+                    {/* Next Week Button */}
+                    <Button
                       size="small"
+                      variant="outlined"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                        const columnId = column?.id || 'todo';
+                        handleQuickDateChange(task, columnId, addWeeks(new Date(), 1));
+                      }}
+                      sx={{
+                        minWidth: 'auto',
+                        px: 1,
+                        py: 0.5,
+                        fontSize: '0.65rem',
+                        height: '22px',
+                        borderColor: '#2196F3',
+                        color: '#2196F3',
+                        borderRadius: 1,
+                        '&:hover': {
+                          bgcolor: '#2196F3',
+                          color: 'white',
+                          transform: 'scale(1.05)',
+                        }
+                      }}
+                      title="Reschedule to next week"
+                    >
+                      Next Week
+                    </Button>
+                    
+                    {/* Edit Button */}
+                    <Button
+                      size="small"
+                      variant="outlined"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleEditTask(task, task.listId || 'todo');
                       }}
                       sx={{
-                        p: 0.5,
-                        color: 'text.secondary',
+                        minWidth: 'auto',
+                        px: 1,
+                        py: 0.5,
+                        fontSize: '0.65rem',
+                        height: '22px',
+                        borderColor: '#9C27B0',
+                        color: '#9C27B0',
+                        borderRadius: 1,
                         '&:hover': {
-                          color: 'primary.main',
-                          bgcolor: 'primary.light',
+                          bgcolor: '#9C27B0',
+                          color: 'white',
+                          transform: 'scale(1.05)',
                         }
                       }}
                       title="Edit task"
                     >
-                      <EditIcon sx={{ fontSize: '0.8rem' }} />
-                    </IconButton>
+                      Edit
+                    </Button>
                   </Box>
                 </Box>
               );
