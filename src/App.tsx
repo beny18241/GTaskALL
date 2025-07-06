@@ -1995,25 +1995,20 @@ function App() {
     return (
       <Box sx={{ 
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        bgcolor: 'background.default',
         p: 3
       }}>
         {/* Modern Header */}
         <Box sx={{ 
           mb: 4,
-          textAlign: 'center',
-          color: 'white'
+          textAlign: 'center'
         }}>
           <Typography 
             variant="h3" 
             sx={{ 
               fontWeight: 800,
               mb: 1,
-              textShadow: '0 4px 8px rgba(0,0,0,0.3)',
-              background: 'linear-gradient(45deg, #fff, #f0f0f0)',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent'
+              color: 'text.primary'
             }}
           >
             Task List
@@ -2021,7 +2016,7 @@ function App() {
           <Typography 
             variant="h6" 
             sx={{ 
-              opacity: 0.9,
+              color: 'text.secondary',
               fontWeight: 300,
               letterSpacing: 1
             }}
@@ -2040,8 +2035,7 @@ function App() {
           {filteredTasks.length === 0 ? (
             <Box sx={{ 
               textAlign: 'center',
-              py: 8,
-              color: 'white'
+              py: 8
             }}>
               <Box sx={{ 
                 fontSize: '4rem', 
@@ -2050,20 +2044,20 @@ function App() {
               }}>
                 ✨
               </Box>
-              <Typography variant="h5" sx={{ mb: 1, fontWeight: 600 }}>
+              <Typography variant="h5" sx={{ mb: 1, fontWeight: 600, color: 'text.primary' }}>
                 All Caught Up!
               </Typography>
-              <Typography variant="body1" sx={{ opacity: 0.8 }}>
+              <Typography variant="body1" sx={{ color: 'text.secondary' }}>
                 No active tasks at the moment. Time to celebrate! 🎉
               </Typography>
             </Box>
           ) : (
             <Box sx={{ 
-              background: 'rgba(255, 255, 255, 0.95)',
-              backdropFilter: 'blur(10px)',
-              borderRadius: 3,
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
+              bgcolor: 'background.paper',
+              borderRadius: 2,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+              border: '1px solid',
+              borderColor: 'divider',
               overflow: 'hidden'
             }}>
               {filteredTasks.map((task, index) => {
@@ -2356,11 +2350,11 @@ function App() {
             <Box sx={{ 
               mt: 3,
               p: 2.5,
-              background: 'rgba(255, 255, 255, 0.95)',
-              backdropFilter: 'blur(10px)',
-              borderRadius: 3,
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
+              bgcolor: 'background.paper',
+              borderRadius: 2,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+              border: '1px solid',
+              borderColor: 'divider',
               textAlign: 'center'
             }}>
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
