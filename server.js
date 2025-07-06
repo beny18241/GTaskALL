@@ -692,35 +692,19 @@ app.post('/api/api-keys', (req, res) => {
   if (!mainUserEmail || !gtaskAccountEmail || !apiKey) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
-  db.get(
-    `SELECT id FROM users WHERE email = ?`,
-    [mainUserEmail],
-    (err, userRow) => {
+  // Simple encryption (in production, use proper encryption)
+  const encryptedApiKey = Buffer.from(apiKey).toString('base64');
+  db.run(
+    `INSERT OR REPLACE INTO account_api_keys 
+     (main_user_email, gtask_account_email, encrypted_api_key, updated_at) 
+     VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+    [mainUserEmail, gtaskAccountEmail, encryptedApiKey],
+    function(err) {
       if (err) {
-        console.error('Error fetching user:', err);
-        return res.status(500).json({ error: 'Failed to fetch user' });
+        console.error('Error saving API key:', err);
+        return res.status(500).json({ error: 'Failed to save API key' });
       }
-      if (!userRow) {
-        return res.status(404).json({ error: 'User not found. Please login first.' });
-      }
-      const userId = userRow.id;
-      
-      // Simple encryption (in production, use proper encryption)
-      const encryptedApiKey = Buffer.from(apiKey).toString('base64');
-      
-      db.run(
-        `INSERT OR REPLACE INTO account_api_keys 
-         (user_id, main_user_email, gtask_account_email, encrypted_api_key, updated_at) 
-         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-        [userId, mainUserEmail, gtaskAccountEmail, encryptedApiKey],
-        function(err) {
-          if (err) {
-            console.error('Error saving API key:', err);
-            return res.status(500).json({ error: 'Failed to save API key' });
-          }
-          res.json({ success: true, message: 'API key saved successfully' });
-        }
-      );
+      res.json({ success: true, message: 'API key saved successfully' });
     }
   );
 });
@@ -729,10 +713,9 @@ app.post('/api/api-keys', (req, res) => {
 app.get('/api/api-keys/:mainUserEmail/:gtaskAccountEmail', (req, res) => {
   const { mainUserEmail, gtaskAccountEmail } = req.params;
   db.get(
-    `SELECT ak.encrypted_api_key 
-     FROM account_api_keys ak
-     JOIN users u ON ak.user_id = u.id
-     WHERE u.email = ? AND ak.gtask_account_email = ?`,
+    `SELECT encrypted_api_key 
+     FROM account_api_keys
+     WHERE main_user_email = ? AND gtask_account_email = ?`,
     [mainUserEmail, gtaskAccountEmail],
     (err, row) => {
       if (err) {
