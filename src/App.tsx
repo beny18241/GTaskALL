@@ -220,7 +220,7 @@ function App() {
     color: '#1976d2',
     status: 'todo'
   });
-  const [sidebarWidth, setSidebarWidth] = useState(400);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
@@ -2707,7 +2707,7 @@ function App() {
         </Box>
         <Paper 
           sx={{ 
-            p: 2, 
+            p: 1.5, 
             height: 'calc(100vh - 100px)', 
             overflow: 'auto',
             width: sidebarWidth,
@@ -2717,14 +2717,14 @@ function App() {
             bgcolor: 'background.paper',
             borderLeft: '2px solid',
             borderColor: 'primary.main',
-            boxShadow: '-8px 0 16px rgba(0, 0, 0, 0.15)',
+            boxShadow: '-4px 0 12px rgba(0, 0, 0, 0.1)',
             '&::before': {
               content: '""',
               position: 'absolute',
               top: 0,
               left: 0,
               right: 0,
-              height: '4px',
+              height: '3px',
               background: 'linear-gradient(90deg, #1976d2, #42a5f5)'
             }
           }}
@@ -2746,7 +2746,7 @@ function App() {
             
             const handleMouseMove = (e: MouseEvent) => {
               const deltaX = e.clientX - startX;
-              const newWidth = Math.max(200, Math.min(800, startWidth - deltaX));
+              const newWidth = Math.max(280, Math.min(600, startWidth - deltaX));
               setSidebarWidth(newWidth);
             };
             
@@ -2759,23 +2759,48 @@ function App() {
             document.addEventListener('mouseup', handleMouseUp);
           }}
           />
-          <Typography 
-            variant="h6" 
-            gutterBottom
-            sx={{
-              color: 'primary.main',
-              fontWeight: 'bold',
-              pb: 2,
-              borderBottom: '2px solid',
-              borderColor: 'primary.main',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              fontSize: '1.1rem'
-            }}
-          >
-            Today's Tasks
-          </Typography>
-          <Stack spacing={1}>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            pb: 1.5,
+            mb: 1,
+            borderBottom: '1px solid',
+            borderColor: 'primary.main'
+          }}>
+            <Typography 
+              variant="h6" 
+              sx={{
+                color: 'primary.main',
+                fontWeight: 'bold',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                fontSize: '1rem'
+              }}
+            >
+              Today's Tasks
+            </Typography>
+            <Chip
+              label={columns.reduce((acc: Task[], column) => {
+                const todayTasks = column.tasks.filter(task => 
+                  task.dueDate && isToday(new Date(task.dueDate))
+                );
+                return [...acc, ...todayTasks];
+              }, []).length}
+              size="small"
+              sx={{
+                bgcolor: 'primary.main',
+                color: 'white',
+                fontWeight: 'bold',
+                height: '24px',
+                '& .MuiChip-label': {
+                  px: 1,
+                  fontSize: '0.75rem'
+                }
+              }}
+            />
+          </Box>
+          <Stack spacing={0.5}>
             {columns.reduce((acc: Task[], column) => {
               const todayTasks = column.tasks.filter(task => 
                 task.dueDate && isToday(new Date(task.dueDate))
@@ -2785,10 +2810,10 @@ function App() {
               <Box
                 key={task.id}
                 sx={{
-                  p: 1.5,
+                  p: 1,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 1.5,
+                  gap: 1,
                   borderLeft: `3px solid ${task.color || '#42A5F5'}`,
                   '&:hover': {
                     bgcolor: 'action.hover',
@@ -2797,120 +2822,100 @@ function App() {
                   bgcolor: 'background.paper',
                   borderBottom: '1px solid',
                   borderColor: 'divider',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  borderRadius: 1
                 }}
+                onClick={() => handleEditTask(task, 'ultimate')}
               >
+                {/* Status Checkbox */}
+                <Checkbox
+                  checked={task.status === 'completed'}
+                  onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
+                  size="small"
+                  sx={{ 
+                    p: 0.5,
+                    color: task.color || 'primary.main',
+                    '&:hover': {
+                      backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                    }
+                  }}
+                />
+                
+                {/* Task Content */}
                 <Box sx={{ 
                   flex: 1, 
                   minWidth: 0,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 1
+                  gap: 0.5
                 }}>
                   <Typography 
                     variant="body2" 
                     sx={{ 
                       wordBreak: 'break-word',
                       fontWeight: 500,
-                      color: 'text.primary',
-                      flex: 1
+                      color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
+                      textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                      flex: 1,
+                      fontSize: '0.85rem',
+                      lineHeight: 1.3
                     }}
                   >
                     {task.content}
                   </Typography>
+                  
+                  {/* Account Avatar */}
+                  {task.accountPicture && (
+                    <Avatar
+                      src={task.accountPicture}
+                      alt={task.accountName}
+                      sx={{
+                        width: 20,
+                        height: 20,
+                        fontSize: '0.7rem',
+                        border: '1px solid',
+                        borderColor: 'divider'
+                      }}
+                    />
+                  )}
+                  
+                  {/* Status Badge */}
                   <Chip
-                    label={task.status === 'in-progress' ? 'In Progress' : task.status === 'completed' ? 'Done' : 'To Do'}
+                    label={task.status === 'in-progress' ? 'Active' : task.status === 'completed' ? 'Done' : 'Todo'}
                     color={task.status === 'in-progress' ? 'warning' : task.status === 'completed' ? 'success' : 'info'}
                     size="small"
                     sx={{ 
-                      fontWeight: 500,
-                      height: '24px',
+                      height: '20px',
                       '& .MuiChip-label': {
-                        px: 1,
-                        fontSize: '0.75rem'
+                        px: 0.5,
+                        fontSize: '0.65rem',
+                        fontWeight: 500
                       }
                     }}
                   />
                   
-                  {/* Quick Reschedule Buttons */}
-                  <Box sx={{ display: 'flex', gap: 0.5 }}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      sx={{ 
-                        minWidth: 'auto', 
-                        px: 1, 
-                        py: 0.25, 
-                        fontSize: '0.6rem',
-                        height: '24px',
-                        borderColor: 'primary.main',
+                  {/* Quick Actions Menu */}
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Show quick actions menu
+                      const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                      const columnId = column?.id || 'todo';
+                      handleQuickDateChange(task, columnId, addDays(new Date(), 1));
+                    }}
+                    sx={{
+                      p: 0.5,
+                      color: 'text.secondary',
+                      '&:hover': {
                         color: 'primary.main',
-                        '&:hover': {
-                          bgcolor: 'primary.main',
-                          color: 'white'
-                        }
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Find the column for this task
-                        const column = columns.find(col => col.tasks.some(t => t.id === task.id));
-                        const columnId = column?.id || 'todo';
-                        handleQuickDateChange(task, columnId, new Date());
-                      }}
-                    >
-                      Today
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      sx={{ 
-                        minWidth: 'auto', 
-                        px: 1, 
-                        py: 0.25, 
-                        fontSize: '0.6rem',
-                        height: '24px',
-                        borderColor: 'warning.main',
-                        color: 'warning.main',
-                        '&:hover': {
-                          bgcolor: 'warning.main',
-                          color: 'white'
-                        }
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const column = columns.find(col => col.tasks.some(t => t.id === task.id));
-                        const columnId = column?.id || 'todo';
-                        handleQuickDateChange(task, columnId, addDays(new Date(), 1));
-                      }}
-                    >
-                      Tomorrow
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      sx={{ 
-                        minWidth: 'auto', 
-                        px: 1, 
-                        py: 0.25, 
-                        fontSize: '0.6rem',
-                        height: '24px',
-                        borderColor: 'success.main',
-                        color: 'success.main',
-                        '&:hover': {
-                          bgcolor: 'success.main',
-                          color: 'white'
-                        }
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const column = columns.find(col => col.tasks.some(t => t.id === task.id));
-                        const columnId = column?.id || 'todo';
-                        handleQuickDateChange(task, columnId, addWeeks(new Date(), 1));
-                      }}
-                    >
-                      Next Week
-                    </Button>
-                  </Box>
+                        bgcolor: 'primary.light',
+                      }
+                    }}
+                    title="Reschedule to tomorrow"
+                  >
+                    <EventIcon sx={{ fontSize: '0.8rem' }} />
+                  </IconButton>
                 </Box>
               </Box>
             ))}
