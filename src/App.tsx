@@ -2316,18 +2316,16 @@ function App() {
                         Next Week
                       </Button>
                       
-                      <Button
+                      <IconButton
                         size="small"
-                        variant="outlined"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleEditTask(task, task.listId || 'todo');
                         }}
                         sx={{
-                          fontSize: '0.65rem',
+                          width: '24px',
                           height: '24px',
-                          minWidth: 'auto',
-                          px: 1,
+                          border: '1px solid',
                           borderColor: '#9C27B0',
                           color: '#9C27B0',
                           '&:hover': {
@@ -2335,9 +2333,10 @@ function App() {
                             color: 'white',
                           }
                         }}
+                        title="Edit task"
                       >
-                        Edit
-                      </Button>
+                        <EditIcon sx={{ fontSize: '0.9rem' }} />
+                      </IconButton>
                     </Box>
                   </Box>
                 );
