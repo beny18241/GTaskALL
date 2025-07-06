@@ -2072,22 +2072,112 @@ function App() {
                   }}
                   onClick={() => handleEditTask(task, task.listId || 'todo')}
                 >
-                  {/* Checkbox */}
-                  <Checkbox
-                    checked={task.status === 'completed'}
-                    onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
-                    size="small"
-                    sx={{ 
-                      mt: 0.5,
-                      color: task.color || accountColor,
-                      '&:hover': {
-                        backgroundColor: 'rgba(0, 0, 0, 0.04)',
-                      }
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  
-                                     {/* Task Content */}
+                                     {/* Checkbox */}
+                   <Checkbox
+                     checked={task.status === 'completed'}
+                     onChange={(e) => handleTaskCompletionToggle(task, e.target.checked)}
+                     size="small"
+                     sx={{ 
+                       mt: 0.5,
+                       color: task.color || accountColor,
+                       '&:hover': {
+                         backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                       }
+                     }}
+                     onClick={(e) => e.stopPropagation()}
+                   />
+                   
+                   {/* Reschedule Options - Left Side */}
+                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mr: 1 }}>
+                     <Button
+                       size="small"
+                       variant="outlined"
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                         const columnId = column?.id || 'todo';
+                         handleQuickDateChange(task, columnId, new Date());
+                       }}
+                       sx={{
+                         minWidth: 'auto',
+                         px: 0.5,
+                         py: 0.25,
+                         fontSize: '0.6rem',
+                         height: '18px',
+                         borderColor: '#4CAF50',
+                         color: '#4CAF50',
+                         borderRadius: 0.5,
+                         '&:hover': {
+                           bgcolor: '#4CAF50',
+                           color: 'white',
+                           transform: 'scale(1.05)',
+                         }
+                       }}
+                       title="Reschedule to today"
+                     >
+                       Today
+                     </Button>
+                     
+                     <Button
+                       size="small"
+                       variant="outlined"
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                         const columnId = column?.id || 'todo';
+                         handleQuickDateChange(task, columnId, addDays(new Date(), 1));
+                       }}
+                       sx={{
+                         minWidth: 'auto',
+                         px: 0.5,
+                         py: 0.25,
+                         fontSize: '0.6rem',
+                         height: '18px',
+                         borderColor: '#FF9800',
+                         color: '#FF9800',
+                         borderRadius: 0.5,
+                         '&:hover': {
+                           bgcolor: '#FF9800',
+                           color: 'white',
+                           transform: 'scale(1.05)',
+                         }
+                       }}
+                       title="Reschedule to tomorrow"
+                     >
+                       Tomorrow
+                     </Button>
+                     
+                     <Button
+                       size="small"
+                       variant="outlined"
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         const column = columns.find(col => col.tasks.some(t => t.id === task.id));
+                         const columnId = column?.id || 'todo';
+                         handleQuickDateChange(task, columnId, addWeeks(new Date(), 1));
+                       }}
+                       sx={{
+                         minWidth: 'auto',
+                         px: 0.5,
+                         py: 0.25,
+                         fontSize: '0.6rem',
+                         height: '18px',
+                         borderColor: '#2196F3',
+                         color: '#2196F3',
+                         borderRadius: 0.5,
+                         '&:hover': {
+                           bgcolor: '#2196F3',
+                           color: 'white',
+                           transform: 'scale(1.05)',
+                         }
+                       }}
+                       title="Reschedule to next week"
+                     >
+                       Next Week
+                     </Button>
+                   </Box>
+                   
+                   {/* Task Content */}
                    <Box sx={{ flex: 1, minWidth: 0 }}>
                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 0.5 }}>
                        <Typography 
@@ -2157,7 +2247,7 @@ function App() {
                        {task.dueDate && (
                          <Chip
                            icon={<EventIcon sx={{ fontSize: '0.8rem' }} />}
-                           label={format(new Date(task.dueDate), 'MMM d')}
+                           label={format(new Date(task.dueDate), 'MMM d, yyyy')}
                            size="small"
                            sx={{ 
                              height: '20px',
@@ -2185,116 +2275,11 @@ function App() {
                            }}
                          />
                        )}
-                       
-                       {/* Account Color Badge */}
-                       {task.accountEmail && (
-                         <Chip
-                           label={task.accountName?.split(' ')[0] || 'User'}
-                           size="small"
-                           sx={{ 
-                             height: '20px',
-                             fontSize: '0.7rem',
-                             bgcolor: accountColor,
-                             color: 'white',
-                             '& .MuiChip-label': { px: 1 }
-                           }}
-                         />
-                       )}
                      </Box>
                   </Box>
                   
                   {/* Quick Actions */}
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                    {/* Today Button */}
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const column = columns.find(col => col.tasks.some(t => t.id === task.id));
-                        const columnId = column?.id || 'todo';
-                        handleQuickDateChange(task, columnId, new Date());
-                      }}
-                      sx={{
-                        minWidth: 'auto',
-                        px: 1,
-                        py: 0.5,
-                        fontSize: '0.65rem',
-                        height: '22px',
-                        borderColor: '#4CAF50',
-                        color: '#4CAF50',
-                        borderRadius: 1,
-                        '&:hover': {
-                          bgcolor: '#4CAF50',
-                          color: 'white',
-                          transform: 'scale(1.05)',
-                        }
-                      }}
-                      title="Reschedule to today"
-                    >
-                      Today
-                    </Button>
-                    
-                    {/* Tomorrow Button */}
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const column = columns.find(col => col.tasks.some(t => t.id === task.id));
-                        const columnId = column?.id || 'todo';
-                        handleQuickDateChange(task, columnId, addDays(new Date(), 1));
-                      }}
-                      sx={{
-                        minWidth: 'auto',
-                        px: 1,
-                        py: 0.5,
-                        fontSize: '0.65rem',
-                        height: '22px',
-                        borderColor: '#FF9800',
-                        color: '#FF9800',
-                        borderRadius: 1,
-                        '&:hover': {
-                          bgcolor: '#FF9800',
-                          color: 'white',
-                          transform: 'scale(1.05)',
-                        }
-                      }}
-                      title="Reschedule to tomorrow"
-                    >
-                      Tomorrow
-                    </Button>
-                    
-                    {/* Next Week Button */}
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const column = columns.find(col => col.tasks.some(t => t.id === task.id));
-                        const columnId = column?.id || 'todo';
-                        handleQuickDateChange(task, columnId, addWeeks(new Date(), 1));
-                      }}
-                      sx={{
-                        minWidth: 'auto',
-                        px: 1,
-                        py: 0.5,
-                        fontSize: '0.65rem',
-                        height: '22px',
-                        borderColor: '#2196F3',
-                        color: '#2196F3',
-                        borderRadius: 1,
-                        '&:hover': {
-                          bgcolor: '#2196F3',
-                          color: 'white',
-                          transform: 'scale(1.05)',
-                        }
-                      }}
-                      title="Reschedule to next week"
-                    >
-                      Next Week
-                    </Button>
-                    
                     {/* Edit Button */}
                     <Button
                       size="small"
