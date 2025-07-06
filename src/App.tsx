@@ -2103,7 +2103,9 @@ function App() {
               border: '1px solid',
               borderColor: 'divider',
               overflow: 'hidden'
-              {Object.entries(dateSections).map(([sectionKey, tasks]) => {
+            }}
+          >
+            {Object.entries(dateSections).map(([sectionKey, tasks]) => {
                 if (tasks.length === 0) return null;
                 
                 const sectionTitles = {
@@ -2535,19 +2537,19 @@ function App() {
             >
               Day
             </Button>
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <DatePicker
-              value={selectedDate}
-              onChange={(newDate) => newDate && setSelectedDate(newDate)}
-              slotProps={{
-                textField: {
-                  variant: 'outlined',
-                  size: 'small',
-                },
-              }}
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <DatePicker
+                value={selectedDate}
+                onChange={(newDate) => newDate && setSelectedDate(newDate)}
+                slotProps={{
+                  textField: {
+                    variant: 'outlined',
+                    size: 'small',
+                  },
+                }}
                 disabled={calendarShowAll}
-            />
-          </LocalizationProvider>
+              />
+            </LocalizationProvider>
           </Box>
         </Box>
         <Paper sx={{ p: 2, bgcolor: 'background.paper' }}>
