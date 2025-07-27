@@ -1,6 +1,7 @@
 import React from 'react';
-import { Box, Typography, Chip, IconButton } from '@mui/material';
+import { Box, Typography, Chip, IconButton, Button } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
+import { addDays } from 'date-fns';
 
 export interface TaskRowProps {
   task: any;
@@ -8,9 +9,19 @@ export interface TaskRowProps {
   accountColor: string;
   showDivider?: boolean;
   isOverdue?: boolean | null;
+  onQuickReschedule?: (task: any, newDate: Date) => void;
+  showQuickReschedule?: boolean;
 }
 
-const TaskRow: React.FC<TaskRowProps> = ({ task, onEdit, accountColor, showDivider = true, isOverdue = false }) => {
+const TaskRow: React.FC<TaskRowProps> = ({ 
+  task, 
+  onEdit, 
+  accountColor, 
+  showDivider = true, 
+  isOverdue = false,
+  onQuickReschedule,
+  showQuickReschedule = false
+}) => {
   const isOverdueTask = Boolean(isOverdue);
   
   return (
@@ -107,6 +118,83 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onEdit, accountColor, showDivid
           >
             {task.notes}
           </Typography>
+        )}
+
+        {/* Quick Reschedule Buttons */}
+        {showQuickReschedule && onQuickReschedule && (
+          <Box sx={{ 
+            display: 'flex', 
+            gap: 0.5, 
+            mt: 0.75,
+            flexWrap: 'wrap'
+          }}>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={(e) => {
+                e.stopPropagation();
+                onQuickReschedule(task, addDays(new Date(), 1));
+              }}
+              sx={{
+                fontSize: '0.65rem',
+                height: '24px',
+                minWidth: 'auto',
+                px: 1,
+                borderColor: '#FF9800',
+                color: '#FF9800',
+                '&:hover': {
+                  bgcolor: '#FF9800',
+                  color: 'white',
+                }
+              }}
+            >
+              Tomorrow
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={(e) => {
+                e.stopPropagation();
+                onQuickReschedule(task, addDays(new Date(), 2));
+              }}
+              sx={{
+                fontSize: '0.65rem',
+                height: '24px',
+                minWidth: 'auto',
+                px: 1,
+                borderColor: '#9C27B0',
+                color: '#9C27B0',
+                '&:hover': {
+                  bgcolor: '#9C27B0',
+                  color: 'white',
+                }
+              }}
+            >
+              Day After
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={(e) => {
+                e.stopPropagation();
+                onQuickReschedule(task, addDays(new Date(), 7));
+              }}
+              sx={{
+                fontSize: '0.65rem',
+                height: '24px',
+                minWidth: 'auto',
+                px: 1,
+                borderColor: '#607D8B',
+                color: '#607D8B',
+                '&:hover': {
+                  bgcolor: '#607D8B',
+                  color: 'white',
+                }
+              }}
+            >
+              Next Week
+            </Button>
+          </Box>
         )}
       </Box>
 

@@ -2823,8 +2823,11 @@ function App() {
               </IconButton>
             </Box>
           </Box>
-          <Typography variant="body2" sx={{ opacity: 0.9 }}>
+          <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>
             {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} for today
+          </Typography>
+          <Typography variant="caption" sx={{ opacity: 0.8, fontStyle: 'italic' }}>
+            💡 Quick reschedule buttons available for each task
           </Typography>
         </Box>
 
@@ -2867,6 +2870,8 @@ function App() {
                       showDivider={index < filteredTasks.length - 1}
                       onEdit={() => handleEditTask(task, task.listId || 'todo')}
                       isOverdue={isOverdue}
+                      showQuickReschedule={true}
+                      onQuickReschedule={(task, newDate) => handleQuickDateChange(task, task.listId || 'todo', newDate)}
                     />
                   );
                 })}
