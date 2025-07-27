@@ -120,13 +120,23 @@ const TaskRow: React.FC<TaskRowProps> = ({
           </Typography>
         )}
 
+
+      </Box>
+
+      {/* Right side elements */}
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: 0.75,
+        flexShrink: 0
+      }}>
         {/* Quick Reschedule Buttons */}
         {showQuickReschedule && onQuickReschedule && (
           <Box sx={{ 
             display: 'flex', 
-            gap: 0.5, 
-            mt: 0.75,
-            flexWrap: 'wrap'
+            gap: 0.5,
+            flexWrap: 'wrap',
+            mr: 1
           }}>
             <Button
               size="small"
@@ -196,15 +206,7 @@ const TaskRow: React.FC<TaskRowProps> = ({
             </Button>
           </Box>
         )}
-      </Box>
 
-      {/* Right side elements */}
-      <Box sx={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: 0.75,
-        flexShrink: 0
-      }}>
         {/* Status Badge */}
         <Chip
           label={task.status === 'in-progress' ? 'Active' : task.status === 'completed' ? 'Done' : 'To Do'}
