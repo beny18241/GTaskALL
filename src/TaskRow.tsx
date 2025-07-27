@@ -136,7 +136,9 @@ const TaskRow: React.FC<TaskRowProps> = ({
             display: 'flex', 
             gap: 0.5,
             flexWrap: 'wrap',
-            mr: 1
+            mr: 1,
+            opacity: task.status === 'completed' ? 0.4 : 1,
+            pointerEvents: task.status === 'completed' ? 'none' : 'auto'
           }}>
             <Button
               size="small"
@@ -145,16 +147,22 @@ const TaskRow: React.FC<TaskRowProps> = ({
                 e.stopPropagation();
                 onQuickReschedule(task, addDays(new Date(), 1));
               }}
+              disabled={task.status === 'completed'}
               sx={{
                 fontSize: '0.65rem',
                 height: '24px',
                 minWidth: 'auto',
                 px: 1,
-                borderColor: '#FF9800',
-                color: '#FF9800',
+                borderColor: task.status === 'completed' ? '#ccc' : '#FF9800',
+                color: task.status === 'completed' ? '#ccc' : '#FF9800',
                 '&:hover': {
-                  bgcolor: '#FF9800',
-                  color: 'white',
+                  bgcolor: task.status === 'completed' ? 'transparent' : '#FF9800',
+                  color: task.status === 'completed' ? '#ccc' : 'white',
+                },
+                '&.Mui-disabled': {
+                  borderColor: '#ccc',
+                  color: '#ccc',
+                  opacity: 0.6
                 }
               }}
             >
@@ -167,16 +175,22 @@ const TaskRow: React.FC<TaskRowProps> = ({
                 e.stopPropagation();
                 onQuickReschedule(task, addDays(new Date(), 2));
               }}
+              disabled={task.status === 'completed'}
               sx={{
                 fontSize: '0.65rem',
                 height: '24px',
                 minWidth: 'auto',
                 px: 1,
-                borderColor: '#9C27B0',
-                color: '#9C27B0',
+                borderColor: task.status === 'completed' ? '#ccc' : '#9C27B0',
+                color: task.status === 'completed' ? '#ccc' : '#9C27B0',
                 '&:hover': {
-                  bgcolor: '#9C27B0',
-                  color: 'white',
+                  bgcolor: task.status === 'completed' ? 'transparent' : '#9C27B0',
+                  color: task.status === 'completed' ? '#ccc' : 'white',
+                },
+                '&.Mui-disabled': {
+                  borderColor: '#ccc',
+                  color: '#ccc',
+                  opacity: 0.6
                 }
               }}
             >
@@ -189,16 +203,22 @@ const TaskRow: React.FC<TaskRowProps> = ({
                 e.stopPropagation();
                 onQuickReschedule(task, addDays(new Date(), 7));
               }}
+              disabled={task.status === 'completed'}
               sx={{
                 fontSize: '0.65rem',
                 height: '24px',
                 minWidth: 'auto',
                 px: 1,
-                borderColor: '#607D8B',
-                color: '#607D8B',
+                borderColor: task.status === 'completed' ? '#ccc' : '#607D8B',
+                color: task.status === 'completed' ? '#ccc' : '#607D8B',
                 '&:hover': {
-                  bgcolor: '#607D8B',
-                  color: 'white',
+                  bgcolor: task.status === 'completed' ? 'transparent' : '#607D8B',
+                  color: task.status === 'completed' ? '#ccc' : 'white',
+                },
+                '&.Mui-disabled': {
+                  borderColor: '#ccc',
+                  color: '#ccc',
+                  opacity: 0.6
                 }
               }}
             >
