@@ -37,6 +37,8 @@ const TaskRow: React.FC<TaskRowProps> = ({
         borderLeft: `3px solid ${isOverdueTask ? '#ff6b6b' : accountColor}`,
         position: 'relative',
         bgcolor: isOverdueTask ? 'rgba(255, 107, 107, 0.08)' : 'background.paper',
+        opacity: task.status === 'completed' ? 0.6 : 1,
+        filter: task.status === 'completed' ? 'grayscale(0.3)' : 'none',
         '&:hover': {
           bgcolor: isOverdueTask ? 'rgba(255, 107, 107, 0.12)' : 'action.hover',
         },
@@ -68,10 +70,11 @@ const TaskRow: React.FC<TaskRowProps> = ({
             width: '16px',
             height: '16px',
             cursor: 'default',
-            accentColor: accountColor,
+            accentColor: task.status === 'completed' ? '#ccc' : accountColor,
             borderRadius: '2px',
-            border: `1.5px solid ${accountColor}`,
-            transition: 'all 0.2s ease'
+            border: `1.5px solid ${task.status === 'completed' ? '#ccc' : accountColor}`,
+            transition: 'all 0.2s ease',
+            opacity: task.status === 'completed' ? 0.7 : 1
           }}
         />
       </Box>
@@ -235,6 +238,7 @@ const TaskRow: React.FC<TaskRowProps> = ({
           sx={{ 
             fontWeight: 500,
             height: '16px',
+            opacity: task.status === 'completed' ? 0.7 : 1,
             '& .MuiChip-label': {
               px: 0.5,
               fontSize: '0.65rem'
@@ -252,8 +256,9 @@ const TaskRow: React.FC<TaskRowProps> = ({
             height: '24px',
             borderRadius: '50%',
             overflow: 'hidden',
-            border: `2px solid ${accountColor}`,
-            boxShadow: `0 2px 4px ${accountColor}40`
+            border: `2px solid ${task.status === 'completed' ? '#ccc' : accountColor}`,
+            boxShadow: `0 2px 4px ${task.status === 'completed' ? '#ccc40' : accountColor}40`,
+            opacity: task.status === 'completed' ? 0.7 : 1
           }}>
             <img 
               src={task.accountPicture} 
@@ -261,7 +266,8 @@ const TaskRow: React.FC<TaskRowProps> = ({
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover'
+                objectFit: 'cover',
+                filter: task.status === 'completed' ? 'grayscale(0.5)' : 'none'
               }}
             />
           </Box>
@@ -271,7 +277,7 @@ const TaskRow: React.FC<TaskRowProps> = ({
           <Box sx={{
             width: '24px',
             height: '24px',
-            bgcolor: accountColor,
+            bgcolor: task.status === 'completed' ? '#ccc' : accountColor,
             color: 'white',
             display: 'flex',
             alignItems: 'center',
@@ -279,8 +285,9 @@ const TaskRow: React.FC<TaskRowProps> = ({
             fontSize: '0.7rem',
             fontWeight: 'bold',
             borderRadius: '50%',
-            border: `2px solid ${accountColor}`,
-            boxShadow: `0 2px 4px ${accountColor}40`
+            border: `2px solid ${task.status === 'completed' ? '#ccc' : accountColor}`,
+            boxShadow: `0 2px 4px ${task.status === 'completed' ? '#ccc40' : accountColor}40`,
+            opacity: task.status === 'completed' ? 0.7 : 1
           }}>
             {(task.accountName || task.accountEmail).charAt(0).toUpperCase()}
           </Box>
@@ -295,10 +302,11 @@ const TaskRow: React.FC<TaskRowProps> = ({
             width: '20px',
             height: '20px',
             borderRadius: '50%',
-            bgcolor: 'orange',
+            bgcolor: task.status === 'completed' ? '#ccc' : 'orange',
             color: 'white',
             fontSize: '0.7rem',
-            boxShadow: '0 2px 4px rgba(255, 152, 0, 0.4)'
+            boxShadow: task.status === 'completed' ? '0 2px 4px rgba(204, 204, 204, 0.4)' : '0 2px 4px rgba(255, 152, 0, 0.4)',
+            opacity: task.status === 'completed' ? 0.7 : 1
           }}>
             🔄
           </Box>
