@@ -6,6 +6,8 @@ Author: Maciej Pindela
 
 A modern task management application built with React, TypeScript, and Vite.
 
+> **Resuming work on this project** - Development continues with focus on enhancing task management features and improving user experience.
+
 ## Features
 
 - Google OAuth integration for secure authentication
