@@ -264,6 +264,8 @@ function App() {
   const [accountMenuAnchor, setAccountMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedAccountForMenu, setSelectedAccountForMenu] = useState<number | null>(null);
   const [apiKeyStatus, setApiKeyStatus] = useState<'configured' | 'not-configured' | 'checking'>('checking');
+  const [showSyncNotification, setShowSyncNotification] = useState(false);
+  const [syncNotificationMessage, setSyncNotificationMessage] = useState('');
 
   // Dark mode toggle function
   const toggleDarkMode = () => {
@@ -1154,6 +1156,9 @@ function App() {
     setDraggedTask(null);
     setDragOverColumn(null);
     setDragOverTaskIndex(null);
+    
+    // Trigger sync after drag and drop action
+    syncAfterAction();
   };
 
   const handleAddColumn = () => {
@@ -1235,6 +1240,9 @@ function App() {
     }
 
     setSelectedTask(null);
+    
+    // Trigger sync after quick date change
+    syncAfterAction();
   };
 
   const handleGoogleError = () => {
@@ -1498,6 +1506,9 @@ function App() {
       isRecurring: false,
       dependencies: []
     });
+    
+    // Trigger sync after task edit
+    syncAfterAction();
   };
 
   const handleCreateNewTask = async () => {
@@ -1625,6 +1636,9 @@ function App() {
       });
       setSelectedListForNewTask('');
       setOpenNewTaskDialog(false);
+      
+      // Trigger sync after creating new task
+      syncAfterAction();
     } catch (error) {
       console.error('Error creating new task:', error);
       alert('Failed to create new task. Please try again.');
@@ -4107,6 +4121,12 @@ function App() {
       updateColumnsWithTasks(combinedTasksByList);
       setLastRefreshTime(new Date());
       console.log('Refresh completed successfully');
+      
+      // Show sync success notification
+      setSyncNotificationMessage('✅ Tasks synced successfully');
+      setShowSyncNotification(true);
+      setTimeout(() => setShowSyncNotification(false), 3000);
+      
       setIsRefreshing(false);
       setIsInitialLoad(false); // Always mark initial load as complete
     } catch (error) {
@@ -4130,6 +4150,87 @@ function App() {
       };
     }
   }, [googleAccounts.length, activeAccountIndex, refreshTasks]);
+
+  // Enhanced sync functionality with multiple triggers
+  useEffect(() => {
+    if (googleAccounts.length > 0) {
+      // Smart sync intervals - more frequent when active, less when idle
+      let syncInterval: NodeJS.Timeout;
+      let isPageActive = true;
+      let lastActivity = Date.now();
+      
+      const handleVisibilityChange = () => {
+        isPageActive = !document.hidden;
+        if (isPageActive) {
+          // Sync immediately when page becomes visible
+          console.log('Page became visible, triggering sync...');
+          refreshTasks();
+          // Reset to active interval
+          syncInterval = setInterval(refreshTasks, 15000); // More frequent when active
+        } else {
+          // Less frequent when page is hidden
+          if (syncInterval) clearInterval(syncInterval);
+          syncInterval = setInterval(refreshTasks, 60000); // Less frequent when idle
+        }
+      };
+
+      const handleUserActivity = () => {
+        lastActivity = Date.now();
+        // If we haven't synced in the last 10 seconds, sync now
+        if (Date.now() - lastActivity > 10000) {
+          refreshTasks();
+        }
+      };
+
+      // Set up event listeners
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      document.addEventListener('mousemove', handleUserActivity);
+      document.addEventListener('keydown', handleUserActivity);
+      document.addEventListener('click', handleUserActivity);
+      document.addEventListener('focus', handleUserActivity);
+
+      // Initial sync interval (active state)
+      syncInterval = setInterval(refreshTasks, 15000);
+
+      return () => {
+        if (syncInterval) clearInterval(syncInterval);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        document.removeEventListener('mousemove', handleUserActivity);
+        document.removeEventListener('keydown', handleUserActivity);
+        document.removeEventListener('click', handleUserActivity);
+        document.removeEventListener('focus', handleUserActivity);
+      };
+    }
+  }, [googleAccounts.length, activeAccountIndex, refreshTasks]);
+
+  // Enhanced manual sync function with better feedback
+  const handleManualSync = useCallback(async () => {
+    if (isRefreshing) {
+      console.log('Sync already in progress...');
+      return;
+    }
+
+    console.log('Manual sync triggered...');
+    setLastRefreshTime(new Date());
+    await refreshTasks();
+  }, [isRefreshing, refreshTasks]);
+
+  // Enhanced sync after user actions
+  const syncAfterAction = useCallback(async () => {
+    // Debounce sync calls to avoid too many API requests
+    if (refreshInterval) {
+      clearTimeout(refreshInterval);
+    }
+    
+    const timeoutId = setTimeout(() => {
+      if (googleAccounts.length > 0 && !isRefreshing) {
+        console.log('Syncing after user action...');
+        refreshTasks();
+      }
+    }, 2000); // Wait 2 seconds after last action before syncing
+    
+    setRefreshInterval(timeoutId);
+  }, [googleAccounts.length, isRefreshing, refreshTasks]);
 
   const handleTaskCompletionToggle = useCallback(async (task: Task, isCompleted: boolean) => {
     // Update local state first
@@ -4218,7 +4319,10 @@ function App() {
         });
       }
     }
-  }, [googleAccounts, activeAccountIndex]);
+    
+    // Trigger sync after task completion toggle
+    syncAfterAction();
+  }, [googleAccounts, activeAccountIndex, syncAfterAction]);
 
   const handleLimitChange = useCallback((columnId: string, newLimit: number) => {
     setColumns(prevColumns => {
@@ -5134,10 +5238,21 @@ function App() {
                   fontWeight: 600,
                   letterSpacing: 1,
                   textShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                  mr: 3
+                  mr: 3,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
                 }}
               >
                 GTask ALL
+                {isRefreshing && (
+                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                    <CircularProgress size={16} color="inherit" sx={{ mr: 0.5 }} />
+                    <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>
+                      Syncing...
+                    </Typography>
+                  </Box>
+                )}
               </Typography>
 
               {/* View Mode Buttons */}
@@ -5380,7 +5495,7 @@ function App() {
                   {/* Removed Sync Status Indicator - keeping only AI key status */}
 
                   <IconButton
-                    onClick={refreshTasks}
+                    onClick={handleManualSync}
                     disabled={isRefreshing}
                     size="small"
                     sx={{
@@ -5401,7 +5516,7 @@ function App() {
                         color: 'rgba(255, 255, 255, 0.5)',
                       }
                     }}
-                    title="Refresh Tasks"
+                    title={`${isRefreshing ? 'Syncing...' : 'Sync Now'} (Last: ${lastRefreshTime ? format(lastRefreshTime, 'HH:mm') : 'Never'})`}
                   >
                     {isRefreshing ? (
                       <CircularProgress 
@@ -5979,6 +6094,37 @@ function App() {
       >
         <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: '100%' }}>
           {snackbar.message}
+        </Alert>
+      </Snackbar>
+      
+      {/* Sync Notification */}
+      <Snackbar
+        open={showSyncNotification}
+        autoHideDuration={3000}
+        onClose={() => setShowSyncNotification(false)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{
+          '& .MuiSnackbarContent-root': {
+            bgcolor: 'success.main',
+            color: 'white',
+            fontWeight: 600,
+            borderRadius: 2,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          }
+        }}
+      >
+        <Alert 
+          onClose={() => setShowSyncNotification(false)} 
+          severity="success" 
+          sx={{ 
+            width: '100%',
+            bgcolor: 'success.main',
+            color: 'white',
+            '& .MuiAlert-icon': { color: 'white' },
+            '& .MuiAlert-message': { color: 'white' }
+          }}
+        >
+          {syncNotificationMessage}
         </Alert>
       </Snackbar>
     </ThemeProvider>
