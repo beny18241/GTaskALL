@@ -8,6 +8,8 @@ A modern task management application built with React, TypeScript, and Vite.
 
 > **Resuming work on this project** - Development continues with focus on enhancing task management features and improving user experience.
 
+> **Test PR** - This is a test pull request to verify the deployment process.
+
 ## Features
 
 - Google OAuth integration for secure authentication
