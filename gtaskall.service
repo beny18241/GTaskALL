@@ -1,0 +1,33 @@
+[Unit]
+Description=GTaskALL - Google Tasks Management Application
+Documentation=https://github.com/beny18241/GTaskALL
+After=network.target
+
+[Service]
+Type=simple
+User=gtaskall
+Group=gtaskall
+WorkingDirectory=/opt/gtaskall
+Environment=NODE_ENV=production
+Environment=PORT=3001
+ExecStart=/usr/bin/node server.js
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gtaskall
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/gtaskall/logs /opt/gtaskall/data
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target
