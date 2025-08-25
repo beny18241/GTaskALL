@@ -664,11 +664,24 @@ function App() {
           throw new Error('Main user not logged in');
         }
 
+        // Check if account already exists
+        const existingAccountIndex = googleAccounts.findIndex(account => account.user.email === tempUserData.email);
+        if (existingAccountIndex !== -1) {
+          alert(`Account ${tempUserData.email} is already connected.`);
+          setGoogleTasksLoading(false);
+          setTempUserData(null);
+          setOpenAccountDialog(false);
+          return;
+        }
+
+        console.log('Adding new account:', tempUserData.email, 'with picture:', tempUserData.picture);
+
         const newAccount: GoogleAccount = {
           user: tempUserData,
           token: tokenResponse.access_token,
           taskLists: [],
-          tasks: {}
+          tasks: {},
+          status: 'active'
         };
 
         // Save connection to database
@@ -680,25 +693,55 @@ function App() {
             tempUserData.picture,
             tokenResponse.access_token
           );
+          console.log('Connection saved to database successfully');
         } catch (error) {
           console.error('Error saving connection to database:', error);
+          // Don't return here, continue with adding the account locally
         }
 
-        setGoogleAccounts(prevAccounts => [...prevAccounts, newAccount]);
-        setActiveAccountIndex(googleAccounts.length);
+        // Add the new account to the list
+        setGoogleAccounts(prevAccounts => {
+          const newAccounts = [...prevAccounts, newAccount];
+          console.log('Updated accounts list:', newAccounts.map(acc => ({ email: acc.user.email, picture: acc.user.picture })));
+          return newAccounts;
+        });
+        
+        // Set the new account as active
+        setActiveAccountIndex(prevIndex => {
+          const newIndex = googleAccounts.length;
+          console.log('Setting active account index to:', newIndex);
+          return newIndex;
+        });
+        
         setGoogleTasksLoading(false);
         setOpenAccountDialog(false);
         setTempUserData(null); // Clear temporary data
+        
+        // Show success message
+        setSnackbar({
+          message: `Successfully added account: ${tempUserData.email}`,
+          severity: 'success',
+          open: true
+        });
       } catch (error) {
         console.error('Error adding Google Tasks account:', error);
         setGoogleTasksLoading(false);
         setTempUserData(null);
+        setSnackbar({
+          message: 'Failed to add Google Tasks account. Please try again.',
+          severity: 'error',
+          open: true
+        });
       }
     },
     onError: () => {
       setGoogleTasksLoading(false);
       setTempUserData(null);
-      alert('Google Tasks connection failed.');
+      setSnackbar({
+        message: 'Google Tasks connection failed. Please try again.',
+        severity: 'error',
+        open: true
+      });
     },
     flow: 'implicit',
   });
@@ -1288,12 +1331,31 @@ function App() {
 
   const handleAddGoogleTasksAccountSuccess = async (credentialResponse: any) => {
     try {
+      console.log('Processing new account credential...');
       const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
       const userData = {
         name: decoded.name,
         email: decoded.email,
         picture: decoded.picture,
       };
+
+      console.log('New account data:', {
+        name: userData.name,
+        email: userData.email,
+        picture: userData.picture
+      });
+
+      // Check if this account is already connected
+      const existingAccount = googleAccounts.find(account => account.user.email === userData.email);
+      if (existingAccount) {
+        setSnackbar({
+          message: `Account ${userData.email} is already connected.`,
+          severity: 'error',
+          open: true
+        });
+        setOpenAccountDialog(false);
+        return;
+      }
 
       // Store the user data temporarily and trigger the Google Tasks login
       setTempUserData(userData);
@@ -1303,6 +1365,11 @@ function App() {
       console.error('Error during Google Tasks account addition:', error);
       setGoogleTasksLoading(false);
       setTempUserData(null);
+      setSnackbar({
+        message: 'Failed to process account credentials. Please try again.',
+        severity: 'error',
+        open: true
+      });
     }
   };
 
