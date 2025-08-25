@@ -264,8 +264,6 @@ function App() {
   const [accountMenuAnchor, setAccountMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedAccountForMenu, setSelectedAccountForMenu] = useState<number | null>(null);
   const [apiKeyStatus, setApiKeyStatus] = useState<'configured' | 'not-configured' | 'checking'>('checking');
-  const [showSyncNotification, setShowSyncNotification] = useState(false);
-  const [syncNotificationMessage, setSyncNotificationMessage] = useState('');
 
   // Dark mode toggle function
   const toggleDarkMode = () => {
@@ -4122,10 +4120,7 @@ function App() {
       setLastRefreshTime(new Date());
       console.log('Refresh completed successfully');
       
-      // Show sync success notification
-      setSyncNotificationMessage('✅ Tasks synced successfully');
-      setShowSyncNotification(true);
-      setTimeout(() => setShowSyncNotification(false), 3000);
+
       
       setIsRefreshing(false);
       setIsInitialLoad(false); // Always mark initial load as complete
@@ -5245,14 +5240,7 @@ function App() {
                 }}
               >
                 GTask ALL
-                {isRefreshing && (
-                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
-                    <CircularProgress size={16} color="inherit" sx={{ mr: 0.5 }} />
-                    <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>
-                      Syncing...
-                    </Typography>
-                  </Box>
-                )}
+
               </Typography>
 
               {/* View Mode Buttons */}
@@ -6097,36 +6085,7 @@ function App() {
         </Alert>
       </Snackbar>
       
-      {/* Sync Notification */}
-      <Snackbar
-        open={showSyncNotification}
-        autoHideDuration={3000}
-        onClose={() => setShowSyncNotification(false)}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        sx={{
-          '& .MuiSnackbarContent-root': {
-            bgcolor: 'success.main',
-            color: 'white',
-            fontWeight: 600,
-            borderRadius: 2,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          }
-        }}
-      >
-        <Alert 
-          onClose={() => setShowSyncNotification(false)} 
-          severity="success" 
-          sx={{ 
-            width: '100%',
-            bgcolor: 'success.main',
-            color: 'white',
-            '& .MuiAlert-icon': { color: 'white' },
-            '& .MuiAlert-message': { color: 'white' }
-          }}
-        >
-          {syncNotificationMessage}
-        </Alert>
-      </Snackbar>
+
     </ThemeProvider>
   );
 }
