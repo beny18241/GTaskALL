@@ -259,6 +259,7 @@ function App() {
   const [isSavingNote, setIsSavingNote] = useState(false);
 
 
+
   // Account management state
   const [expiredAccounts, setExpiredAccounts] = useState<string[]>([]);
   const [accountMenuAnchor, setAccountMenuAnchor] = useState<null | HTMLElement>(null);
@@ -327,12 +328,16 @@ function App() {
   // Function to load saved connections from database
   const loadSavedConnections = async (mainUserEmail: string) => {
     try {
+      console.log('Loading saved connections for:', mainUserEmail);
       const connections = await apiService.getConnections(mainUserEmail);
+      console.log('Found connections:', connections.length);
+      
       if (connections.length > 0) {
         const savedAccounts: GoogleAccount[] = [];
         const expiredEmails: string[] = [];
         
         for (const connection of connections) {
+          console.log('Processing connection for:', connection.gtask_account_email);
           // Try to get the stored token
           const token = await apiService.getToken(mainUserEmail, connection.gtask_account_email);
           let status = connection.status || 'active';
@@ -351,12 +356,15 @@ function App() {
           if (token && status === 'active') {
             // Test if the token is still valid by making a simple API call
             try {
+              console.log('Testing token validity for:', connection.gtask_account_email);
               await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
                 headers: { Authorization: `Bearer ${token}` }
               });
+              console.log('Token is valid for:', connection.gtask_account_email);
             } catch (error: any) {
               // Token is expired, mark as expired in DB and locally
               if (error.response?.status === 401) {
+                console.log('Token expired for:', connection.gtask_account_email);
                 await apiService.expireConnection(mainUserEmail, connection.gtask_account_email);
                 account.status = 'expired';
                 account.token = null;
@@ -367,6 +375,7 @@ function App() {
           savedAccounts.push(account);
         }
         
+        console.log('Setting up accounts:', savedAccounts.length, 'active accounts');
         setGoogleAccounts(savedAccounts);
         setExpiredAccounts(expiredEmails);
         setActiveAccountIndex(0);
@@ -375,11 +384,17 @@ function App() {
         // This ensures we get the latest data from Google Tasks
         if (savedAccounts.length > 0) {
           console.log('Loading saved connections, refreshing tasks...');
-          setTimeout(() => refreshTasks(), 1000);
+          // Use a longer delay to ensure state is properly set
+          setTimeout(() => {
+            console.log('Executing delayed refresh...');
+            refreshTasks();
+          }, 2000);
         } else {
+          console.log('No saved accounts found, marking initial load as complete');
           setIsInitialLoad(false);
         }
       } else {
+        console.log('No connections found, marking initial load as complete');
         setIsInitialLoad(false);
       }
     } catch (error) {
@@ -563,12 +578,15 @@ function App() {
 
   const handleGoogleSuccess = async (credentialResponse: any) => {
     try {
+      console.log('Google login successful, processing...');
       const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
       const userData = {
         name: decoded.name,
         email: decoded.email,
         picture: decoded.picture,
       };
+      
+      console.log('User data:', userData.email);
       
       // Create or update user account in database
       try {
@@ -583,6 +601,7 @@ function App() {
       localStorage.setItem('google-credential', credentialResponse.credential);
       
       // Load saved Google Tasks connections from database
+      console.log('Loading saved connections after login...');
       await loadSavedConnections(userData.email);
     } catch (error) {
       console.error('Error during login:', error);
@@ -3973,9 +3992,9 @@ function App() {
       return;
     }
     
-    if (isRefreshing) {
+    // Only prevent concurrent refreshes if we're not in initial load mode
+    if (isRefreshing && !isInitialLoad) {
       console.log('Already refreshing, skipping');
-      setIsInitialLoad(false); // Mark initial load as complete even if already refreshing
       return;
     }
 
@@ -3988,8 +4007,11 @@ function App() {
         try {
           // Skip expired accounts
           if (account.status === 'expired') {
+            console.log(`Skipping expired account: ${account.user.email}`);
             return null;
           }
+
+          console.log(`Fetching tasks for account: ${account.user.email}`);
 
           // Fetch task lists
           const listsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
@@ -3997,6 +4019,7 @@ function App() {
           });
           
           const taskLists = listsResponse.data.items || [];
+          console.log(`Found ${taskLists.length} task lists for ${account.user.email}`);
           
           // Update the account with new task lists
           setGoogleAccounts(prevAccounts => {
@@ -4036,6 +4059,7 @@ function App() {
               pageToken = response.data.nextPageToken;
             } while (pageToken);
 
+            console.log(`Fetched ${allTasks.length} tasks from list ${list.title}`);
             return { listId: list.id, tasks: allTasks };
           });
 
@@ -4076,6 +4100,7 @@ function App() {
             
             return null;
           }
+          console.error(`Error fetching tasks for ${account.user.email}:`, error);
           throw error;
         }
       });
@@ -4083,8 +4108,11 @@ function App() {
       const allResults = await Promise.all(allTasksPromises);
       const validResults = allResults.filter(result => result !== null);
       
+      console.log(`Successfully fetched tasks from ${validResults.length} accounts`);
+      
       if (validResults.length === 0) {
         // All tokens are expired, but don't clear accounts
+        console.log('All tokens are expired');
         setIsRefreshing(false);
         setIsInitialLoad(false); // Mark initial load as complete even if all tokens are expired
         return;
@@ -4120,16 +4148,33 @@ function App() {
       setLastRefreshTime(new Date());
       console.log('Refresh completed successfully');
       
-
+      // Show success notification if not in initial load
+      if (!isInitialLoad) {
+        setSnackbar({
+          message: `Successfully refreshed ${validResults.length} account${validResults.length > 1 ? 's' : ''}`,
+          severity: 'success',
+          open: true
+        });
+      }
       
       setIsRefreshing(false);
       setIsInitialLoad(false); // Always mark initial load as complete
     } catch (error) {
       console.error('Error refreshing tasks:', error);
+      
+      // Show error notification if not in initial load
+      if (!isInitialLoad) {
+        setSnackbar({
+          message: 'Failed to refresh tasks. Please try again.',
+          severity: 'error',
+          open: true
+        });
+      }
+      
       setIsRefreshing(false);
       setIsInitialLoad(false); // Always mark initial load as complete, even on error
     }
-  }, [googleAccounts.length, activeAccountIndex, user, updateColumnsWithTasks]);
+  }, [googleAccounts.length, activeAccountIndex, user, updateColumnsWithTasks, isInitialLoad]);
 
   // Enhanced auto-refresh with better interval management
   useEffect(() => {
@@ -5572,11 +5617,27 @@ function App() {
                 isInitialLoad || googleTasksLoading ? (
                   <Box sx={{ 
                     display: 'flex', 
+                    flexDirection: 'column',
                     justifyContent: 'center', 
                     alignItems: 'center', 
-                    height: 'calc(100vh - 100px)'
+                    height: 'calc(100vh - 100px)',
+                    gap: 2
                   }}>
-                    <Typography variant="h6">Loading Google Tasks...</Typography>
+                    <CircularProgress size={60} />
+                    <Typography variant="h6" sx={{ mt: 2 }}>
+                      {isInitialLoad ? 'Loading your tasks...' : 'Syncing with Google Tasks...'}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', maxWidth: 400 }}>
+                      {isInitialLoad 
+                        ? 'Please wait while we restore your session and load your latest tasks from Google Tasks.'
+                        : 'Fetching the latest updates from your Google Tasks accounts.'
+                      }
+                    </Typography>
+                    {isInitialLoad && (
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                        This may take a few moments if you have many tasks...
+                      </Typography>
+                    )}
                   </Box>
                 ) : (
                   <>
