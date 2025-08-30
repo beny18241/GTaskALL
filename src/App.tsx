@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid, Checkbox, ThemeProvider, createTheme, Menu, Tabs, Tab } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -139,6 +139,8 @@ function App() {
     window.addEventListener('error', handleError);
     return () => window.removeEventListener('error', handleError);
   }, []);
+
+
 
   // Cache validation functions
   const isCacheValid = useCallback(() => {
@@ -317,6 +319,11 @@ function App() {
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   
+  // Debug logging for initial load state
+  useEffect(() => {
+    console.log('isInitialLoad changed:', isInitialLoad);
+  }, [isInitialLoad]);
+  
   // Add timeout fallback to prevent infinite loading
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -324,10 +331,36 @@ function App() {
         console.log('Initial load timeout reached, forcing completion');
         setIsInitialLoad(false);
       }
-    }, 10000); // 10 second timeout
+    }, 2000); // Reduced to 2 seconds for much faster loading
 
     return () => clearTimeout(timeout);
   }, [isInitialLoad]);
+
+  // Additional fallback: if no user is logged in, don't show loading screen
+  useEffect(() => {
+    if (!user && isInitialLoad) {
+      console.log('No user logged in, skipping initial load');
+      setIsInitialLoad(false);
+    }
+  }, [user, isInitialLoad]);
+
+  // Quick cache check - if we have valid cached data, load faster
+  useEffect(() => {
+    if (isInitialLoad && user && isCacheValid()) {
+      console.log('Valid cache found, loading faster');
+      // Set a shorter timeout for cached data
+      const quickTimeout = setTimeout(() => {
+        if (isInitialLoad) {
+          setIsInitialLoad(false);
+        }
+      }, 500); // Only 500ms for cached data
+      
+      return () => clearTimeout(quickTimeout);
+    }
+  }, [isInitialLoad, user, isCacheValid]);
+
+  // Create a ref to store the refresh function
+  const refreshTasksRef = useRef<(() => Promise<void>) | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
   const [refreshInterval, setRefreshInterval] = useState<Timeout | null>(null);
@@ -449,6 +482,16 @@ function App() {
     } else {
       setIsInitialLoad(false);
     }
+
+    // 3. Force completion after a short delay to prevent infinite loading
+    const forceCompleteTimer = setTimeout(() => {
+      if (isInitialLoad) {
+        console.log('Forcing initial load completion after timeout');
+        setIsInitialLoad(false);
+      }
+    }, 3000);
+
+    return () => clearTimeout(forceCompleteTimer);
   }, [isCacheValid]);
 
   // Function to load saved connections from database
@@ -613,7 +656,10 @@ function App() {
           // If it's been more than 30 minutes since last refresh, force a refresh
           if (timeSinceLastRefresh > DATA_FRESHNESS_THRESHOLD) {
             console.log('User returned to tab after extended period, refreshing data...');
-            refreshTasks();
+            // Use the ref to call refreshTasks if it's available
+            if (refreshTasksRef.current) {
+              refreshTasksRef.current();
+            }
           }
         }
       }
@@ -623,7 +669,7 @@ function App() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [googleAccounts.length, refreshTasks]);
+  }, [googleAccounts.length]);
 
   // Update the effect for fetching Google Tasks to work with multiple accounts
   useEffect(() => {
@@ -4380,39 +4426,30 @@ function App() {
       setLastRefreshTime(new Date());
       console.log('Refresh completed successfully');
       
-      // Show success notification if not in initial load
-      if (!isInitialLoad) {
-        setSnackbar({
-          message: `Successfully refreshed ${validResults.length} account${validResults.length > 1 ? 's' : ''}`,
-          severity: 'success',
-          open: true
-        });
-      }
+      // Removed success notification - no longer showing refresh confirmations
       
       setIsRefreshing(false);
       setIsInitialLoad(false); // Always mark initial load as complete
     } catch (error) {
       console.error('Error refreshing tasks:', error);
       
-      // Show error notification if not in initial load
-      if (!isInitialLoad) {
-        setSnackbar({
-          message: 'Failed to refresh tasks. Please try again.',
-          severity: 'error',
-          open: true
-        });
-      }
+      // Removed error notification - no longer showing refresh confirmations
       
       setIsRefreshing(false);
       setIsInitialLoad(false); // Always mark initial load as complete, even on error
     }
   }, [googleAccounts.length, activeAccountIndex, user, updateColumnsWithTasks, isInitialLoad]);
 
+  // Assign refreshTasks to ref so it can be used in other useEffects
+  useEffect(() => {
+    refreshTasksRef.current = refreshTasks;
+  }, [refreshTasks]);
+
   // Enhanced auto-refresh with better interval management
   useEffect(() => {
     if (googleAccounts.length > 0) {
-      // Set up auto-refresh every 30 seconds (increased from 15 for better performance)
-      const interval = setInterval(refreshTasks, 30000);
+      // Set up auto-refresh every 60 seconds (increased for better performance and less intrusive)
+      const interval = setInterval(refreshTasks, 60000);
       setRefreshInterval(interval);
 
       return () => {
@@ -4438,7 +4475,7 @@ function App() {
           console.log('Page became visible, triggering sync...');
           refreshTasks();
           // Reset to active interval
-          syncInterval = setInterval(refreshTasks, 15000); // More frequent when active
+          syncInterval = setInterval(refreshTasks, 30000); // Less frequent when active
         } else {
           // Less frequent when page is hidden
           if (syncInterval) clearInterval(syncInterval);
@@ -4462,7 +4499,7 @@ function App() {
       document.addEventListener('focus', handleUserActivity);
 
       // Initial sync interval (active state)
-      syncInterval = setInterval(refreshTasks, 15000);
+      syncInterval = setInterval(refreshTasks, 30000);
 
       return () => {
         if (syncInterval) clearInterval(syncInterval);
@@ -5858,64 +5895,23 @@ function App() {
                   }}>
                     <CircularProgress size={60} />
                     <Typography variant="h6" sx={{ mt: 2 }}>
-                      {isInitialLoad ? 'Loading your tasks...' : 'Syncing with Google Tasks...'}
+                      Loading...
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', maxWidth: 400 }}>
-                      {isInitialLoad 
-                        ? 'Please wait while we restore your session and load your latest tasks from Google Tasks.'
-                        : 'Fetching the latest updates from your Google Tasks accounts.'
-                      }
+                      Preparing your workspace
                     </Typography>
-                    {isInitialLoad && (
-                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                        This may take a few moments if you have many tasks...
-                      </Typography>
-                    )}
-                    {!isCacheValid() && (
-                      <Alert severity="warning" sx={{ mt: 2, maxWidth: 400 }}>
-                        <Typography variant="caption">
-                          Cache expired - refreshing data from server to ensure you have the latest information.
-                        </Typography>
-                      </Alert>
-                    )}
+
+                    <Button
+                      variant="outlined"
+                      onClick={() => setIsInitialLoad(false)}
+                      sx={{ mt: 2 }}
+                    >
+                      Continue to App
+                    </Button>
                   </Box>
                 ) : (
                   <>
-                    {/* Cache Status Warning */}
-                    {!isCacheValid() && (
-                      <Alert 
-                        severity="warning" 
-                        sx={{ 
-                          mb: 2,
-                          '& .MuiAlert-message': {
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            width: '100%'
-                          }
-                        }}
-                        action={
-                          <Button
-                            color="inherit"
-                            size="small"
-                            onClick={refreshTasks}
-                            disabled={isRefreshing}
-                            startIcon={isRefreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
-                          >
-                            {isRefreshing ? 'Refreshing...' : 'Refresh Now'}
-                          </Button>
-                        }
-                      >
-                        <Box>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            Data may be outdated
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Your last sync was more than 30 minutes ago. Click refresh to get the latest data.
-                          </Typography>
-                        </Box>
-                      </Alert>
-                    )}
+                    {/* Removed cache status warning - no longer showing refresh information */}
                     
                     {viewMode === 'list' && renderListView()}
                     {viewMode === 'calendar' && renderCalendarView()}

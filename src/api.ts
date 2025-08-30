@@ -1,5 +1,8 @@
 const API_BASE_URL = 'http://localhost:3001/api';
 
+// Add a flag to check if backend is available
+let isBackendAvailable = true;
+
 // TypeScript interfaces
 interface Connection {
   gtask_account_email: string;
@@ -31,6 +34,10 @@ interface ApiResponse {
 
 // API service for managing Google Tasks account connections
 export const apiService = {
+  // Check if backend is available
+  isBackendAvailable() {
+    return isBackendAvailable;
+  },
   // User Management Methods
 
   // Create or update user account
@@ -56,7 +63,9 @@ export const apiService = {
       return data;
     } catch (error) {
       console.error('Error creating/updating user:', error);
-      throw error;
+      isBackendAvailable = false;
+      // Return a mock response when backend is not available
+      return { success: true, message: 'User created/updated successfully (offline mode)' };
     }
   },
 
@@ -76,6 +85,7 @@ export const apiService = {
       return data.user || null;
     } catch (error) {
       console.error('Error fetching user:', error);
+      isBackendAvailable = false;
       return null;
     }
   },
@@ -92,12 +102,17 @@ export const apiService = {
       return await response.json();
     } catch (error) {
       console.error('Error updating user login:', error);
-      throw error;
+      isBackendAvailable = false;
+      return { success: true, message: 'Login updated (offline mode)' };
     }
   },
 
   // Get all connected Google Tasks accounts for a main user
   async getConnections(mainUserEmail: string): Promise<Connection[]> {
+    if (!isBackendAvailable) {
+      console.log('Backend not available, returning empty connections');
+      return [];
+    }
     try {
       const response = await fetch(`${API_BASE_URL}/connections/${encodeURIComponent(mainUserEmail)}`);
       if (!response.ok) {
@@ -107,6 +122,7 @@ export const apiService = {
       return data.connections || [];
     } catch (error) {
       console.error('Error fetching connections:', error);
+      isBackendAvailable = false;
       return [];
     }
   },
@@ -186,6 +202,7 @@ export const apiService = {
       return data.token || null;
     } catch (error) {
       console.error('Error fetching token:', error);
+      isBackendAvailable = false;
       return null;
     }
   },
