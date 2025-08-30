@@ -17,6 +17,15 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json());
 
+// Add cache control middleware for API routes
+app.use('/api', (req, res, next) => {
+  // Prevent caching of API responses
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
+
 // Initialize SQLite database
 const db = new sqlite3.Database('./gtaskall.db', (err) => {
   if (err) {

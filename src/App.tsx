@@ -98,6 +98,11 @@ const GOOGLE_CLIENT_ID = "251184335563-bdf3sv4vc1sr4v2itciiepd7fllvshec.apps.goo
 const DARK_MODE_KEY = 'dark-mode-preference';
 const API_BASE_URL = 'http://localhost:3001/api';
 
+// Add cache control constants
+const CACHE_TIMESTAMP_KEY = 'kanban-cache-timestamp';
+const CACHE_EXPIRY_HOURS = 1; // Cache expires after 1 hour
+const DATA_FRESHNESS_THRESHOLD = 30 * 60 * 1000; // 30 minutes in milliseconds
+
 // Add new view mode type
 type ViewMode = 'kanban' | 'list' | 'calendar' | 'today' | 'ultimate' | 'upcoming' | 'gantt';
 
@@ -123,6 +128,31 @@ interface DateSection {
 }
 
 function App() {
+  // Cache validation functions
+  const isCacheValid = useCallback(() => {
+    const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+    if (!timestamp) return false;
+    
+    const cacheTime = new Date(timestamp).getTime();
+    const currentTime = new Date().getTime();
+    const expiryTime = CACHE_EXPIRY_HOURS * 60 * 60 * 1000; // Convert hours to milliseconds
+    
+    return (currentTime - cacheTime) < expiryTime;
+  }, []);
+
+  const updateCacheTimestamp = useCallback(() => {
+    localStorage.setItem(CACHE_TIMESTAMP_KEY, new Date().toISOString());
+  }, []);
+
+  const clearStaleCache = useCallback(() => {
+    console.log('Clearing stale cache data...');
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(GOOGLE_ACCOUNTS_KEY);
+    localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+    // Don't clear user data or dark mode preference
+    console.log('Cache cleared successfully');
+  }, []);
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDrawerExpanded, setIsDrawerExpanded] = useState(true);
   const [doneTasksLimit, setDoneTasksLimit] = useState(3);
@@ -151,12 +181,21 @@ function App() {
   
   const [columns, setColumns] = useState<Column[]>(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
-    if (savedData) {
-      const parsedData = JSON.parse(savedData);
-      // Ensure the Done column has a limit
-      return parsedData.map((col: Column) => 
-        col.id === 'done' ? { ...col, limit: col.limit || 3 } : col
-      );
+    if (savedData && isCacheValid()) {
+      try {
+        const parsedData = JSON.parse(savedData);
+        // Ensure the Done column has a limit
+        return parsedData.map((col: Column) => 
+          col.id === 'done' ? { ...col, limit: col.limit || 3 } : col
+        );
+      } catch (error) {
+        console.error('Error parsing cached columns data:', error);
+        // Fall back to default columns if parsing fails
+      }
+    } else if (savedData && !isCacheValid()) {
+      console.log('Cache is stale, will refresh data from server');
+      // Clear stale cache but don't clear it here to avoid race conditions
+      // It will be cleared in the useEffect
     }
     return [
       {
@@ -190,7 +229,17 @@ function App() {
   });
   const [googleAccounts, setGoogleAccounts] = useState<GoogleAccount[]>(() => {
     const savedAccounts = localStorage.getItem(GOOGLE_ACCOUNTS_KEY);
-    return savedAccounts ? JSON.parse(savedAccounts) : [];
+    if (savedAccounts && isCacheValid()) {
+      try {
+        return JSON.parse(savedAccounts);
+      } catch (error) {
+        console.error('Error parsing cached Google accounts data:', error);
+        return [];
+      }
+    } else if (savedAccounts && !isCacheValid()) {
+      console.log('Google accounts cache is stale, will refresh from server');
+    }
+    return [];
   });
   const [activeAccountIndex, setActiveAccountIndex] = useState<number>(0);
   const [googleTasksLoading, setGoogleTasksLoading] = useState(false);
@@ -290,14 +339,26 @@ function App() {
     }
   };
 
+  // Cache validation and cleanup on app startup
+  useEffect(() => {
+    // Check if cache is stale and clear it if necessary
+    if (!isCacheValid()) {
+      console.log('Cache is stale, clearing old data...');
+      clearStaleCache();
+    } else {
+      console.log('Cache is valid, using cached data');
+    }
+  }, [isCacheValid, clearStaleCache]);
+
   // Add effect to restore user session on mount
   useEffect(() => {
-    // 1. Load from localStorage immediately
+    // 1. Load from localStorage immediately (only if cache is valid)
     const savedAccounts = localStorage.getItem(GOOGLE_ACCOUNTS_KEY);
-    if (savedAccounts) {
+    if (savedAccounts && isCacheValid()) {
       try {
         setGoogleAccounts(JSON.parse(savedAccounts));
       } catch (e) {
+        console.error('Error parsing cached Google accounts:', e);
         setGoogleAccounts([]);
       }
     }
@@ -323,7 +384,7 @@ function App() {
     } else {
       setIsInitialLoad(false);
     }
-  }, []);
+  }, [isCacheValid]);
 
   // Function to load saved connections from database
   const loadSavedConnections = async (mainUserEmail: string) => {
@@ -380,6 +441,9 @@ function App() {
         setExpiredAccounts(expiredEmails);
         setActiveAccountIndex(0);
         
+        // Update cache timestamp when fresh data is loaded
+        updateCacheTimestamp();
+        
         // Always refresh tasks when loading saved connections, regardless of account status
         // This ensures we get the latest data from Google Tasks
         if (savedAccounts.length > 0) {
@@ -416,19 +480,21 @@ function App() {
   useEffect(() => {
     const timer = setTimeout(() => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
+      updateCacheTimestamp(); // Update cache timestamp when data changes
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [columns]);
+  }, [columns, updateCacheTimestamp]);
 
   // Save accounts to localStorage whenever they change - optimized with debouncing
   useEffect(() => {
     const timer = setTimeout(() => {
       localStorage.setItem(GOOGLE_ACCOUNTS_KEY, JSON.stringify(googleAccounts));
+      updateCacheTimestamp(); // Update cache timestamp when data changes
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [googleAccounts]);
+  }, [googleAccounts, updateCacheTimestamp]);
 
   // Check for existing user data on app startup
   useEffect(() => {
@@ -458,7 +524,7 @@ function App() {
           // If there's an error, clear local storage and start fresh
           localStorage.removeItem(USER_STORAGE_KEY);
           localStorage.removeItem(GOOGLE_ACCOUNTS_KEY);
-          setIsInitialLoad(false);
+            setIsInitialLoad(false);
         }
       } else {
         setIsInitialLoad(false);
@@ -467,6 +533,32 @@ function App() {
 
     checkExistingUser();
   }, []);
+
+  // Handle browser visibility changes to refresh data when user returns
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && googleAccounts.length > 0) {
+        // User has returned to the tab, check if data is stale
+        const lastRefresh = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+        if (lastRefresh) {
+          const lastRefreshTime = new Date(lastRefresh).getTime();
+          const currentTime = new Date().getTime();
+          const timeSinceLastRefresh = currentTime - lastRefreshTime;
+          
+          // If it's been more than 30 minutes since last refresh, force a refresh
+          if (timeSinceLastRefresh > DATA_FRESHNESS_THRESHOLD) {
+            console.log('User returned to tab after extended period, refreshing data...');
+            refreshTasks();
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [googleAccounts.length, refreshTasks]);
 
   // Update the effect for fetching Google Tasks to work with multiple accounts
   useEffect(() => {
@@ -4065,6 +4157,14 @@ function App() {
       return;
     }
 
+    // Check if we need to force refresh due to stale data
+    const lastRefresh = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+    const needsForceRefresh = !lastRefresh || !isCacheValid();
+    
+    if (needsForceRefresh) {
+      console.log('Data is stale, forcing refresh from server...');
+    }
+
     try {
       console.log('Starting refresh...');
       setIsRefreshing(true);
@@ -5602,21 +5702,22 @@ function App() {
                       width: 32,
                       height: 32,
                       borderRadius: '50%',
-                      bgcolor: isRefreshing ? 'warning.main' : 'success.main',
+                      bgcolor: isRefreshing ? 'warning.main' : (!isCacheValid() ? 'error.main' : 'success.main'),
                       color: 'white',
                       transition: 'all 0.3s ease',
-                      boxShadow: '0 0 8px rgba(255, 255, 255, 0.3)',
+                      boxShadow: !isCacheValid() ? '0 0 12px rgba(244, 67, 54, 0.6)' : '0 0 8px rgba(255, 255, 255, 0.3)',
+                      border: !isCacheValid() ? '2px solid rgba(244, 67, 54, 0.8)' : 'none',
                       '&:hover': {
                         transform: 'rotate(180deg)',
-                        backgroundColor: isRefreshing ? 'warning.dark' : 'success.dark',
-                        boxShadow: '0 0 12px rgba(255, 255, 255, 0.5)',
+                        backgroundColor: isRefreshing ? 'warning.dark' : (!isCacheValid() ? 'error.dark' : 'success.dark'),
+                        boxShadow: !isCacheValid() ? '0 0 16px rgba(244, 67, 54, 0.8)' : '0 0 12px rgba(255, 255, 255, 0.5)',
                       },
                       '&.Mui-disabled': {
                         bgcolor: 'rgba(255, 255, 255, 0.2)',
                         color: 'rgba(255, 255, 255, 0.5)',
                       }
                     }}
-                    title={`${isRefreshing ? 'Syncing...' : 'Sync Now'} (Last: ${lastRefreshTime ? format(lastRefreshTime, 'HH:mm') : 'Never'})`}
+                    title={`${isRefreshing ? 'Syncing...' : 'Sync Now'} (Last: ${lastRefreshTime ? format(lastRefreshTime, 'HH:mm') : 'Never'})${!isCacheValid() ? ' - Cache expired, refresh recommended' : ''}`}
                   >
                     {isRefreshing ? (
                       <CircularProgress 
@@ -5705,9 +5806,52 @@ function App() {
                         This may take a few moments if you have many tasks...
                       </Typography>
                     )}
+                    {!isCacheValid() && (
+                      <Alert severity="warning" sx={{ mt: 2, maxWidth: 400 }}>
+                        <Typography variant="caption">
+                          Cache expired - refreshing data from server to ensure you have the latest information.
+                        </Typography>
+                      </Alert>
+                    )}
                   </Box>
                 ) : (
                   <>
+                    {/* Cache Status Warning */}
+                    {!isCacheValid() && (
+                      <Alert 
+                        severity="warning" 
+                        sx={{ 
+                          mb: 2,
+                          '& .MuiAlert-message': {
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            width: '100%'
+                          }
+                        }}
+                        action={
+                          <Button
+                            color="inherit"
+                            size="small"
+                            onClick={refreshTasks}
+                            disabled={isRefreshing}
+                            startIcon={isRefreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
+                          >
+                            {isRefreshing ? 'Refreshing...' : 'Refresh Now'}
+                          </Button>
+                        }
+                      >
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            Data may be outdated
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Your last sync was more than 30 minutes ago. Click refresh to get the latest data.
+                          </Typography>
+                        </Box>
+                      </Alert>
+                    )}
+                    
                     {viewMode === 'list' && renderListView()}
                     {viewMode === 'calendar' && renderCalendarView()}
                     {viewMode === 'today' && renderTodayView()}
