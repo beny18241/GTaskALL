@@ -128,16 +128,33 @@ interface DateSection {
 }
 
 function App() {
+  // Add error boundary for the entire app
+  useEffect(() => {
+    const handleError = (error: ErrorEvent) => {
+      console.error('App error caught:', error);
+      // Force app to continue even if there are errors
+      setIsInitialLoad(false);
+    };
+
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
+
   // Cache validation functions
   const isCacheValid = useCallback(() => {
-    const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
-    if (!timestamp) return false;
-    
-    const cacheTime = new Date(timestamp).getTime();
-    const currentTime = new Date().getTime();
-    const expiryTime = CACHE_EXPIRY_HOURS * 60 * 60 * 1000; // Convert hours to milliseconds
-    
-    return (currentTime - cacheTime) < expiryTime;
+    try {
+      const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+      if (!timestamp) return false;
+      
+      const cacheTime = new Date(timestamp).getTime();
+      const currentTime = new Date().getTime();
+      const expiryTime = CACHE_EXPIRY_HOURS * 60 * 60 * 1000; // Convert hours to milliseconds
+      
+      return (currentTime - cacheTime) < expiryTime;
+    } catch (error) {
+      console.error('Error in cache validation:', error);
+      return false;
+    }
   }, []);
 
   const updateCacheTimestamp = useCallback(() => {
@@ -181,7 +198,12 @@ function App() {
   
   const [columns, setColumns] = useState<Column[]>(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
-    if (savedData && isCacheValid()) {
+    const cacheTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+    
+    // If there's saved data but no cache timestamp, it's from before the cache system
+    // In this case, we should use the data but mark it as needing refresh
+    if (savedData && !cacheTimestamp) {
+      console.log('Found data without cache timestamp, using it but will refresh');
       try {
         const parsedData = JSON.parse(savedData);
         // Ensure the Done column has a limit
@@ -192,7 +214,18 @@ function App() {
         console.error('Error parsing cached columns data:', error);
         // Fall back to default columns if parsing fails
       }
-    } else if (savedData && !isCacheValid()) {
+    } else if (savedData && cacheTimestamp && isCacheValid()) {
+      try {
+        const parsedData = JSON.parse(savedData);
+        // Ensure the Done column has a limit
+        return parsedData.map((col: Column) => 
+          col.id === 'done' ? { ...col, limit: col.limit || 3 } : col
+        );
+      } catch (error) {
+        console.error('Error parsing cached columns data:', error);
+        // Fall back to default columns if parsing fails
+      }
+    } else if (savedData && cacheTimestamp && !isCacheValid()) {
       console.log('Cache is stale, will refresh data from server');
       // Clear stale cache but don't clear it here to avoid race conditions
       // It will be cleared in the useEffect
@@ -229,14 +262,26 @@ function App() {
   });
   const [googleAccounts, setGoogleAccounts] = useState<GoogleAccount[]>(() => {
     const savedAccounts = localStorage.getItem(GOOGLE_ACCOUNTS_KEY);
-    if (savedAccounts && isCacheValid()) {
+    const cacheTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+    
+    // If there's saved accounts but no cache timestamp, it's from before the cache system
+    // In this case, we should use the data but mark it as needing refresh
+    if (savedAccounts && !cacheTimestamp) {
+      console.log('Found Google accounts without cache timestamp, using them but will refresh');
       try {
         return JSON.parse(savedAccounts);
       } catch (error) {
         console.error('Error parsing cached Google accounts data:', error);
         return [];
       }
-    } else if (savedAccounts && !isCacheValid()) {
+    } else if (savedAccounts && cacheTimestamp && isCacheValid()) {
+      try {
+        return JSON.parse(savedAccounts);
+      } catch (error) {
+        console.error('Error parsing cached Google accounts data:', error);
+        return [];
+      }
+    } else if (savedAccounts && cacheTimestamp && !isCacheValid()) {
       console.log('Google accounts cache is stale, will refresh from server');
     }
     return [];
@@ -271,6 +316,18 @@ function App() {
   });
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // Add timeout fallback to prevent infinite loading
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (isInitialLoad) {
+        console.log('Initial load timeout reached, forcing completion');
+        setIsInitialLoad(false);
+      }
+    }, 10000); // 10 second timeout
+
+    return () => clearTimeout(timeout);
+  }, [isInitialLoad]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
   const [refreshInterval, setRefreshInterval] = useState<Timeout | null>(null);
@@ -341,12 +398,16 @@ function App() {
 
   // Cache validation and cleanup on app startup
   useEffect(() => {
-    // Check if cache is stale and clear it if necessary
-    if (!isCacheValid()) {
+    // Only clear cache if there's actually cached data and it's stale
+    const hasCachedData = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(GOOGLE_ACCOUNTS_KEY);
+    
+    if (hasCachedData && !isCacheValid()) {
       console.log('Cache is stale, clearing old data...');
       clearStaleCache();
-    } else {
+    } else if (hasCachedData && isCacheValid()) {
       console.log('Cache is valid, using cached data');
+    } else {
+      console.log('No cached data found, starting fresh');
     }
   }, [isCacheValid, clearStaleCache]);
 
@@ -354,7 +415,10 @@ function App() {
   useEffect(() => {
     // 1. Load from localStorage immediately (only if cache is valid)
     const savedAccounts = localStorage.getItem(GOOGLE_ACCOUNTS_KEY);
-    if (savedAccounts && isCacheValid()) {
+    const cacheTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+    
+    // Handle legacy data (before cache system) or valid cache
+    if (savedAccounts && (!cacheTimestamp || isCacheValid())) {
       try {
         setGoogleAccounts(JSON.parse(savedAccounts));
       } catch (e) {
@@ -362,6 +426,7 @@ function App() {
         setGoogleAccounts([]);
       }
     }
+    
     // 2. Load from DB in the background
     const savedCredential = localStorage.getItem('google-credential');
     if (savedCredential) {
