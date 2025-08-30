@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import { Box, CssBaseline, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Paper, Stack, Avatar, Divider, Select, MenuItem, Chip, Grid, Checkbox, ThemeProvider, createTheme, Menu, Tabs, Tab } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -31,7 +31,7 @@ import ListIcon from '@mui/icons-material/List';
 import EditIcon from '@mui/icons-material/Edit';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import { CircularProgress } from '@mui/material';
+import { CircularProgress, Skeleton } from '@mui/material';
 import { apiService } from './api';
 import TaskRow from './TaskRow.tsx';
 import GanttChart from './GanttChart.tsx';
@@ -142,14 +142,14 @@ function App() {
 
 
 
-  // Cache validation functions
+  // Cache validation functions - optimized with memoization
   const isCacheValid = useCallback(() => {
     try {
       const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
       if (!timestamp) return false;
       
       const cacheTime = new Date(timestamp).getTime();
-      const currentTime = new Date().getTime();
+      const currentTime = Date.now(); // More efficient than new Date().getTime()
       const expiryTime = CACHE_EXPIRY_HOURS * 60 * 60 * 1000; // Convert hours to milliseconds
       
       return (currentTime - cacheTime) < expiryTime;
@@ -161,6 +161,7 @@ function App() {
 
   const updateCacheTimestamp = useCallback(() => {
     localStorage.setItem(CACHE_TIMESTAMP_KEY, new Date().toISOString());
+    console.log('Cache timestamp updated:', new Date().toISOString());
   }, []);
 
   const clearStaleCache = useCallback(() => {
@@ -416,7 +417,7 @@ function App() {
   }, [darkMode]);
 
   // Color coding for different accounts - optimized with useMemo
-  const getAccountColor = (accountEmail: string) => {
+  const getAccountColor = useMemo(() => (accountEmail: string) => {
     switch (accountEmail) {
       case 'beny18241@gmail.com':
         return '#2196F3'; // Blue
@@ -427,7 +428,7 @@ function App() {
       default:
         return '#9C27B0'; // Purple for any other accounts
     }
-  };
+  }, []);
 
   // Cache validation and cleanup on app startup
   useEffect(() => {
@@ -5893,7 +5894,17 @@ function App() {
                     height: 'calc(100vh - 100px)',
                     gap: 2
                   }}>
-                    <CircularProgress size={60} />
+                    <CircularProgress 
+                      size={60} 
+                      sx={{ 
+                        animation: 'pulse 2s ease-in-out infinite',
+                        '@keyframes pulse': {
+                          '0%': { opacity: 0.7 },
+                          '50%': { opacity: 1 },
+                          '100%': { opacity: 0.7 }
+                        }
+                      }} 
+                    />
                     <Typography variant="h6" sx={{ mt: 2 }}>
                       Loading...
                     </Typography>
