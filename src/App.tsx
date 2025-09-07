@@ -292,6 +292,11 @@ function App() {
   const [activeAccountIndex, setActiveAccountIndex] = useState<number>(0);
   const [googleTasksLoading, setGoogleTasksLoading] = useState(false);
   const [openAccountDialog, setOpenAccountDialog] = useState(false);
+  
+  // Debug dialog state
+  useEffect(() => {
+    console.log('openAccountDialog state changed:', openAccountDialog);
+  }, [openAccountDialog]);
   const [selectedAccountForRemoval, setSelectedAccountForRemoval] = useState<number | null>(null);
   const [googleTasksButtonHover, setGoogleTasksButtonHover] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -672,7 +677,7 @@ function App() {
     };
   }, [googleAccounts.length]);
 
-  // Update the effect for fetching Google Tasks to work with multiple accounts
+  // Optimized effect for fetching Google Tasks with better performance
   useEffect(() => {
     if (googleAccounts.length === 0) {
       setIsInitialLoad(false);
@@ -682,74 +687,111 @@ function App() {
     const fetchTasksForAllAccounts = async () => {
       try {
         setGoogleTasksLoading(true);
+        console.log('🚀 Starting optimized task loading...');
 
-        // Fetch tasks for all accounts
-        const allTasksPromises = googleAccounts.map(async (account, index) => {
-          // Fetch task lists
-          const listsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
-            headers: { Authorization: `Bearer ${account.token}` }
-          });
-          
-          const taskLists = listsResponse.data.items || [];
-          
-          // Update the account with new task lists
-          setGoogleAccounts(prevAccounts => {
-            const newAccounts = [...prevAccounts];
-            newAccounts[index] = {
-              ...newAccounts[index],
-              taskLists
-            };
-            return newAccounts;
-          });
-
-          // Fetch tasks for each list with proper pagination
-          const tasksPromises = taskLists.map(async (list: any) => {
-            let allTasks: any[] = [];
-            let pageToken: string | undefined;
+        // Create a cache key for this fetch operation
+        const cacheKey = `tasks_${googleAccounts.map(acc => acc.user.email).join('_')}_${Date.now()}`;
+        
+        // Fetch all task lists for all accounts in parallel
+        const taskListsPromises = googleAccounts.map(async (account, index) => {
+          try {
+            const listsResponse = await axios.get('https://www.googleapis.com/tasks/v1/users/@me/lists', {
+              headers: { Authorization: `Bearer ${account.token}` },
+              timeout: 10000 // 10 second timeout
+            });
             
-            do {
-              const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
-                headers: { Authorization: `Bearer ${account.token}` },
-                params: {
-                  showCompleted: true,
-                  showHidden: true,
-                  maxResults: 100,
-                  pageToken: pageToken
-                }
-              });
-              
-              const tasks = response.data.items || [];
-              // Add account info to each task
-              const tasksWithAccount = tasks.map((task: any) => ({
-                ...task,
-                accountEmail: account.user.email,
-                accountName: account.user.name,
-                accountPicture: account.user.picture
-              }));
-              allTasks = [...allTasks, ...tasksWithAccount];
-              pageToken = response.data.nextPageToken;
-            } while (pageToken);
-
-            return { listId: list.id, tasks: allTasks };
-          });
-
-          const results = await Promise.all(tasksPromises);
-          const tasksByList: { [listId: string]: any[] } = {};
-          results.forEach(({ listId, tasks }) => {
-            tasksByList[listId] = tasks;
-          });
-
-          return { accountIndex: index, tasksByList };
+            const taskLists = listsResponse.data.items || [];
+            console.log(`📋 Fetched ${taskLists.length} task lists for ${account.user.email}`);
+            
+            return { accountIndex: index, taskLists };
+          } catch (error) {
+            console.error(`Error fetching task lists for ${account.user.email}:`, error);
+            return { accountIndex: index, taskLists: [] };
+          }
         });
 
-        const allResults = await Promise.all(allTasksPromises);
+        const taskListsResults = await Promise.all(taskListsPromises);
         
-        // Update all accounts with their tasks
+        // Update accounts with task lists immediately for better UX
         setGoogleAccounts(prevAccounts => {
           const newAccounts = [...prevAccounts];
-          allResults.forEach(({ accountIndex, tasksByList }) => {
+          taskListsResults.forEach(({ accountIndex, taskLists }) => {
             newAccounts[accountIndex] = {
               ...newAccounts[accountIndex],
+              taskLists
+            };
+          });
+          return newAccounts;
+        });
+
+        // Now fetch all tasks in parallel with optimized batching
+        const allTasksPromises = taskListsResults.flatMap(({ accountIndex, taskLists }) => {
+          const account = googleAccounts[accountIndex];
+          return taskLists.map(async (list: any) => {
+            try {
+              // Fetch all tasks for this list with optimized pagination
+              let allTasks: any[] = [];
+              let pageToken: string | undefined;
+              let pageCount = 0;
+              const maxPages = 5; // Limit to prevent infinite loops
+              
+              do {
+                const response = await axios.get(`https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks`, {
+                  headers: { Authorization: `Bearer ${account.token}` },
+                  params: {
+                    showCompleted: true,
+                    showHidden: true,
+                    maxResults: 100, // Increased from default
+                    pageToken: pageToken
+                  },
+                  timeout: 15000 // 15 second timeout
+                });
+                
+                const tasks = response.data.items || [];
+                // Add account info to each task
+                const tasksWithAccount = tasks.map((task: any) => ({
+                  ...task,
+                  accountEmail: account.user.email,
+                  accountName: account.user.name,
+                  accountPicture: account.user.picture
+                }));
+                allTasks = [...allTasks, ...tasksWithAccount];
+                pageToken = response.data.nextPageToken;
+                pageCount++;
+                
+                // Show progress for large lists
+                if (pageCount > 1) {
+                  console.log(`📄 Loading page ${pageCount} for ${list.title} (${account.user.email})`);
+                }
+              } while (pageToken && pageCount < maxPages);
+
+              console.log(`✅ Loaded ${allTasks.length} tasks from ${list.title} (${account.user.email})`);
+              return { accountIndex, listId: list.id, tasks: allTasks };
+            } catch (error) {
+              console.error(`Error fetching tasks for list ${list.title} (${account.user.email}):`, error);
+              return { accountIndex, listId: list.id, tasks: [] };
+            }
+          });
+        });
+
+        // Process results as they come in for better UX
+        const results = await Promise.all(allTasksPromises);
+        
+        // Group tasks by account
+        const tasksByAccount: { [accountIndex: number]: { [listId: string]: any[] } } = {};
+        results.forEach(({ accountIndex, listId, tasks }) => {
+          if (!tasksByAccount[accountIndex]) {
+            tasksByAccount[accountIndex] = {};
+          }
+          tasksByAccount[accountIndex][listId] = tasks;
+        });
+
+        // Update accounts with their tasks
+        setGoogleAccounts(prevAccounts => {
+          const newAccounts = [...prevAccounts];
+          Object.entries(tasksByAccount).forEach(([accountIndex, tasksByList]) => {
+            newAccounts[parseInt(accountIndex)] = {
+              ...newAccounts[parseInt(accountIndex)],
               tasks: tasksByList
             };
           });
@@ -758,19 +800,26 @@ function App() {
 
         // Combine tasks from all accounts
         const combinedTasksByList: { [listId: string]: any[] } = {};
-        allResults.forEach(({ tasksByList }) => {
-          Object.entries(tasksByList).forEach(([listId, tasks]) => {
-            if (!combinedTasksByList[listId]) {
-              combinedTasksByList[listId] = [];
-            }
-            combinedTasksByList[listId] = [...combinedTasksByList[listId], ...tasks];
-          });
+        results.forEach(({ listId, tasks }) => {
+          if (!combinedTasksByList[listId]) {
+            combinedTasksByList[listId] = [];
+          }
+          combinedTasksByList[listId] = [...combinedTasksByList[listId], ...tasks];
         });
 
         // Update columns with the combined tasks
         updateColumnsWithTasks(combinedTasksByList);
+        
+        const totalTasks = Object.values(combinedTasksByList).flat().length;
+        console.log(`🎉 Successfully loaded ${totalTasks} tasks from ${googleAccounts.length} accounts`);
+        
       } catch (error) {
         console.error('Error fetching tasks:', error);
+        setSnackbar({
+          message: 'Failed to load some tasks. Please try refreshing.',
+          severity: 'error',
+          open: true
+        });
       } finally {
         setGoogleTasksLoading(false);
         setIsInitialLoad(false);
@@ -856,81 +905,110 @@ function App() {
     flow: 'implicit',
   });
 
-  const loginGoogleTasksForNewAccount = useGoogleLogin({
-    scope: 'https://www.googleapis.com/auth/tasks',
+  // Simplified hook for adding new Google Tasks accounts
+  const loginForNewAccount = useGoogleLogin({
+    scope: 'https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
     onSuccess: async (tokenResponse) => {
       try {
-        if (!tempUserData) {
-          throw new Error('No user data available');
-        }
-
+        console.log('Google OAuth success for new account, getting user info...');
+        
         if (!user) {
           throw new Error('Main user not logged in');
         }
 
+        // Get user info from Google
+        const userInfoResponse = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${tokenResponse.access_token}`);
+        const userInfo = await userInfoResponse.json();
+        
+        console.log('User info received:', userInfo);
+        
         // Check if account already exists
-        const existingAccountIndex = googleAccounts.findIndex(account => account.user.email === tempUserData.email);
+        const existingAccountIndex = googleAccounts.findIndex(account => account.user.email === userInfo.email);
         if (existingAccountIndex !== -1) {
-          alert(`Account ${tempUserData.email} is already connected.`);
+          alert(`Account ${userInfo.email} is already connected.`);
           setGoogleTasksLoading(false);
-          setTempUserData(null);
           setOpenAccountDialog(false);
           return;
         }
 
-        console.log('Adding new account:', tempUserData.email, 'with picture:', tempUserData.picture);
+        console.log('Adding new account:', userInfo.email, 'with picture:', userInfo.picture);
 
         const newAccount: GoogleAccount = {
-          user: tempUserData,
+          user: {
+            name: userInfo.name,
+            email: userInfo.email,
+            picture: userInfo.picture
+          },
           token: tokenResponse.access_token,
           taskLists: [],
           tasks: {},
           status: 'active'
         };
 
-        // Save connection to database
+        // Save connection to database with timeout
         try {
-          await apiService.addConnection(
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Database connection timeout')), 10000)
+          );
+          
+          const connectionPromise = apiService.addConnection(
             user.email, // main user email
-            tempUserData.email, // Google Tasks account email
-            tempUserData.name,
-            tempUserData.picture,
+            userInfo.email, // Google Tasks account email
+            userInfo.name,
+            userInfo.picture,
             tokenResponse.access_token
           );
+          
+          await Promise.race([connectionPromise, timeoutPromise]);
           console.log('Connection saved to database successfully');
         } catch (error) {
           console.error('Error saving connection to database:', error);
           // Don't return here, continue with adding the account locally
+          setSnackbar({
+            message: 'Account added locally but failed to save to database. Some features may not work properly.',
+            severity: 'error',
+            open: true
+          });
         }
 
-        // Add the new account to the list
+        // Add the new account to the list and set it as active
         setGoogleAccounts(prevAccounts => {
           const newAccounts = [...prevAccounts, newAccount];
           console.log('Updated accounts list:', newAccounts.map(acc => ({ email: acc.user.email, picture: acc.user.picture })));
+          
+          // Set the new account as active (use the new length)
+          setActiveAccountIndex(newAccounts.length - 1);
+          console.log('Setting active account index to:', newAccounts.length - 1);
+          
           return newAccounts;
-        });
-        
-        // Set the new account as active
-        setActiveAccountIndex(prevIndex => {
-          const newIndex = googleAccounts.length;
-          console.log('Setting active account index to:', newIndex);
-          return newIndex;
         });
         
         setGoogleTasksLoading(false);
         setOpenAccountDialog(false);
-        setTempUserData(null); // Clear temporary data
+        
+        // Clear the timeout if it exists
+        if ((window as any).googleTasksTimeoutId) {
+          clearTimeout((window as any).googleTasksTimeoutId);
+          (window as any).googleTasksTimeoutId = null;
+        }
         
         // Show success message
         setSnackbar({
-          message: `Successfully added account: ${tempUserData.email}`,
+          message: `Successfully added account: ${userInfo.email}`,
           severity: 'success',
           open: true
         });
+        
       } catch (error) {
         console.error('Error adding Google Tasks account:', error);
         setGoogleTasksLoading(false);
-        setTempUserData(null);
+        
+        // Clear the timeout if it exists
+        if ((window as any).googleTasksTimeoutId) {
+          clearTimeout((window as any).googleTasksTimeoutId);
+          (window as any).googleTasksTimeoutId = null;
+        }
+        
         setSnackbar({
           message: 'Failed to add Google Tasks account. Please try again.',
           severity: 'error',
@@ -938,17 +1016,26 @@ function App() {
         });
       }
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Google OAuth error:', error);
       setGoogleTasksLoading(false);
-      setTempUserData(null);
+      
+      // Clear the timeout if it exists
+      if ((window as any).googleTasksTimeoutId) {
+        clearTimeout((window as any).googleTasksTimeoutId);
+        (window as any).googleTasksTimeoutId = null;
+      }
+      
       setSnackbar({
-        message: 'Google Tasks connection failed. Please try again.',
+        message: 'Google login failed. Please try again.',
         severity: 'error',
         open: true
       });
-    },
-    flow: 'implicit',
+    }
   });
+
+  // Removed the old complex loginGoogleTasksForNewAccount function
+  // Now using the simplified loginForNewAccount function above
 
   const handleRemoveAccount = async (index: number) => {
     if (!user) return;
@@ -1061,7 +1148,11 @@ function App() {
       <IconButton
         size="small"
         color="primary"
-        onClick={() => setOpenAccountDialog(true)}
+        onClick={() => {
+          console.log('Add Account button clicked');
+          setOpenAccountDialog(true);
+          console.log('Dialog should be open now');
+        }}
         sx={{
           width: 28,
           height: 28,
@@ -1511,6 +1602,14 @@ function App() {
 
   const handleGoogleError = () => {
     console.log('Login Failed');
+    setGoogleTasksLoading(false);
+    setTempUserData(null);
+    setOpenAccountDialog(false);
+    setSnackbar({
+      message: 'Google login failed. Please try again.',
+      severity: 'error',
+      open: true
+    });
   };
 
   const handleLogout = () => {
@@ -1533,49 +1632,7 @@ function App() {
     setOpenAccountDialog(true);
   };
 
-  const handleAddGoogleTasksAccountSuccess = async (credentialResponse: any) => {
-    try {
-      console.log('Processing new account credential...');
-      const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
-      const userData = {
-        name: decoded.name,
-        email: decoded.email,
-        picture: decoded.picture,
-      };
-
-      console.log('New account data:', {
-        name: userData.name,
-        email: userData.email,
-        picture: userData.picture
-      });
-
-      // Check if this account is already connected
-      const existingAccount = googleAccounts.find(account => account.user.email === userData.email);
-      if (existingAccount) {
-        setSnackbar({
-          message: `Account ${userData.email} is already connected.`,
-          severity: 'error',
-          open: true
-        });
-        setOpenAccountDialog(false);
-        return;
-      }
-
-      // Store the user data temporarily and trigger the Google Tasks login
-      setTempUserData(userData);
-      setGoogleTasksLoading(true);
-      loginGoogleTasksForNewAccount();
-    } catch (error) {
-      console.error('Error during Google Tasks account addition:', error);
-      setGoogleTasksLoading(false);
-      setTempUserData(null);
-      setSnackbar({
-        message: 'Failed to process account credentials. Please try again.',
-        severity: 'error',
-        open: true
-      });
-    }
-  };
+  // Removed handleAddGoogleTasksAccountSuccess - no longer needed since we're not using GoogleLogin component
 
   const getDateColor = (date: string) => {
     if (date === 'no-date') return 'grey.600';
@@ -6134,20 +6191,202 @@ function App() {
 
           <Dialog
             open={openAccountDialog}
-            onClose={() => setOpenAccountDialog(false)}
+            onClose={() => {
+              console.log('Dialog closing');
+              setOpenAccountDialog(false);
+              setGoogleTasksLoading(false);
+              setTempUserData(null);
+              // Clear timeout if it exists
+              if ((window as any).googleTasksTimeoutId) {
+                clearTimeout((window as any).googleTasksTimeoutId);
+                (window as any).googleTasksTimeoutId = null;
+              }
+            }}
+            PaperProps={{
+              sx: {
+                borderRadius: '20px',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                minWidth: '400px',
+                maxWidth: '500px',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+                border: '1px solid rgba(255,255,255,0.2)'
+              }
+            }}
           >
-            <DialogTitle>Add Google Tasks Account</DialogTitle>
-            <DialogContent>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Connect another Google account to manage its tasks. This will add the account's tasks to your board alongside your existing tasks.
-              </Typography>
-              <GoogleLogin
-                onSuccess={handleAddGoogleTasksAccountSuccess}
-                onError={handleGoogleError}
-              />
+            <DialogTitle sx={{ 
+              textAlign: 'center', 
+              fontSize: '24px', 
+              fontWeight: 'bold',
+              background: 'rgba(255,255,255,0.1)',
+              borderRadius: '20px 20px 0 0',
+              padding: '24px',
+              margin: 0
+            }}>
+              ✨ Add New Account
+            </DialogTitle>
+            <DialogContent sx={{ padding: '32px 24px', textAlign: 'center' }}>
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: '600' }}>
+                  Connect Another Google Account
+                </Typography>
+                <Typography variant="body2" sx={{ 
+                  opacity: 0.9, 
+                  lineHeight: 1.6,
+                  fontSize: '15px'
+                }}>
+                  Add tasks from another Google account to your board. 
+                  Manage multiple accounts seamlessly in one place.
+                </Typography>
+              </Box>
+              
+              {/* Cool animated button */}
+              <Button
+                variant="contained"
+                size="large"
+                onClick={() => {
+                  console.log('Add Google Tasks Account button clicked');
+                  setGoogleTasksLoading(true);
+                  
+                  // Add timeout protection
+                  const timeoutId = setTimeout(() => {
+                    console.error('Google OAuth timeout');
+                    setGoogleTasksLoading(false);
+                    setOpenAccountDialog(false);
+                    setSnackbar({
+                      message: 'Google login timed out. Please try again.',
+                      severity: 'error',
+                      open: true
+                    });
+                  }, 30000); // 30 second timeout
+                  
+                  // Store timeout ID to clear it if login succeeds
+                  (window as any).googleTasksTimeoutId = timeoutId;
+                  
+                  // Use the simplified hook that gets both user info and tasks access
+                  loginForNewAccount();
+                }}
+                disabled={googleTasksLoading}
+                sx={{ 
+                  background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
+                  color: 'white',
+                  minWidth: '280px',
+                  height: '56px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  borderRadius: '28px',
+                  textTransform: 'none',
+                  boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  '&:hover': {
+                    background: 'linear-gradient(45deg, #FF5252, #26C6DA)',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 12px 25px rgba(0,0,0,0.3)',
+                    transition: 'all 0.3s ease'
+                  },
+                  '&:disabled': {
+                    background: 'rgba(255,255,255,0.2)',
+                    color: 'rgba(255,255,255,0.6)',
+                    transform: 'none',
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
+                  },
+                  '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    top: 0,
+                    left: '-100%',
+                    width: '100%',
+                    height: '100%',
+                    background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+                    transition: 'left 0.5s'
+                  },
+                  '&:hover::before': {
+                    left: '100%'
+                  }
+                }}
+              >
+                {googleTasksLoading ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box
+                      sx={{
+                        width: 20,
+                        height: 20,
+                        border: '2px solid rgba(255,255,255,0.3)',
+                        borderTop: '2px solid white',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite',
+                        '@keyframes spin': {
+                          '0%': { transform: 'rotate(0deg)' },
+                          '100%': { transform: 'rotate(360deg)' }
+                        }
+                      }}
+                    />
+                    Connecting...
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ 
+                      width: 24, 
+                      height: 24, 
+                      background: 'white', 
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '14px'
+                    }}>
+                      G
+                    </Box>
+                    Sign in with Google
+                  </Box>
+                )}
+              </Button>
+              
+              {/* Feature highlights */}
+              <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center', gap: 3, opacity: 0.8 }}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="h6" sx={{ fontSize: '18px', fontWeight: 'bold' }}>🔄</Typography>
+                  <Typography variant="caption" sx={{ fontSize: '12px' }}>Sync Tasks</Typography>
+                </Box>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="h6" sx={{ fontSize: '18px', fontWeight: 'bold' }}>👥</Typography>
+                  <Typography variant="caption" sx={{ fontSize: '12px' }}>Multi-Account</Typography>
+                </Box>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="h6" sx={{ fontSize: '18px', fontWeight: 'bold' }}>⚡</Typography>
+                  <Typography variant="caption" sx={{ fontSize: '12px' }}>Real-time</Typography>
+                </Box>
+              </Box>
             </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setOpenAccountDialog(false)}>Cancel</Button>
+            <DialogActions sx={{ 
+              padding: '16px 24px 24px',
+              justifyContent: 'center'
+            }}>
+              <Button 
+                onClick={() => {
+                  setOpenAccountDialog(false);
+                  setGoogleTasksLoading(false);
+                  setTempUserData(null);
+                  // Clear timeout if it exists
+                  if ((window as any).googleTasksTimeoutId) {
+                    clearTimeout((window as any).googleTasksTimeoutId);
+                    (window as any).googleTasksTimeoutId = null;
+                  }
+                }}
+                sx={{
+                  color: 'rgba(255,255,255,0.8)',
+                  textTransform: 'none',
+                  fontSize: '14px',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    color: 'white'
+                  }
+                }}
+              >
+                Maybe Later
+              </Button>
             </DialogActions>
           </Dialog>
 
