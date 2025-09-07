@@ -888,38 +888,54 @@ function App() {
           status: 'active'
         };
 
-        // Save connection to database
+        // Save connection to database with timeout
         try {
-          await apiService.addConnection(
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Database connection timeout')), 10000)
+          );
+          
+          const connectionPromise = apiService.addConnection(
             user.email, // main user email
             tempUserData.email, // Google Tasks account email
             tempUserData.name,
             tempUserData.picture,
             tokenResponse.access_token
           );
+          
+          await Promise.race([connectionPromise, timeoutPromise]);
           console.log('Connection saved to database successfully');
         } catch (error) {
           console.error('Error saving connection to database:', error);
           // Don't return here, continue with adding the account locally
+          // Show a warning but don't block the process
+          setSnackbar({
+            message: 'Account added locally but failed to save to database. Some features may not work properly.',
+            severity: 'error',
+            open: true
+          });
         }
 
-        // Add the new account to the list
+        // Add the new account to the list and set it as active
         setGoogleAccounts(prevAccounts => {
           const newAccounts = [...prevAccounts, newAccount];
           console.log('Updated accounts list:', newAccounts.map(acc => ({ email: acc.user.email, picture: acc.user.picture })));
+          
+          // Set the new account as active (use the new length)
+          setActiveAccountIndex(newAccounts.length - 1);
+          console.log('Setting active account index to:', newAccounts.length - 1);
+          
           return newAccounts;
-        });
-        
-        // Set the new account as active
-        setActiveAccountIndex(prevIndex => {
-          const newIndex = googleAccounts.length;
-          console.log('Setting active account index to:', newIndex);
-          return newIndex;
         });
         
         setGoogleTasksLoading(false);
         setOpenAccountDialog(false);
         setTempUserData(null); // Clear temporary data
+        
+        // Clear the timeout if it exists
+        if ((window as any).googleTasksTimeoutId) {
+          clearTimeout((window as any).googleTasksTimeoutId);
+          (window as any).googleTasksTimeoutId = null;
+        }
         
         // Show success message
         setSnackbar({
@@ -931,6 +947,13 @@ function App() {
         console.error('Error adding Google Tasks account:', error);
         setGoogleTasksLoading(false);
         setTempUserData(null);
+        
+        // Clear the timeout if it exists
+        if ((window as any).googleTasksTimeoutId) {
+          clearTimeout((window as any).googleTasksTimeoutId);
+          (window as any).googleTasksTimeoutId = null;
+        }
+        
         setSnackbar({
           message: 'Failed to add Google Tasks account. Please try again.',
           severity: 'error',
@@ -941,6 +964,13 @@ function App() {
     onError: () => {
       setGoogleTasksLoading(false);
       setTempUserData(null);
+      
+      // Clear the timeout if it exists
+      if ((window as any).googleTasksTimeoutId) {
+        clearTimeout((window as any).googleTasksTimeoutId);
+        (window as any).googleTasksTimeoutId = null;
+      }
+      
       setSnackbar({
         message: 'Google Tasks connection failed. Please try again.',
         severity: 'error',
@@ -1511,6 +1541,14 @@ function App() {
 
   const handleGoogleError = () => {
     console.log('Login Failed');
+    setGoogleTasksLoading(false);
+    setTempUserData(null);
+    setOpenAccountDialog(false);
+    setSnackbar({
+      message: 'Google login failed. Please try again.',
+      severity: 'error',
+      open: true
+    });
   };
 
   const handleLogout = () => {
@@ -1564,11 +1602,29 @@ function App() {
       // Store the user data temporarily and trigger the Google Tasks login
       setTempUserData(userData);
       setGoogleTasksLoading(true);
+      
+      // Add a timeout to prevent hanging
+      const timeoutId = setTimeout(() => {
+        console.error('Google Tasks login timeout');
+        setGoogleTasksLoading(false);
+        setTempUserData(null);
+        setOpenAccountDialog(false);
+        setSnackbar({
+          message: 'Google Tasks login timed out. Please try again.',
+          severity: 'error',
+          open: true
+        });
+      }, 30000); // 30 second timeout
+      
+      // Store timeout ID to clear it if login succeeds
+      (window as any).googleTasksTimeoutId = timeoutId;
+      
       loginGoogleTasksForNewAccount();
     } catch (error) {
       console.error('Error during Google Tasks account addition:', error);
       setGoogleTasksLoading(false);
       setTempUserData(null);
+      setOpenAccountDialog(false);
       setSnackbar({
         message: 'Failed to process account credentials. Please try again.',
         severity: 'error',
@@ -6134,7 +6190,16 @@ function App() {
 
           <Dialog
             open={openAccountDialog}
-            onClose={() => setOpenAccountDialog(false)}
+            onClose={() => {
+              setOpenAccountDialog(false);
+              setGoogleTasksLoading(false);
+              setTempUserData(null);
+              // Clear timeout if it exists
+              if ((window as any).googleTasksTimeoutId) {
+                clearTimeout((window as any).googleTasksTimeoutId);
+                (window as any).googleTasksTimeoutId = null;
+              }
+            }}
           >
             <DialogTitle>Add Google Tasks Account</DialogTitle>
             <DialogContent>
@@ -6147,7 +6212,16 @@ function App() {
               />
             </DialogContent>
             <DialogActions>
-              <Button onClick={() => setOpenAccountDialog(false)}>Cancel</Button>
+              <Button onClick={() => {
+                setOpenAccountDialog(false);
+                setGoogleTasksLoading(false);
+                setTempUserData(null);
+                // Clear timeout if it exists
+                if ((window as any).googleTasksTimeoutId) {
+                  clearTimeout((window as any).googleTasksTimeoutId);
+                  (window as any).googleTasksTimeoutId = null;
+                }
+              }}>Cancel</Button>
             </DialogActions>
           </Dialog>
 
