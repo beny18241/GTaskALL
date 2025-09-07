@@ -861,6 +861,52 @@ function App() {
     flow: 'implicit',
   });
 
+  // Hook for getting user info first (for adding new accounts)
+  const loginForUserInfo = useGoogleLogin({
+    scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+    onSuccess: async (tokenResponse) => {
+      try {
+        console.log('Getting user info for new account...');
+        
+        // Get user info from Google
+        const userInfoResponse = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${tokenResponse.access_token}`);
+        const userInfo = await userInfoResponse.json();
+        
+        console.log('User info received:', userInfo);
+        
+        // Set the temp user data
+        const userData = {
+          name: userInfo.name,
+          email: userInfo.email,
+          picture: userInfo.picture
+        };
+        
+        setTempUserData(userData);
+        
+        // Now trigger the Google Tasks login
+        loginGoogleTasksForNewAccount();
+        
+      } catch (error) {
+        console.error('Error getting user info:', error);
+        setGoogleTasksLoading(false);
+        setSnackbar({
+          message: 'Failed to get user information. Please try again.',
+          severity: 'error',
+          open: true
+        });
+      }
+    },
+    onError: (error) => {
+      console.error('Google OAuth error:', error);
+      setGoogleTasksLoading(false);
+      setSnackbar({
+        message: 'Google login failed. Please try again.',
+        severity: 'error',
+        open: true
+      });
+    }
+  });
+
   const loginGoogleTasksForNewAccount = useGoogleLogin({
     scope: 'https://www.googleapis.com/auth/tasks',
     onSuccess: async (tokenResponse) => {
@@ -6252,13 +6298,15 @@ function App() {
                 />
               </div>
               
-              {/* Alternative approach using useGoogleLogin hook */}
+              {/* Alternative approach - use dedicated hook for user info */}
               <Button
                 variant="contained"
                 onClick={() => {
                   console.log('Alternative Google Login button clicked');
-                  // This will trigger the Google OAuth flow
-                  loginGoogleTasksForNewAccount();
+                  setGoogleTasksLoading(true);
+                  
+                  // Use the dedicated hook to get user info first
+                  loginForUserInfo();
                 }}
                 sx={{ 
                   backgroundColor: '#4285f4',
