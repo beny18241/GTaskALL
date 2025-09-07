@@ -861,78 +861,40 @@ function App() {
     flow: 'implicit',
   });
 
-  // Hook for getting user info first (for adding new accounts)
-  const loginForUserInfo = useGoogleLogin({
-    scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+  // Simplified hook for adding new Google Tasks accounts
+  const loginForNewAccount = useGoogleLogin({
+    scope: 'https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
     onSuccess: async (tokenResponse) => {
       try {
-        console.log('Getting user info for new account...');
+        console.log('Google OAuth success for new account, getting user info...');
         
+        if (!user) {
+          throw new Error('Main user not logged in');
+        }
+
         // Get user info from Google
         const userInfoResponse = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${tokenResponse.access_token}`);
         const userInfo = await userInfoResponse.json();
         
         console.log('User info received:', userInfo);
         
-        // Set the temp user data
-        const userData = {
-          name: userInfo.name,
-          email: userInfo.email,
-          picture: userInfo.picture
-        };
-        
-        setTempUserData(userData);
-        
-        // Now trigger the Google Tasks login
-        loginGoogleTasksForNewAccount();
-        
-      } catch (error) {
-        console.error('Error getting user info:', error);
-        setGoogleTasksLoading(false);
-        setSnackbar({
-          message: 'Failed to get user information. Please try again.',
-          severity: 'error',
-          open: true
-        });
-      }
-    },
-    onError: (error) => {
-      console.error('Google OAuth error:', error);
-      setGoogleTasksLoading(false);
-      setSnackbar({
-        message: 'Google login failed. Please try again.',
-        severity: 'error',
-        open: true
-      });
-    }
-  });
-
-  const loginGoogleTasksForNewAccount = useGoogleLogin({
-    scope: 'https://www.googleapis.com/auth/tasks',
-    onSuccess: async (tokenResponse) => {
-      try {
-        if (!tempUserData) {
-          throw new Error('No user data available');
-        }
-
-        if (!user) {
-          throw new Error('Main user not logged in');
-        }
-
         // Check if account already exists
-        const existingAccountIndex = googleAccounts.findIndex(account => account.user.email === tempUserData.email);
+        const existingAccountIndex = googleAccounts.findIndex(account => account.user.email === userInfo.email);
         if (existingAccountIndex !== -1) {
-          alert(`Account ${tempUserData.email} is already connected.`);
+          alert(`Account ${userInfo.email} is already connected.`);
           setGoogleTasksLoading(false);
-          setTempUserData(null);
           setOpenAccountDialog(false);
           return;
         }
 
-        console.log('Adding new account:', tempUserData.email, 'with picture:', tempUserData.picture);
+        console.log('Adding new account:', userInfo.email, 'with picture:', userInfo.picture);
 
         const newAccount: GoogleAccount = {
-          user: tempUserData,
+          user: {
+            name: userInfo.name,
+            email: userInfo.email,
+            picture: userInfo.picture
+          },
           token: tokenResponse.access_token,
           taskLists: [],
           tasks: {},
@@ -947,9 +909,9 @@ function App() {
           
           const connectionPromise = apiService.addConnection(
             user.email, // main user email
-            tempUserData.email, // Google Tasks account email
-            tempUserData.name,
-            tempUserData.picture,
+            userInfo.email, // Google Tasks account email
+            userInfo.name,
+            userInfo.picture,
             tokenResponse.access_token
           );
           
@@ -958,7 +920,6 @@ function App() {
         } catch (error) {
           console.error('Error saving connection to database:', error);
           // Don't return here, continue with adding the account locally
-          // Show a warning but don't block the process
           setSnackbar({
             message: 'Account added locally but failed to save to database. Some features may not work properly.',
             severity: 'error',
@@ -980,7 +941,6 @@ function App() {
         
         setGoogleTasksLoading(false);
         setOpenAccountDialog(false);
-        setTempUserData(null); // Clear temporary data
         
         // Clear the timeout if it exists
         if ((window as any).googleTasksTimeoutId) {
@@ -990,14 +950,14 @@ function App() {
         
         // Show success message
         setSnackbar({
-          message: `Successfully added account: ${tempUserData.email}`,
+          message: `Successfully added account: ${userInfo.email}`,
           severity: 'success',
           open: true
         });
+        
       } catch (error) {
         console.error('Error adding Google Tasks account:', error);
         setGoogleTasksLoading(false);
-        setTempUserData(null);
         
         // Clear the timeout if it exists
         if ((window as any).googleTasksTimeoutId) {
@@ -1012,9 +972,9 @@ function App() {
         });
       }
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Google OAuth error:', error);
       setGoogleTasksLoading(false);
-      setTempUserData(null);
       
       // Clear the timeout if it exists
       if ((window as any).googleTasksTimeoutId) {
@@ -1023,13 +983,15 @@ function App() {
       }
       
       setSnackbar({
-        message: 'Google Tasks connection failed. Please try again.',
+        message: 'Google login failed. Please try again.',
         severity: 'error',
         open: true
       });
-    },
-    flow: 'implicit',
+    }
   });
+
+  // Removed the old complex loginGoogleTasksForNewAccount function
+  // Now using the simplified loginForNewAccount function above
 
   const handleRemoveAccount = async (index: number) => {
     if (!user) return;
@@ -6298,15 +6260,30 @@ function App() {
                 />
               </div>
               
-              {/* Alternative approach - use dedicated hook for user info */}
+              {/* Simplified approach - single OAuth flow */}
               <Button
                 variant="contained"
                 onClick={() => {
-                  console.log('Alternative Google Login button clicked');
+                  console.log('Simplified Google Login button clicked');
                   setGoogleTasksLoading(true);
                   
-                  // Use the dedicated hook to get user info first
-                  loginForUserInfo();
+                  // Add timeout protection
+                  const timeoutId = setTimeout(() => {
+                    console.error('Google OAuth timeout');
+                    setGoogleTasksLoading(false);
+                    setOpenAccountDialog(false);
+                    setSnackbar({
+                      message: 'Google login timed out. Please try again.',
+                      severity: 'error',
+                      open: true
+                    });
+                  }, 30000); // 30 second timeout
+                  
+                  // Store timeout ID to clear it if login succeeds
+                  (window as any).googleTasksTimeoutId = timeoutId;
+                  
+                  // Use the simplified hook that gets both user info and tasks access
+                  loginForNewAccount();
                 }}
                 sx={{ 
                   backgroundColor: '#4285f4',
@@ -6316,7 +6293,7 @@ function App() {
                   }
                 }}
               >
-                🔐 Sign in with Google (Alternative)
+                🔐 Sign in with Google (Simplified)
               </Button>
             </DialogContent>
             <DialogActions>
