@@ -6216,16 +6216,60 @@ function App() {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Connect another Google account to manage its tasks. This will add the account's tasks to your board alongside your existing tasks.
               </Typography>
-              <GoogleLogin
-                onSuccess={(credentialResponse) => {
-                  console.log('GoogleLogin onSuccess called:', credentialResponse);
-                  handleAddGoogleTasksAccountSuccess(credentialResponse);
+              
+              {/* Test button to verify dialog functionality */}
+              <Button 
+                variant="outlined" 
+                onClick={() => {
+                  console.log('Test button clicked - dialog is working');
+                  alert('Dialog is working! The issue is with GoogleLogin component.');
                 }}
-                onError={(error) => {
-                  console.log('GoogleLogin onError called:', error);
-                  handleGoogleError();
+                sx={{ mb: 2 }}
+              >
+                Test Button (Click to verify dialog works)
+              </Button>
+              
+              {/* Try both approaches */}
+              <div style={{ marginBottom: '16px' }}>
+                <GoogleLogin
+                  onSuccess={(credentialResponse) => {
+                    console.log('GoogleLogin onSuccess called:', credentialResponse);
+                    handleAddGoogleTasksAccountSuccess(credentialResponse);
+                  }}
+                  onError={(error) => {
+                    console.log('GoogleLogin onError called:', error);
+                    handleGoogleError();
+                  }}
+                  useOneTap={false}
+                  auto_select={false}
+                  cancel_on_tap_outside={true}
+                  context="signin"
+                  shape="rectangular"
+                  theme="outline"
+                  size="large"
+                  text="signin_with"
+                  width="300"
+                />
+              </div>
+              
+              {/* Alternative approach using useGoogleLogin hook */}
+              <Button
+                variant="contained"
+                onClick={() => {
+                  console.log('Alternative Google Login button clicked');
+                  // This will trigger the Google OAuth flow
+                  loginGoogleTasksForNewAccount();
                 }}
-              />
+                sx={{ 
+                  backgroundColor: '#4285f4',
+                  color: 'white',
+                  '&:hover': {
+                    backgroundColor: '#3367d6'
+                  }
+                }}
+              >
+                🔐 Sign in with Google (Alternative)
+              </Button>
             </DialogContent>
             <DialogActions>
               <Button onClick={() => {
