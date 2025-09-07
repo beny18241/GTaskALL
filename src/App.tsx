@@ -1588,67 +1588,7 @@ function App() {
     setOpenAccountDialog(true);
   };
 
-  const handleAddGoogleTasksAccountSuccess = async (credentialResponse: any) => {
-    try {
-      console.log('Processing new account credential...');
-      const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
-      const userData = {
-        name: decoded.name,
-        email: decoded.email,
-        picture: decoded.picture,
-      };
-
-      console.log('New account data:', {
-        name: userData.name,
-        email: userData.email,
-        picture: userData.picture
-      });
-
-      // Check if this account is already connected
-      const existingAccount = googleAccounts.find(account => account.user.email === userData.email);
-      if (existingAccount) {
-        setSnackbar({
-          message: `Account ${userData.email} is already connected.`,
-          severity: 'error',
-          open: true
-        });
-        setOpenAccountDialog(false);
-        return;
-      }
-
-      // Instead of the complex flow, just use the simplified approach
-      console.log('Using simplified Google Login approach...');
-      setGoogleTasksLoading(true);
-      
-      // Add timeout protection
-      const timeoutId = setTimeout(() => {
-        console.error('Google OAuth timeout');
-        setGoogleTasksLoading(false);
-        setOpenAccountDialog(false);
-        setSnackbar({
-          message: 'Google login timed out. Please try again.',
-          severity: 'error',
-          open: true
-        });
-      }, 30000); // 30 second timeout
-      
-      // Store timeout ID to clear it if login succeeds
-      (window as any).googleTasksTimeoutId = timeoutId;
-      
-      // Use the simplified login function
-      loginForNewAccount();
-      
-    } catch (error) {
-      console.error('Error during Google Tasks account addition:', error);
-      setGoogleTasksLoading(false);
-      setOpenAccountDialog(false);
-      setSnackbar({
-        message: 'Failed to process account credentials. Please try again.',
-        severity: 'error',
-        open: true
-      });
-    }
-  };
+  // Removed handleAddGoogleTasksAccountSuccess - no longer needed since we're not using GoogleLogin component
 
   const getDateColor = (date: string) => {
     if (date === 'no-date') return 'grey.600';
@@ -6225,46 +6165,12 @@ function App() {
                 Connect another Google account to manage its tasks. This will add the account's tasks to your board alongside your existing tasks.
               </Typography>
               
-              {/* Test button to verify dialog functionality */}
-              <Button 
-                variant="outlined" 
-                onClick={() => {
-                  console.log('Test button clicked - dialog is working');
-                  alert('Dialog is working! The issue is with GoogleLogin component.');
-                }}
-                sx={{ mb: 2 }}
-              >
-                Test Button (Click to verify dialog works)
-              </Button>
-              
-              {/* Try both approaches */}
-              <div style={{ marginBottom: '16px' }}>
-                <GoogleLogin
-                  onSuccess={(credentialResponse) => {
-                    console.log('GoogleLogin onSuccess called:', credentialResponse);
-                    handleAddGoogleTasksAccountSuccess(credentialResponse);
-                  }}
-                  onError={(error) => {
-                    console.log('GoogleLogin onError called:', error);
-                    handleGoogleError();
-                  }}
-                  useOneTap={false}
-                  auto_select={false}
-                  cancel_on_tap_outside={true}
-                  context="signin"
-                  shape="rectangular"
-                  theme="outline"
-                  size="large"
-                  text="signin_with"
-                  width="300"
-                />
-              </div>
-              
-              {/* Simplified approach - single OAuth flow */}
+              {/* Single working solution - only use useGoogleLogin hook */}
               <Button
                 variant="contained"
+                size="large"
                 onClick={() => {
-                  console.log('Simplified Google Login button clicked');
+                  console.log('Add Google Tasks Account button clicked');
                   setGoogleTasksLoading(true);
                   
                   // Add timeout protection
@@ -6285,15 +6191,23 @@ function App() {
                   // Use the simplified hook that gets both user info and tasks access
                   loginForNewAccount();
                 }}
+                disabled={googleTasksLoading}
                 sx={{ 
                   backgroundColor: '#4285f4',
                   color: 'white',
+                  minWidth: '300px',
+                  height: '48px',
+                  fontSize: '16px',
                   '&:hover': {
                     backgroundColor: '#3367d6'
+                  },
+                  '&:disabled': {
+                    backgroundColor: '#ccc',
+                    color: '#666'
                   }
                 }}
               >
-                🔐 Sign in with Google (Simplified)
+                {googleTasksLoading ? 'Connecting...' : '🔐 Sign in with Google'}
               </Button>
             </DialogContent>
             <DialogActions>
