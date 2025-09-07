@@ -292,6 +292,11 @@ function App() {
   const [activeAccountIndex, setActiveAccountIndex] = useState<number>(0);
   const [googleTasksLoading, setGoogleTasksLoading] = useState(false);
   const [openAccountDialog, setOpenAccountDialog] = useState(false);
+  
+  // Debug dialog state
+  useEffect(() => {
+    console.log('openAccountDialog state changed:', openAccountDialog);
+  }, [openAccountDialog]);
   const [selectedAccountForRemoval, setSelectedAccountForRemoval] = useState<number | null>(null);
   const [googleTasksButtonHover, setGoogleTasksButtonHover] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1091,7 +1096,11 @@ function App() {
       <IconButton
         size="small"
         color="primary"
-        onClick={() => setOpenAccountDialog(true)}
+        onClick={() => {
+          console.log('Add Account button clicked');
+          setOpenAccountDialog(true);
+          console.log('Dialog should be open now');
+        }}
         sx={{
           width: 28,
           height: 28,
@@ -6191,6 +6200,7 @@ function App() {
           <Dialog
             open={openAccountDialog}
             onClose={() => {
+              console.log('Dialog closing');
               setOpenAccountDialog(false);
               setGoogleTasksLoading(false);
               setTempUserData(null);
@@ -6207,8 +6217,14 @@ function App() {
                 Connect another Google account to manage its tasks. This will add the account's tasks to your board alongside your existing tasks.
               </Typography>
               <GoogleLogin
-                onSuccess={handleAddGoogleTasksAccountSuccess}
-                onError={handleGoogleError}
+                onSuccess={(credentialResponse) => {
+                  console.log('GoogleLogin onSuccess called:', credentialResponse);
+                  handleAddGoogleTasksAccountSuccess(credentialResponse);
+                }}
+                onError={(error) => {
+                  console.log('GoogleLogin onError called:', error);
+                  handleGoogleError();
+                }}
               />
             </DialogContent>
             <DialogActions>
