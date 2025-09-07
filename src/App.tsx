@@ -1616,18 +1616,17 @@ function App() {
         return;
       }
 
-      // Store the user data temporarily and trigger the Google Tasks login
-      setTempUserData(userData);
+      // Instead of the complex flow, just use the simplified approach
+      console.log('Using simplified Google Login approach...');
       setGoogleTasksLoading(true);
       
-      // Add a timeout to prevent hanging
+      // Add timeout protection
       const timeoutId = setTimeout(() => {
-        console.error('Google Tasks login timeout');
+        console.error('Google OAuth timeout');
         setGoogleTasksLoading(false);
-        setTempUserData(null);
         setOpenAccountDialog(false);
         setSnackbar({
-          message: 'Google Tasks login timed out. Please try again.',
+          message: 'Google login timed out. Please try again.',
           severity: 'error',
           open: true
         });
@@ -1636,11 +1635,12 @@ function App() {
       // Store timeout ID to clear it if login succeeds
       (window as any).googleTasksTimeoutId = timeoutId;
       
-      loginGoogleTasksForNewAccount();
+      // Use the simplified login function
+      loginForNewAccount();
+      
     } catch (error) {
       console.error('Error during Google Tasks account addition:', error);
       setGoogleTasksLoading(false);
-      setTempUserData(null);
       setOpenAccountDialog(false);
       setSnackbar({
         message: 'Failed to process account credentials. Please try again.',
