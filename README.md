@@ -26,7 +26,7 @@ A modern task management application built with React, TypeScript, and Vite.
 
 ## Recent Updates
 
-### May 2024
+### December 2024
 - Updated to React 18.2.0
 - Upgraded Material-UI to version 5.15.10
 - Enhanced date picker functionality
@@ -34,14 +34,14 @@ A modern task management application built with React, TypeScript, and Vite.
 - Added better error handling for API calls
 - Updated dependencies to latest stable versions
 
-### April 2024
+### November 2024
 - Enhanced task display with recurring indicators and status badges
 - Added support for task notes and details
 - Implemented color-coded task cards
 - Improved task card layout and readability
 - Updated Google Tasks integration to support new features
 
-### March 2024
+### October 2024
 - Added automatic deployment on pull request merge
 - Updated Google Tasks API integration for full access
 - Added domain support for production deployment
