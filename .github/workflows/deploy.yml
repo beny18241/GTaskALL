@@ -1,4 +1,4 @@
-name: Build and Push to Docker Hub
+name: Build, Push and Deploy to Docker
 
 on:
   push:
@@ -55,11 +55,64 @@ jobs:
       - name: Image digest
         run: echo ${{ steps.meta.outputs.digest }}
 
-      - name: Image summary
+  deploy:
+    name: Deploy to Production Server
+    runs-on: self-hosted
+    needs: build
+    
+    steps:
+      - name: Deploy to Docker server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            echo "🚀 Starting deployment..."
+            
+            # Pull the latest image
+            echo "📥 Pulling latest image..."
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+            
+            # Stop and remove existing container
+            echo "🛑 Stopping existing container..."
+            docker rm -f gtaskall-app 2>/dev/null || true
+            
+            # Start new container
+            echo "▶️ Starting new container..."
+            docker run -d \
+              --name gtaskall-app \
+              --restart always \
+              -p 3003:3003 \
+              -e GOOGLE_CLIENT_ID="${{ secrets.GOOGLE_CLIENT_ID }}" \
+              -e GOOGLE_CLIENT_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}" \
+              -e AUTH_SECRET="${{ secrets.AUTH_SECRET }}" \
+              -e AUTH_TRUST_HOST="true" \
+              -e NEXTAUTH_URL="${{ secrets.NEXTAUTH_URL }}" \
+              -e NODE_ENV="production" \
+              ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+            
+            # Verify deployment
+            echo "🔍 Verifying deployment..."
+            sleep 5
+            if docker ps | grep -q gtaskall-app; then
+              echo "✅ Deployment successful!"
+              docker ps | grep gtaskall-app
+            else
+              echo "❌ Deployment failed!"
+              docker logs gtaskall-app
+              exit 1
+            fi
+            
+            # Cleanup old images
+            echo "🧹 Cleaning up old images..."
+            docker image prune -f
+            
+            echo "🎉 Deployment complete!"
+
+      - name: Deployment summary
         run: |
-          echo "✅ Docker image built and pushed successfully!"
+          echo "✅ Deployment completed successfully!"
           echo "📦 Image: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest"
-          echo "🔗 Docker Hub: https://hub.docker.com/r/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}"
-          echo ""
-          echo "Deploy this image on your server using:"
-          echo "  docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest"
+          echo "🌐 URL: ${{ secrets.NEXTAUTH_URL }}"
