@@ -2,7 +2,7 @@
 
 import { signIn } from "next-auth/react";
 import Link from "next/link";
-import { CheckSquare } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
@@ -14,10 +14,16 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted">
       <div className="w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-primary-foreground mb-4">
-            <CheckSquare className="h-8 w-8" />
+          <div className="inline-flex items-center justify-center mb-4">
+            <Image
+              src="/logo.svg"
+              alt="GTaskALL Logo"
+              width={80}
+              height={80}
+              className="rounded-2xl"
+            />
           </div>
-          <h1 className="text-3xl font-bold">Google Tasks Manager</h1>
+          <h1 className="text-3xl font-bold">GTaskALL</h1>
           <p className="text-muted-foreground mt-2">
             Manage your Google Tasks with a beautiful, Todoist-like interface
           </p>

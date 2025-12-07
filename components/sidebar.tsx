@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut, signIn, useSession } from "next-auth/react";
 import {
@@ -349,6 +350,28 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
           </div>
         </div>
       </ScrollArea>
+
+      {/* Footer with logo and links */}
+      <div className="p-4 border-t">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Image
+              src="/logo.svg"
+              alt="GTaskALL"
+              width={24}
+              height={24}
+              className="rounded"
+            />
+            <span className="text-xs font-medium">GTaskALL</span>
+          </div>
+          <Link
+            href="/privacy"
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Privacy
+          </Link>
+        </div>
+      </div>
 
       {/* Remove Account Confirmation Dialog */}
       <Dialog open={!!accountToRemove} onOpenChange={() => setAccountToRemove(null)}>

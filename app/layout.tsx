@@ -14,8 +14,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Google Tasks Manager",
-  description: "Manage your Google Tasks with a beautiful, Todoist-like interface",
+  title: "GTaskALL - Google Tasks Manager",
+  description: "Manage your Google Tasks with a beautiful, Todoist-like interface. Connect multiple accounts, view tasks in Kanban board, and stay organized.",
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/logo.svg",
+  },
+  openGraph: {
+    title: "GTaskALL - Google Tasks Manager",
+    description: "Manage your Google Tasks with a beautiful, Todoist-like interface",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
