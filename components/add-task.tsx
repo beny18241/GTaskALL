@@ -33,6 +33,7 @@ interface AddTaskProps {
   defaultListId?: string;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
+  showDatePicker?: boolean;
 }
 
 export function AddTask({
@@ -41,6 +42,7 @@ export function AddTask({
   defaultListId,
   isExpanded = false,
   onToggleExpand,
+  showDatePicker = true,
 }: AddTaskProps) {
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
@@ -113,29 +115,31 @@ export function AddTask({
       />
 
       <div className="flex items-center gap-2 flex-wrap">
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-7 text-xs gap-1.5",
-                dueDate && "text-foreground"
-              )}
-            >
-              <CalendarIcon className="h-3 w-3" />
-              {dueDate ? format(dueDate, "MMM d") : "Due date"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={dueDate}
-              onSelect={setDueDate}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
+        {showDatePicker && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "h-7 text-xs gap-1.5",
+                  dueDate && "text-foreground"
+                )}
+              >
+                <CalendarIcon className="h-3 w-3" />
+                {dueDate ? format(dueDate, "MMM d") : "Due date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={dueDate}
+                onSelect={setDueDate}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        )}
 
         <PrioritySelect value={priority} onChange={setPriority} size="sm" />
 

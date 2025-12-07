@@ -3,18 +3,19 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
+import { signOut, signIn, useSession } from "next-auth/react";
 import {
   CalendarDays,
   ChevronDown,
   ChevronRight,
-  Inbox,
+  Columns3,
   ListTodo,
   LogOut,
   Plus,
   Settings,
   Sun,
   User,
+  UserPlus,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { TaskListWithAccount } from "@/types";
 import { cn } from "@/lib/utils";
+import { useAccountsStore } from "@/lib/stores/accounts-store";
 
 interface SidebarProps {
   taskLists: TaskListWithAccount[];
@@ -62,6 +64,17 @@ export function Sidebar({ taskLists, onAddList }: SidebarProps) {
     setExpandedAccounts(newExpanded);
   };
 
+  const { accounts, addAccount, removeAccount } = useAccountsStore();
+
+  const handleAddAccount = () => {
+    // Sign in with a new Google account
+    // The prompt=select_account forces account selection
+    signIn("google", {
+      callbackUrl: "/",
+      prompt: "select_account",
+    });
+  };
+
   const navItems = [
     {
       label: "Today",
@@ -72,6 +85,11 @@ export function Sidebar({ taskLists, onAddList }: SidebarProps) {
       label: "Upcoming",
       href: "/upcoming",
       icon: CalendarDays,
+    },
+    {
+      label: "Kanban",
+      href: "/kanban",
+      icon: Columns3,
     },
   ];
 
@@ -201,6 +219,73 @@ export function Sidebar({ taskLists, onAddList }: SidebarProps) {
                 No task lists yet
               </p>
             )}
+          </div>
+
+          <Separator className="my-4" />
+
+          {/* Accounts Section */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-3">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Google Accounts
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={handleAddAccount}
+                title="Add another Google account"
+              >
+                <UserPlus className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="space-y-1">
+              {/* Current session account */}
+              {session?.user && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent">
+                  <Avatar className="h-6 w-6">
+                    <AvatarImage src={session.user.image} />
+                    <AvatarFallback>
+                      <User className="h-3 w-3" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs truncate">{session.user.email}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Other accounts from store */}
+              {accounts
+                .filter((acc) => acc.email !== session?.user?.email)
+                .map((account) => (
+                  <div
+                    key={account.id}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-sidebar-accent/50 cursor-pointer"
+                  >
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage src={account.image} />
+                      <AvatarFallback>
+                        <User className="h-3 w-3" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs truncate">{account.email}</p>
+                    </div>
+                  </div>
+                ))}
+            </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start gap-2 text-muted-foreground text-xs"
+              onClick={handleAddAccount}
+            >
+              <Plus className="h-3 w-3" />
+              Add Google account
+            </Button>
           </div>
         </div>
       </ScrollArea>
