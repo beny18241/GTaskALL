@@ -20,7 +20,34 @@ GitHub Actions automatically builds and pushes to Docker Hub.
 
 ## Step 2: Deploy on Your Server
 
-### Option A: Docker Compose (Easiest)
+### Option A: Simple Standalone (Simplest - No nginx)
+
+**Single command deployment:**
+
+```bash
+docker run -d \
+  --name gtaskall-app \
+  --restart always \
+  -p 80:3003 \
+  -e GOOGLE_CLIENT_ID="your-client-id.apps.googleusercontent.com" \
+  -e GOOGLE_CLIENT_SECRET="your-client-secret" \
+  -e AUTH_SECRET="$(openssl rand -base64 32)" \
+  -e NEXTAUTH_URL="http://your-domain.com" \
+  -e NODE_ENV="production" \
+  beny18241/gtaskall:latest
+
+# Check status
+docker ps
+docker logs -f gtaskall-app
+curl http://localhost
+```
+
+**Port Mapping Explained:**
+- `-p 80:3003` maps host port 80 to container port 3003
+- Access at: `http://your-domain.com` (port 80 is default)
+- Alternative: `-p 3003:3003` to access at `http://your-domain.com:3003`
+
+### Option B: Docker Compose (With nginx reverse proxy)
 
 ```bash
 # 1. Create directory
@@ -50,7 +77,7 @@ docker-compose ps
 curl http://localhost/health
 ```
 
-### Option B: Docker Run (Single Command)
+### Option C: Docker Run with nginx (Advanced)
 
 ```bash
 # Create network
@@ -87,7 +114,7 @@ docker run -d \
   nginx:alpine
 ```
 
-### Option C: Portainer (GUI)
+### Option D: Portainer (GUI)
 
 1. **Create Stack** in Portainer
 2. **Paste** docker-compose.yml content

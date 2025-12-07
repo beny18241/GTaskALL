@@ -32,7 +32,87 @@ docker pull your-dockerhub-username/gtaskall:latest
 
 ---
 
-## Method 1: Docker Compose (Recommended)
+## Method 0: Simple Standalone (No nginx)
+
+**Simplest deployment** - Run the app container directly without nginx reverse proxy.
+
+### Single Command Deployment
+
+```bash
+docker run -d \
+  --name gtaskall-app \
+  --restart always \
+  -p 80:3003 \
+  -e GOOGLE_CLIENT_ID="your-client-id.apps.googleusercontent.com" \
+  -e GOOGLE_CLIENT_SECRET="your-client-secret" \
+  -e AUTH_SECRET="$(openssl rand -base64 32)" \
+  -e NEXTAUTH_URL="http://your-domain.com" \
+  -e NODE_ENV="production" \
+  beny18241/gtaskall:latest
+```
+
+**Port Mapping:**
+- `-p 80:3003` maps host port 80 → container port 3003
+- Access at: `http://your-domain.com` (uses port 80 by default)
+- Alternative: `-p 3003:3003` to access at `http://your-domain.com:3003`
+- If port 80 is in use: `-p 8080:3003` and access at `http://your-domain.com:8080`
+
+**Important**: Replace:
+- `your-client-id.apps.googleusercontent.com` with your Google OAuth Client ID
+- `your-client-secret` with your Google OAuth Client Secret
+- `your-domain.com` with your actual domain or server IP
+- Generate new `AUTH_SECRET` with `openssl rand -base64 32`
+
+### Verify Deployment
+
+```bash
+# Check container status
+docker ps
+
+# Check logs
+docker logs -f gtaskall-app
+
+# Test application
+curl http://localhost
+```
+
+### Management Commands
+
+```bash
+# View logs
+docker logs -f gtaskall-app
+
+# Restart container
+docker restart gtaskall-app
+
+# Stop container
+docker stop gtaskall-app
+
+# Remove container
+docker rm gtaskall-app
+
+# Update to latest image
+docker pull beny18241/gtaskall:latest
+docker stop gtaskall-app && docker rm gtaskall-app
+# Then run the docker run command again
+```
+
+### When to Use This Method
+
+✅ **Use standalone when:**
+- You want the simplest possible deployment
+- You don't need SSL/TLS (HTTPS)
+- You're testing or developing
+- Your server has no other web services
+
+❌ **Don't use standalone when:**
+- You need HTTPS (use Method 1 or 2 with nginx)
+- You need advanced routing or load balancing
+- You need to serve multiple applications
+
+---
+
+## Method 1: Docker Compose (Recommended for Production)
 
 Docker Compose manages both the Next.js app and nginx containers together.
 
@@ -123,9 +203,9 @@ docker-compose pull && docker-compose up -d
 
 ---
 
-## Method 2: Docker Run Commands
+## Method 2: Docker Run with nginx (Advanced)
 
-Deploy containers individually using `docker run`.
+Deploy containers individually using `docker run` with nginx reverse proxy.
 
 ### Step 1: Create Docker Network
 
