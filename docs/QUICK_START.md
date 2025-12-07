@@ -66,7 +66,7 @@ docker run -d \
   -e AUTH_SECRET="$(openssl rand -base64 32)" \
   -e NEXTAUTH_URL="http://your-domain.com" \
   -e NODE_ENV="production" \
-  --health-cmd="node -e \"require('http').get('http://localhost:3001/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\"" \
+  --health-cmd="node -e \"require('http').get('http://localhost:3003/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\"" \
   --health-interval=30s \
   --health-timeout=10s \
   --health-retries=3 \
@@ -199,7 +199,7 @@ docker stop gtaskall-app && docker rm gtaskall-app
 
 - Check logs: `docker logs gtaskall-app`
 - Verify health: `curl http://localhost/health`
-- Test connectivity: `docker exec gtaskall-nginx wget -O- http://gtaskall-app:3001`
+- Test connectivity: `docker exec gtaskall-nginx wget -O- http://gtaskall-app:3003`
 
 ## Architecture
 
@@ -221,7 +221,7 @@ docker stop gtaskall-app && docker rm gtaskall-app
 │  Your Server (Manual Deployment)            │
 │  ┌─────────────────┐  ┌─────────────────┐  │
 │  │ gtaskall-app    │  │ gtaskall-nginx  │  │
-│  │ (Next.js:3001)  │◄─┤ (ports 80/443)  │  │
+│  │ (Next.js:3003)  │◄─┤ (ports 80/443)  │  │
 │  └─────────────────┘  └─────────────────┘  │
 └─────────────────────────────────────────────┘
 ```

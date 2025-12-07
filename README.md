@@ -36,7 +36,7 @@ A modern, Todoist-like web application for managing Google Tasks from multiple a
    - Go to "APIs & Services" > "Credentials"
    - Click "Create Credentials" > "OAuth client ID"
    - Select "Web application"
-   - Add authorized redirect URI: `http://localhost:3001/api/auth/callback/google`
+   - Add authorized redirect URI: `http://localhost:3003/api/auth/callback/google`
    - Copy the Client ID and Client Secret
 
 ### 2. Environment Variables
@@ -61,7 +61,7 @@ AUTH_SECRET=generate-a-random-secret-here
 npm run dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser.
+Open [http://localhost:3003](http://localhost:3003) in your browser.
 
 ## Tech Stack
 

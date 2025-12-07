@@ -145,7 +145,7 @@ docker run -d \
   -e AUTH_SECRET="your-generated-secret-here" \
   -e NEXTAUTH_URL="http://your-domain.com" \
   -e NODE_ENV="production" \
-  --health-cmd="node -e \"require('http').get('http://localhost:3001/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\"" \
+  --health-cmd="node -e \"require('http').get('http://localhost:3003/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\"" \
   --health-interval=30s \
   --health-timeout=10s \
   --health-retries=3 \
@@ -201,7 +201,7 @@ http {
 Create `/opt/gtaskall/nginx/conf.d/gtaskall.conf`:
 ```nginx
 upstream nextjs_upstream {
-    server gtaskall-app:3001;
+    server gtaskall-app:3003;
     keepalive 32;
 }
 
@@ -333,7 +333,7 @@ services:
     networks:
       - gtaskall-network
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3003/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -587,7 +587,7 @@ docker logs gtaskall-nginx
 **Check:**
 ```bash
 # Test directly
-docker exec gtaskall-app node -e "require('http').get('http://localhost:3001/', (r) => {console.log(r.statusCode)})"
+docker exec gtaskall-app node -e "require('http').get('http://localhost:3003/', (r) => {console.log(r.statusCode)})"
 
 # Should return 200
 ```
@@ -647,7 +647,7 @@ docker run -d \
   -e AUTH_SECRET="$AUTH_SECRET" \
   -e NEXTAUTH_URL="$NEXTAUTH_URL" \
   -e NODE_ENV="production" \
-  --health-cmd="node -e \"require('http').get('http://localhost:3001/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\"" \
+  --health-cmd="node -e \"require('http').get('http://localhost:3003/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\"" \
   --health-interval=30s \
   --health-timeout=10s \
   --health-retries=3 \
