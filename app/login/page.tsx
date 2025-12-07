@@ -1,6 +1,7 @@
 "use client";
 
 import { signIn } from "next-auth/react";
+import Link from "next/link";
 import { CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -89,6 +90,16 @@ export default function LoginPage() {
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="mt-8 text-center text-xs text-muted-foreground">
+          <p>
+            By signing in, you agree to our{" "}
+            <Link href="/privacy" className="text-primary hover:underline">
+              Privacy Policy
+            </Link>
+          </p>
+          <p className="mt-2">&copy; {new Date().getFullYear()} GTaskALL</p>
         </div>
       </div>
     </div>

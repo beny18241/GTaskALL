@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GTaskALL Logo</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #f0f0f0;
+      font-family: system-ui, sans-serif;
+      gap: 20px;
+    }
+    .logo-container {
+      background: white;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    h2 { color: #333; margin: 0 0 10px; }
+    p { color: #666; margin: 0; font-size: 14px; }
+    .instructions {
+      max-width: 400px;
+      text-align: center;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="logo-container">
+    <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Background -->
+      <rect width="120" height="120" rx="24" fill="url(#gradient)"/>
+      
+      <!-- Checkmark icon -->
+      <path d="M35 62L50 77L85 42" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+      
+      <!-- Task lines -->
+      <rect x="35" y="85" width="50" height="6" rx="3" fill="white" opacity="0.7"/>
+      <rect x="35" y="95" width="35" height="4" rx="2" fill="white" opacity="0.4"/>
+      
+      <!-- Gradient definition -->
+      <defs>
+        <linearGradient id="gradient" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#4F46E5"/>
+          <stop offset="100%" stop-color="#7C3AED"/>
+        </linearGradient>
+      </defs>
+    </svg>
+  </div>
+  
+  <div class="instructions">
+    <h2>GTaskALL Logo</h2>
+    <p>120x120px • Purple gradient with checkmark</p>
+    <br>
+    <p><strong>To save as PNG:</strong></p>
+    <p>1. Right-click the logo above</p>
+    <p>2. Take a screenshot of just the logo</p>
+    <p>3. Or use <a href="https://svgtopng.com" target="_blank">svgtopng.com</a></p>
+  </div>
+</body>
+</html>
