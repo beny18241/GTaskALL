@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Menu } from "lucide-react";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAccountsStore } from "@/lib/stores/accounts-store";
 import { useTasksStore } from "@/lib/stores/tasks-store";
-import { Task, TaskListWithAccount } from "@/types";
+import { Task, TaskListWithAccount, Account } from "@/types";
 
 export default function DashboardLayout({
   children,
@@ -20,18 +20,26 @@ export default function DashboardLayout({
   const { data: session, status } = useSession();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const hasInitialized = useRef(false);
   
-  const { taskLists, setTaskLists, setLoading: setAccountsLoading } = useAccountsStore();
+  const { 
+    accounts,
+    taskLists, 
+    addAccount,
+    addTaskLists,
+    setLoading: setAccountsLoading 
+  } = useAccountsStore();
+  
   const {
     tasks,
     setTasks,
     addTasks,
+    clearTasks,
     updateTask,
     removeTask,
     selectedTaskId,
     setSelectedTask,
     getSelectedTask,
-    setLoading: setTasksLoading,
   } = useTasksStore();
 
   // Redirect to login if not authenticated
@@ -41,51 +49,139 @@ export default function DashboardLayout({
     }
   }, [status, router]);
 
-  // Fetch task lists and tasks on mount
+  // Save current session as account and fetch all data
   useEffect(() => {
-    if (session?.accessToken) {
-      fetchTaskLists();
-    }
-  }, [session?.accessToken]);
-
-  const fetchTaskLists = async () => {
-    try {
-      setAccountsLoading(true);
-      const response = await fetch("/api/tasks/lists");
-      if (!response.ok) throw new Error("Failed to fetch task lists");
+    if (session?.accessToken && session?.user && !hasInitialized.current) {
+      hasInitialized.current = true;
       
-      const lists = await response.json();
+      // Save current session as an account
+      const currentAccount: Account = {
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name,
+        image: session.user.image,
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        expiresAt: session.expiresAt,
+      };
+      
+      addAccount(currentAccount);
+      
+      // Fetch data from all accounts
+      fetchAllAccountsData();
+    }
+  }, [session]);
+
+  // Re-fetch when accounts change
+  useEffect(() => {
+    if (accounts.length > 0 && hasInitialized.current) {
+      fetchAllAccountsData();
+    }
+  }, [accounts.length]);
+
+  const refreshAccountToken = async (account: Account): Promise<Account | null> => {
+    try {
+      const response = await fetch("/api/accounts/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: account.refreshToken }),
+      });
+
+      if (!response.ok) {
+        console.error(`Failed to refresh token for ${account.email}`);
+        return null;
+      }
+
+      const { accessToken, expiresAt } = await response.json();
+      return { ...account, accessToken, expiresAt };
+    } catch (error) {
+      console.error(`Error refreshing token for ${account.email}:`, error);
+      return null;
+    }
+  };
+
+  const fetchAccountData = async (account: Account) => {
+    let currentAccount = account;
+
+    // Check if token is expired
+    if (Date.now() >= account.expiresAt * 1000) {
+      const refreshed = await refreshAccountToken(account);
+      if (!refreshed) {
+        console.error(`Could not refresh token for ${account.email}`);
+        return;
+      }
+      currentAccount = refreshed;
+      addAccount(refreshed); // Update stored account with new token
+    }
+
+    try {
+      // Fetch task lists for this account
+      const listsResponse = await fetch("/api/accounts/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: currentAccount.accessToken,
+          accountId: currentAccount.id,
+        }),
+      });
+
+      if (!listsResponse.ok) {
+        const error = await listsResponse.json();
+        if (error.code === "TOKEN_EXPIRED") {
+          // Try refreshing once more
+          const refreshed = await refreshAccountToken(currentAccount);
+          if (refreshed) {
+            addAccount(refreshed);
+            return fetchAccountData(refreshed);
+          }
+        }
+        throw new Error(error.error);
+      }
+
+      const lists = await listsResponse.json();
       
       // Add account info to lists
       const listsWithAccount: TaskListWithAccount[] = lists.map((list: any) => ({
         ...list,
-        accountId: session?.user?.id || "",
-        accountEmail: session?.user?.email || "",
+        accountId: currentAccount.id,
+        accountEmail: currentAccount.email,
       }));
-      
-      setTaskLists(listsWithAccount);
-      
+
+      addTaskLists(listsWithAccount);
+
       // Fetch tasks for each list
       for (const list of listsWithAccount) {
-        await fetchTasksForList(list.id);
+        const tasksResponse = await fetch("/api/accounts/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accessToken: currentAccount.accessToken,
+            accountId: currentAccount.id,
+            listId: list.id,
+          }),
+        });
+
+        if (tasksResponse.ok) {
+          const tasks = await tasksResponse.json();
+          addTasks(tasks);
+        }
       }
     } catch (error) {
-      console.error("Error fetching task lists:", error);
-    } finally {
-      setAccountsLoading(false);
+      console.error(`Error fetching data for ${account.email}:`, error);
     }
   };
 
-  const fetchTasksForList = async (listId: string) => {
-    try {
-      const response = await fetch(`/api/tasks?listId=${listId}`);
-      if (!response.ok) throw new Error("Failed to fetch tasks");
-      
-      const tasks = await response.json();
-      addTasks(tasks);
-    } catch (error) {
-      console.error("Error fetching tasks:", error);
-    }
+  const fetchAllAccountsData = async () => {
+    setAccountsLoading(true);
+    clearTasks();
+
+    // Get the latest accounts from the store
+    const currentAccounts = useAccountsStore.getState().accounts;
+    
+    // Fetch data for all accounts in parallel
+    await Promise.all(currentAccounts.map(fetchAccountData));
+
+    setAccountsLoading(false);
   };
 
   const handleTaskComplete = useCallback(async (taskId: string, completed: boolean) => {
@@ -175,13 +271,19 @@ export default function DashboardLayout({
     <div className="min-h-screen flex">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 border-r flex-col">
-        <Sidebar taskLists={taskLists} />
+        <Sidebar 
+          taskLists={taskLists} 
+          onRefresh={fetchAllAccountsData}
+        />
       </aside>
 
       {/* Mobile sidebar */}
       <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
         <SheetContent side="left" className="p-0 w-64">
-          <Sidebar taskLists={taskLists} />
+          <Sidebar 
+            taskLists={taskLists} 
+            onRefresh={fetchAllAccountsData}
+          />
         </SheetContent>
       </Sheet>
 

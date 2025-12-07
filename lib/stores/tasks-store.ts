@@ -18,6 +18,7 @@ interface TasksState {
   toggleShowCompleted: () => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  clearTasks: () => void;
   clearTasksByAccount: (accountId: string) => void;
   clearTasksByList: (listId: string) => void;
 
@@ -74,6 +75,8 @@ export const useTasksStore = create<TasksState>()((set, get) => ({
   setLoading: (isLoading) => set({ isLoading }),
 
   setError: (error) => set({ error }),
+
+  clearTasks: () => set({ tasks: [], selectedTaskId: null }),
 
   clearTasksByAccount: (accountId) =>
     set((state) => ({

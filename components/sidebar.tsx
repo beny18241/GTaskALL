@@ -12,8 +12,10 @@ import {
   ListTodo,
   LogOut,
   Plus,
+  RefreshCw,
   Settings,
   Sun,
+  Trash2,
   User,
   UserPlus,
 } from "lucide-react";
@@ -26,21 +28,79 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { TaskListWithAccount } from "@/types";
+import { TaskListWithAccount, Account } from "@/types";
 import { cn } from "@/lib/utils";
 import { useAccountsStore } from "@/lib/stores/accounts-store";
+import { useTasksStore } from "@/lib/stores/tasks-store";
 
 interface SidebarProps {
   taskLists: TaskListWithAccount[];
   onAddList?: () => void;
+  onRefresh?: () => void;
 }
 
-export function Sidebar({ taskLists, onAddList }: SidebarProps) {
+export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
+  const [accountToRemove, setAccountToRemove] = useState<Account | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const { accounts, removeAccount, isLoading } = useAccountsStore();
+  const { clearTasksByAccount } = useTasksStore();
+
+  const handleAddAccount = () => {
+    // Sign in with a new Google account
+    // The prompt=select_account forces account selection
+    signIn("google", {
+      callbackUrl: "/",
+      prompt: "select_account",
+    });
+  };
+
+  const handleRemoveAccount = (account: Account) => {
+    // Don't allow removing the current session account
+    if (account.email === session?.user?.email) {
+      return;
+    }
+    setAccountToRemove(account);
+  };
+
+  const confirmRemoveAccount = () => {
+    if (accountToRemove) {
+      clearTasksByAccount(accountToRemove.id);
+      removeAccount(accountToRemove.id);
+      setAccountToRemove(null);
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (onRefresh) {
+      setIsRefreshing(true);
+      await onRefresh();
+      setIsRefreshing(false);
+    }
+  };
+
+  const toggleAccount = (accountId: string) => {
+    const newExpanded = new Set(expandedAccounts);
+    if (newExpanded.has(accountId)) {
+      newExpanded.delete(accountId);
+    } else {
+      newExpanded.add(accountId);
+    }
+    setExpandedAccounts(newExpanded);
+  };
 
   // Group task lists by account
   const groupedLists = taskLists.reduce((acc, list) => {
@@ -53,27 +113,6 @@ export function Sidebar({ taskLists, onAddList }: SidebarProps) {
     acc[list.accountId].lists.push(list);
     return acc;
   }, {} as Record<string, { email: string; lists: TaskListWithAccount[] }>);
-
-  const toggleAccount = (accountId: string) => {
-    const newExpanded = new Set(expandedAccounts);
-    if (newExpanded.has(accountId)) {
-      newExpanded.delete(accountId);
-    } else {
-      newExpanded.add(accountId);
-    }
-    setExpandedAccounts(newExpanded);
-  };
-
-  const { accounts, addAccount, removeAccount } = useAccountsStore();
-
-  const handleAddAccount = () => {
-    // Sign in with a new Google account
-    // The prompt=select_account forces account selection
-    signIn("google", {
-      callbackUrl: "/",
-      prompt: "select_account",
-    });
-  };
 
   const navItems = [
     {
@@ -160,6 +199,86 @@ export function Sidebar({ taskLists, onAddList }: SidebarProps) {
 
           <Separator className="my-4" />
 
+          {/* Connected Google Accounts */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-3">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Google Accounts ({accounts.length})
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing || isLoading}
+                  title="Refresh all accounts"
+                >
+                  <RefreshCw className={cn("h-4 w-4", (isRefreshing || isLoading) && "animate-spin")} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={handleAddAccount}
+                  title="Add another Google account"
+                >
+                  <UserPlus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              {accounts.map((account) => (
+                <div
+                  key={account.id}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 rounded-lg group",
+                    account.email === session?.user?.email
+                      ? "bg-sidebar-accent"
+                      : "hover:bg-sidebar-accent/50"
+                  )}
+                >
+                  <Avatar className="h-6 w-6">
+                    <AvatarImage src={account.image} />
+                    <AvatarFallback>
+                      <User className="h-3 w-3" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs truncate">{account.email}</p>
+                    {account.email === session?.user?.email && (
+                      <p className="text-[10px] text-muted-foreground">Primary</p>
+                    )}
+                  </div>
+                  {account.email !== session?.user?.email && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => handleRemoveAccount(account)}
+                      title="Disconnect account"
+                    >
+                      <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start gap-2 text-muted-foreground text-xs"
+              onClick={handleAddAccount}
+            >
+              <Plus className="h-3 w-3" />
+              Add Google account
+            </Button>
+          </div>
+
+          <Separator className="my-4" />
+
           {/* Task lists by account */}
           <div className="space-y-2">
             <div className="flex items-center justify-between px-3">
@@ -190,6 +309,7 @@ export function Sidebar({ taskLists, onAddList }: SidebarProps) {
                     <ChevronRight className="h-3 w-3" />
                   )}
                   <span className="truncate text-xs">{email}</span>
+                  <span className="text-[10px] ml-auto">({lists.length})</span>
                 </button>
 
                 {expandedAccounts.has(accountId) && (
@@ -214,81 +334,42 @@ export function Sidebar({ taskLists, onAddList }: SidebarProps) {
               </div>
             ))}
 
-            {Object.keys(groupedLists).length === 0 && (
+            {Object.keys(groupedLists).length === 0 && !isLoading && (
               <p className="px-3 py-2 text-sm text-muted-foreground">
                 No task lists yet
               </p>
             )}
-          </div>
 
-          <Separator className="my-4" />
-
-          {/* Accounts Section */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between px-3">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Google Accounts
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={handleAddAccount}
-                title="Add another Google account"
-              >
-                <UserPlus className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="space-y-1">
-              {/* Current session account */}
-              {session?.user && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent">
-                  <Avatar className="h-6 w-6">
-                    <AvatarImage src={session.user.image} />
-                    <AvatarFallback>
-                      <User className="h-3 w-3" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs truncate">{session.user.email}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Other accounts from store */}
-              {accounts
-                .filter((acc) => acc.email !== session?.user?.email)
-                .map((account) => (
-                  <div
-                    key={account.id}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-sidebar-accent/50 cursor-pointer"
-                  >
-                    <Avatar className="h-6 w-6">
-                      <AvatarImage src={account.image} />
-                      <AvatarFallback>
-                        <User className="h-3 w-3" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs truncate">{account.email}</p>
-                    </div>
-                  </div>
-                ))}
-            </div>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start gap-2 text-muted-foreground text-xs"
-              onClick={handleAddAccount}
-            >
-              <Plus className="h-3 w-3" />
-              Add Google account
-            </Button>
+            {isLoading && (
+              <div className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
+                <RefreshCw className="h-3 w-3 animate-spin" />
+                Loading...
+              </div>
+            )}
           </div>
         </div>
       </ScrollArea>
+
+      {/* Remove Account Confirmation Dialog */}
+      <Dialog open={!!accountToRemove} onOpenChange={() => setAccountToRemove(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Disconnect Account</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to disconnect {accountToRemove?.email}?
+              Tasks from this account will no longer be shown.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAccountToRemove(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmRemoveAccount}>
+              Disconnect
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
