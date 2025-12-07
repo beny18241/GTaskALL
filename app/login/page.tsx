@@ -3,15 +3,35 @@
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
+import { useTheme } from "next-themes";
+import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
+  const { setTheme, resolvedTheme } = useTheme();
+
   const handleSignIn = () => {
     signIn("google", { callbackUrl: "/" });
   };
 
+  const toggleTheme = () => {
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted relative">
+      {/* Theme toggle in top right */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute top-4 right-4"
+        onClick={toggleTheme}
+        title={`Switch to ${resolvedTheme === "dark" ? "light" : "dark"} mode`}
+      >
+        <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+        <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+      </Button>
+
       <div className="w-full max-w-md p-8">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center mb-4">

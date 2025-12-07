@@ -12,6 +12,7 @@ import {
   Columns3,
   ListTodo,
   LogOut,
+  Moon,
   Plus,
   RefreshCw,
   Settings,
@@ -43,6 +44,7 @@ import { TaskListWithAccount, Account } from "@/types";
 import { cn } from "@/lib/utils";
 import { useAccountsStore } from "@/lib/stores/accounts-store";
 import { useTasksStore } from "@/lib/stores/tasks-store";
+import { useTheme } from "next-themes";
 
 interface SidebarProps {
   taskLists: TaskListWithAccount[];
@@ -59,6 +61,11 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
 
   const { accounts, removeAccount, isLoading } = useAccountsStore();
   const { clearTasksByAccount } = useTasksStore();
+  const { setTheme, resolvedTheme } = useTheme();
+
+  const toggleTheme = () => {
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
+  };
 
   const handleAddAccount = () => {
     // Sign in with a new Google account
@@ -161,6 +168,19 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuItem onClick={toggleTheme}>
+              {resolvedTheme === "dark" ? (
+                <>
+                  <Sun className="h-4 w-4 mr-2" />
+                  Light mode
+                </>
+              ) : (
+                <>
+                  <Moon className="h-4 w-4 mr-2" />
+                  Dark mode
+                </>
+              )}
+            </DropdownMenuItem>
             <DropdownMenuItem>
               <Settings className="h-4 w-4 mr-2" />
               Settings
@@ -364,12 +384,24 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
             />
             <span className="text-xs font-medium">GTaskALL</span>
           </div>
-          <Link
-            href="/privacy"
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            Privacy
-          </Link>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={toggleTheme}
+              title={`Switch to ${resolvedTheme === "dark" ? "light" : "dark"} mode`}
+            >
+              <Sun className="h-3.5 w-3.5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute h-3.5 w-3.5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            </Button>
+            <Link
+              href="/privacy"
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Privacy
+            </Link>
+          </div>
         </div>
       </div>
 
