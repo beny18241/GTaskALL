@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  nextjs:
+    image: ${DOCKERHUB_USERNAME:-gtaskall}/gtaskall:latest
+    container_name: gtaskall-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - gtaskall-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.gtaskall.service=nextjs"
+      - "com.gtaskall.version=1.0"
+
+  nginx:
+    image: nginx:alpine
+    container_name: gtaskall-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      nextjs:
+        condition: service_healthy
+    networks:
+      - gtaskall-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "com.gtaskall.service=nginx"
+      - "com.gtaskall.version=1.0"
+
+networks:
+  gtaskall-network:
+    driver: bridge
+    name: gtaskall-network
