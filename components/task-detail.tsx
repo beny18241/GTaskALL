@@ -104,7 +104,7 @@ export function TaskDetail({
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full sm:max-w-md">
+      <SheetContent className="w-full sm:max-w-md" noBlur>
         <SheetHeader className="space-y-0">
           <div className="flex items-center justify-between">
             <SheetTitle className="text-lg">Task Details</SheetTitle>

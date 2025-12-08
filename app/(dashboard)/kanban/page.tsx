@@ -106,23 +106,23 @@ function DraggableTaskCard({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: isDragging ? 0.5 : 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      whileHover={{ scale: 1.02, y: -2 }}
-      transition={{ duration: 0.2 }}
+      whileHover={{ scale: 1.01, y: -1 }}
+      transition={{ duration: 0.15 }}
       className={cn(
-        "bg-card rounded-xl p-4 border-l-4 border-y border-r border-y-border/50 border-r-border/50 cursor-pointer group",
-        "hover:shadow-lg hover:border-primary/20 transition-all duration-200",
+        "bg-card rounded-lg p-2.5 border-l-4 border-y border-r border-y-border/50 border-r-border/50 cursor-pointer group",
+        "hover:shadow-md hover:border-primary/20 transition-all duration-200",
         "backdrop-blur-sm",
         accountColor.border,
         task.status === "completed" && "opacity-60"
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2">
         <div
           {...attributes}
           {...listeners}
           className="cursor-grab active:cursor-grabbing pt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
         >
-          <GripVertical className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" />
+          <GripVertical className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
         </div>
         <Checkbox
           checked={task.status === "completed"}
@@ -130,25 +130,25 @@ function DraggableTaskCard({
             onTaskComplete(task.id, checked as boolean);
           }}
           onClick={(e) => e.stopPropagation()}
-          className="mt-0.5 data-[state=checked]:bg-primary"
+          className="mt-0.5 h-4 w-4 data-[state=checked]:bg-primary"
         />
         <div className="flex-1 min-w-0" onClick={() => onTaskClick(task)}>
           <p
             className={cn(
-              "text-sm font-medium leading-relaxed break-words",
+              "text-sm font-medium leading-snug break-words whitespace-normal",
               task.status === "completed" && "line-through text-muted-foreground"
             )}
           >
             {task.title}
           </p>
           {task.notes && (
-            <p className="text-xs text-muted-foreground/80 mt-2 line-clamp-3 leading-relaxed break-words">
+            <p className="text-xs text-muted-foreground/80 mt-1 line-clamp-2 leading-snug break-words">
               {task.notes}
             </p>
           )}
-          <div className="flex items-center gap-2 mt-3 flex-wrap">
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
             <span className={cn(
-              "text-xs font-semibold px-2 py-0.5 rounded-md",
+              "text-[10px] font-semibold px-1.5 py-0.5 rounded",
               task.priority === 1 && "bg-red-500/10 text-red-600 dark:text-red-400",
               task.priority === 2 && "bg-orange-500/10 text-orange-600 dark:text-orange-400",
               task.priority === 3 && "bg-blue-500/10 text-blue-600 dark:text-blue-400",
@@ -156,17 +156,16 @@ function DraggableTaskCard({
             )}>
               P{task.priority}
             </span>
-            <span className="text-xs text-muted-foreground/70 truncate max-w-[150px]">
+            <span className="text-[10px] text-muted-foreground/70 truncate max-w-[100px]">
               {getListTitle(task.listId)}
             </span>
             {accounts.length > 1 && (
-              <span className={cn(
-                "text-xs font-medium px-2 py-0.5 rounded-md",
-                accountColor.bg,
-                accountColor.text
-              )}>
-                {accounts.find(a => a.id === task.accountId)?.email.split('@')[0]}
-              </span>
+              <Avatar className="h-4 w-4 border border-white/50">
+                <AvatarImage src={accounts.find(a => a.id === task.accountId)?.image} />
+                <AvatarFallback className={cn("text-[8px] font-semibold", accountColor.bg, accountColor.text)}>
+                  {accounts.find(a => a.id === task.accountId)?.email.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
             )}
           </div>
         </div>

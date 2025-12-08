@@ -304,9 +304,9 @@ export default function DashboardLayout({
           {/* Sidebar Panel */}
           <ResizablePanel
             ref={sidebarRef}
-            defaultSize={20}
-            minSize={15}
-            maxSize={30}
+            defaultSize={16}
+            minSize={13}
+            maxSize={25}
             collapsible={true}
             collapsedSize={0}
             onCollapse={() => setIsSidebarCollapsed(true)}
@@ -324,7 +324,7 @@ export default function DashboardLayout({
           <ResizableHandle className="w-1 bg-border hover:bg-primary/20 active:bg-primary/30 transition-colors" />
 
           {/* Main Content Panel */}
-          <ResizablePanel defaultSize={80}>
+          <ResizablePanel defaultSize={84}>
             <main className="h-screen flex flex-col overflow-hidden relative">
               {/* Sidebar Toggle Button */}
               <Button

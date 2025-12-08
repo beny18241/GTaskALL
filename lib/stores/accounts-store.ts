@@ -6,7 +6,7 @@ interface AccountsState {
   accounts: Account[];
   taskLists: TaskListWithAccount[];
   isLoading: boolean;
-  
+
   // Actions
   setAccounts: (accounts: Account[]) => void;
   addAccount: (account: Account) => void;
@@ -14,10 +14,11 @@ interface AccountsState {
   updateAccount: (accountId: string, updates: Partial<Account>) => void;
   setTaskLists: (taskLists: TaskListWithAccount[]) => void;
   addTaskLists: (taskLists: TaskListWithAccount[]) => void;
+  updateTaskList: (listId: string, updates: Partial<TaskListWithAccount>) => void;
   removeTaskListsByAccount: (accountId: string) => void;
   setLoading: (loading: boolean) => void;
   clearAll: () => void;
-  
+
   // Getters
   getAccountById: (id: string) => Account | undefined;
   getAccountByEmail: (email: string) => Account | undefined;
@@ -76,6 +77,13 @@ export const useAccountsStore = create<AccountsState>()(
           return { taskLists: [...filteredLists, ...newTaskLists] };
         }),
 
+      updateTaskList: (listId, updates) =>
+        set((state) => ({
+          taskLists: state.taskLists.map((list) =>
+            list.id === listId ? { ...list, ...updates } : list
+          ),
+        })),
+
       removeTaskListsByAccount: (accountId) =>
         set((state) => ({
           taskLists: state.taskLists.filter((t) => t.accountId !== accountId),
@@ -99,9 +107,14 @@ export const useAccountsStore = create<AccountsState>()(
     }),
     {
       name: "gtm-accounts",
-      // Store accounts with tokens for multi-account support
+      // Store accounts with tokens and task list colors for multi-account support
       partialize: (state) => ({
         accounts: state.accounts,
+        taskLists: state.taskLists.map(list => ({
+          id: list.id,
+          accountId: list.accountId,
+          color: list.color,
+        })),
       }),
     }
   )

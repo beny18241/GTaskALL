@@ -21,6 +21,7 @@ import {
   Trash2,
   User,
   UserPlus,
+  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ import { cn } from "@/lib/utils";
 import { useAccountsStore } from "@/lib/stores/accounts-store";
 import { useTasksStore } from "@/lib/stores/tasks-store";
 import { useTheme } from "next-themes";
+import { ListColorPicker } from "@/components/list-color-picker";
 
 interface SidebarProps {
   taskLists: TaskListWithAccount[];
@@ -60,9 +62,13 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
   const [accountToRemove, setAccountToRemove] = useState<Account | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const { accounts, removeAccount, isLoading } = useAccountsStore();
+  const { accounts, removeAccount, updateTaskList, isLoading } = useAccountsStore();
   const { clearTasksByAccount } = useTasksStore();
   const { setTheme, resolvedTheme } = useTheme();
+
+  const handleListColorChange = (listId: string, color: string) => {
+    updateTaskList(listId, { color });
+  };
 
   const toggleTheme = () => {
     setTheme(resolvedTheme === "dark" ? "light" : "dark");
@@ -148,32 +154,46 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
 
   return (
     <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
-      {/* User header */}
-      <div className="p-4">
+      {/* Logo and User header */}
+      <div className="p-4 space-y-4">
+        {/* Logo at top */}
+        <div className="flex items-center gap-2 px-1">
+          <Image
+            src="/logo.svg"
+            alt="GTaskALL"
+            width={28}
+            height={28}
+            className="rounded"
+          />
+          <span className="text-base font-semibold">GTaskALL</span>
+        </div>
+
+        {/* User dropdown - smaller and more compact */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="w-full justify-start gap-2 h-auto py-2"
+              className="w-full justify-start gap-2 h-auto py-1.5 px-2"
             >
-              <Avatar className="h-8 w-8">
+              <Avatar className="h-7 w-7 ring-2 ring-border">
                 <AvatarImage src={session?.user?.image} />
-                <AvatarFallback>
-                  <User className="h-4 w-4" />
+                <AvatarFallback className="text-xs">
+                  <User className="h-3 w-3" />
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-medium truncate">
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-xs font-medium truncate">
                   {session?.user?.name || "User"}
                 </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {session?.user?.email}
-                </p>
               </div>
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              <ChevronDown className="h-3 w-3 text-muted-foreground flex-shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
+            <div className="px-2 py-1.5 text-xs text-muted-foreground truncate">
+              {session?.user?.email}
+            </div>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={toggleTheme}>
               {resolvedTheme === "dark" ? (
                 <>
@@ -226,82 +246,79 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
 
           <Separator className="my-4" />
 
-          {/* Connected Google Accounts */}
+          {/* Connected Google Accounts - Modern compact design */}
           <div className="space-y-2">
             <div className="flex items-center justify-between px-3">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Google Accounts ({accounts.length})
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Accounts ({accounts.length})
               </span>
-              <div className="flex gap-1">
+              <div className="flex gap-0.5">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6"
+                  className="h-5 w-5"
                   onClick={handleRefresh}
                   disabled={isRefreshing || isLoading}
                   title="Refresh all accounts"
                 >
-                  <RefreshCw className={cn("h-4 w-4", (isRefreshing || isLoading) && "animate-spin")} />
+                  <RefreshCw className={cn("h-3 w-3", (isRefreshing || isLoading) && "animate-spin")} />
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6"
+                  className="h-5 w-5"
                   onClick={handleAddAccount}
                   title="Add another Google account"
                 >
-                  <UserPlus className="h-4 w-4" />
+                  <UserPlus className="h-3 w-3" />
                 </Button>
               </div>
             </div>
 
-            <div className="space-y-1">
+            <div className="flex flex-wrap gap-1.5 px-3">
               {accounts.map((account) => (
                 <div
                   key={account.id}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded-lg group",
-                    account.email === session?.user?.email
-                      ? "bg-sidebar-accent"
-                      : "hover:bg-sidebar-accent/50"
-                  )}
+                  className="group relative"
+                  title={account.email}
                 >
-                  <Avatar className="h-6 w-6">
+                  <Avatar className={cn(
+                    "h-8 w-8 ring-2 cursor-pointer transition-all hover:ring-primary",
+                    account.email === session?.user?.email
+                      ? "ring-primary"
+                      : "ring-border"
+                  )}>
                     <AvatarImage src={account.image} />
-                    <AvatarFallback>
-                      <User className="h-3 w-3" />
+                    <AvatarFallback className="text-xs">
+                      {account.email.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs truncate">{account.email}</p>
-                    {account.email === session?.user?.email && (
-                      <p className="text-[10px] text-muted-foreground">Primary</p>
-                    )}
-                  </div>
                   {account.email !== session?.user?.email && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive/90 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive p-0"
                       onClick={() => handleRemoveAccount(account)}
                       title="Disconnect account"
                     >
-                      <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                      <X className="h-2.5 w-2.5 text-destructive-foreground" />
                     </Button>
+                  )}
+                  {account.email === session?.user?.email && (
+                    <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-sidebar" />
                   )}
                 </div>
               ))}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full border-2 border-dashed border-muted-foreground/30 hover:border-primary hover:bg-accent"
+                onClick={handleAddAccount}
+                title="Add Google account"
+              >
+                <Plus className="h-4 w-4 text-muted-foreground" />
+              </Button>
             </div>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start gap-2 text-muted-foreground text-xs"
-              onClick={handleAddAccount}
-            >
-              <Plus className="h-3 w-3" />
-              Add Google account
-            </Button>
           </div>
 
           <Separator className="my-4" />
@@ -342,19 +359,33 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
                 {expandedAccounts.has(accountId) && (
                   <div className="ml-3 space-y-1">
                     {lists.map((list) => (
-                      <Link
+                      <div
                         key={list.id}
-                        href={`/lists/${list.id}`}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                          pathname === `/lists/${list.id}`
-                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                            : "hover:bg-sidebar-accent/50"
-                        )}
+                        className="flex items-center gap-1 group"
                       >
-                        <ListTodo className="h-4 w-4" />
-                        <span className="truncate">{list.title}</span>
-                      </Link>
+                        <Link
+                          href={`/lists/${list.id}`}
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors flex-1",
+                            pathname === `/lists/${list.id}`
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : "hover:bg-sidebar-accent/50"
+                          )}
+                        >
+                          <div
+                            className="h-3 w-3 rounded-full border-2 border-white/50"
+                            style={{ backgroundColor: list.color || "#64748b" }}
+                          />
+                          <span className="truncate flex-1">{list.title}</span>
+                        </Link>
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ListColorPicker
+                            value={list.color}
+                            onChange={(color) => handleListColorChange(list.id, color)}
+                            size="sm"
+                          />
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -377,37 +408,19 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
         </div>
       </ScrollArea>
 
-      {/* Footer with logo and links */}
-      <div className="p-4 border-t">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Image
-              src="/logo.svg"
-              alt="GTaskALL"
-              width={24}
-              height={24}
-              className="rounded"
-            />
-            <span className="text-xs font-medium">GTaskALL</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={toggleTheme}
-              title={`Switch to ${resolvedTheme === "dark" ? "light" : "dark"} mode`}
-            >
-              <Sun className="h-3.5 w-3.5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-              <Moon className="absolute h-3.5 w-3.5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-            </Button>
-            <Link
-              href="/privacy"
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              Privacy
-            </Link>
-          </div>
+      {/* Footer - simplified */}
+      <div className="p-3 border-t">
+        <div className="flex items-center justify-center gap-3">
+          <Link
+            href="/privacy"
+            className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Privacy
+          </Link>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-[10px] text-muted-foreground">
+            © 2025 GTaskALL
+          </span>
         </div>
       </div>
 
