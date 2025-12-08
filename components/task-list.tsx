@@ -1,5 +1,6 @@
 "use client";
 
+import { motion, AnimatePresence } from "framer-motion";
 import { Task } from "@/types";
 import { TaskItem } from "./task-item";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -33,19 +34,32 @@ export function TaskList({
 
   return (
     <ScrollArea className="flex-1">
-      <div className="space-y-1 p-2">
-        {tasks.map((task) => (
-          <TaskItem
-            key={task.id}
-            task={task}
-            onClick={() => onTaskClick(task)}
-            onComplete={onTaskComplete}
-            onDelete={onTaskDelete}
-            showList={showList}
-            listTitle={getListTitle?.(task.listId)}
-          />
-        ))}
-      </div>
+      <motion.div
+        className="space-y-1 p-2"
+        initial="hidden"
+        animate="visible"
+        variants={{
+          visible: {
+            transition: {
+              staggerChildren: 0.03
+            }
+          }
+        }}
+      >
+        <AnimatePresence mode="popLayout">
+          {tasks.map((task, index) => (
+            <TaskItem
+              key={task.id}
+              task={task}
+              onClick={() => onTaskClick(task)}
+              onComplete={onTaskComplete}
+              onDelete={onTaskDelete}
+              showList={showList}
+              listTitle={getListTitle?.(task.listId)}
+            />
+          ))}
+        </AnimatePresence>
+      </motion.div>
     </ScrollArea>
   );
 }

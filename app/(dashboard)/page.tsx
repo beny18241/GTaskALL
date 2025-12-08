@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { format } from "date-fns";
 import { Sun } from "lucide-react";
+import { PageTransition } from "@/components/page-transition";
 import { TaskList } from "@/components/task-list";
 import { AddTask } from "@/components/add-task";
 import { useTasksStore } from "@/lib/stores/tasks-store";
@@ -119,34 +120,36 @@ export default function TodayPage() {
   );
 
   return (
-    <div className="h-full flex flex-col p-6">
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-1">
-          <Sun className="h-6 w-6 text-yellow-500" />
-          <h1 className="text-2xl font-bold">Today</h1>
+    <PageTransition>
+      <div className="h-full flex flex-col p-6">
+        <div className="mb-6">
+          <div className="flex items-center gap-3 mb-1">
+            <Sun className="h-6 w-6 text-yellow-500" />
+            <h1 className="text-2xl font-bold">Today</h1>
+          </div>
+          <p className="text-muted-foreground">
+            {format(today, "EEEE, MMMM d")}
+          </p>
         </div>
-        <p className="text-muted-foreground">
-          {format(today, "EEEE, MMMM d")}
-        </p>
-      </div>
 
-      <div className="mb-4">
-        <AddTask
-          onAdd={handleAddTask}
-          taskLists={taskLists}
-          defaultListId={taskLists[0]?.id}
+        <div className="mb-4">
+          <AddTask
+            onAdd={handleAddTask}
+            taskLists={taskLists}
+            defaultListId={taskLists[0]?.id}
+          />
+        </div>
+
+        <TaskList
+          tasks={todayTasks}
+          onTaskClick={handleTaskClick}
+          onTaskComplete={handleTaskComplete}
+          onTaskDelete={handleTaskDelete}
+          showList
+          getListTitle={getListTitle}
+          emptyMessage="No tasks due today. Enjoy your day! 🎉"
         />
       </div>
-
-      <TaskList
-        tasks={todayTasks}
-        onTaskClick={handleTaskClick}
-        onTaskComplete={handleTaskComplete}
-        onTaskDelete={handleTaskDelete}
-        showList
-        getListTitle={getListTitle}
-        emptyMessage="No tasks due today. Enjoy your day! 🎉"
-      />
-    </div>
+    </PageTransition>
   );
 }

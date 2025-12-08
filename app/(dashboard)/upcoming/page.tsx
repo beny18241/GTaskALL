@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { format, isToday, isTomorrow, addDays, startOfDay } from "date-fns";
 import { CalendarDays } from "lucide-react";
+import { PageTransition } from "@/components/page-transition";
 import { TaskList } from "@/components/task-list";
 import { AddTask } from "@/components/add-task";
 import { useTasksStore } from "@/lib/stores/tasks-store";
@@ -148,7 +149,8 @@ export default function UpcomingPage() {
   );
 
   return (
-    <div className="h-full flex flex-col p-6 overflow-auto">
+    <PageTransition>
+      <div className="h-full flex flex-col p-6 overflow-auto">
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-1">
           <CalendarDays className="h-6 w-6 text-purple-500" />
@@ -191,6 +193,7 @@ export default function UpcomingPage() {
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </PageTransition>
   );
 }

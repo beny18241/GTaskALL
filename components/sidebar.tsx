@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronRight,
   Columns3,
+  ListChecks,
   ListTodo,
   LogOut,
   Moon,
@@ -137,6 +138,11 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
       label: "Kanban",
       href: "/kanban",
       icon: Columns3,
+    },
+    {
+      label: "All Tasks",
+      href: "/all",
+      icon: ListChecks,
     },
   ];
 

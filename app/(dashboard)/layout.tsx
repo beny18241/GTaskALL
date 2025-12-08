@@ -3,7 +3,13 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Menu } from "lucide-react";
+import { Menu, PanelLeftClose, PanelLeft } from "lucide-react";
+import { ImperativePanelHandle } from "react-resizable-panels";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 import { Sidebar } from "@/components/sidebar";
 import { TaskDetail } from "@/components/task-detail";
 import { Button } from "@/components/ui/button";
@@ -20,6 +26,8 @@ export default function DashboardLayout({
   const { data: session, status } = useSession();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const sidebarRef = useRef<ImperativePanelHandle>(null);
   const hasInitialized = useRef(false);
   
   const { 
@@ -253,6 +261,17 @@ export default function DashboardLayout({
     }
   }, [tasks, removeTask]);
 
+  const toggleSidebar = useCallback(() => {
+    if (sidebarRef.current) {
+      if (isSidebarCollapsed) {
+        sidebarRef.current.expand();
+      } else {
+        sidebarRef.current.collapse();
+      }
+      setIsSidebarCollapsed(!isSidebarCollapsed);
+    }
+  }, [isSidebarCollapsed]);
+
   const selectedTask = getSelectedTask();
 
   if (status === "loading") {
@@ -269,28 +288,68 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen flex">
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-64 border-r flex-col">
-        <Sidebar 
-          taskLists={taskLists} 
-          onRefresh={fetchAllAccountsData}
-        />
-      </aside>
-
       {/* Mobile sidebar */}
       <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
         <SheetContent side="left" className="p-0 w-64">
-          <Sidebar 
-            taskLists={taskLists} 
+          <Sidebar
+            taskLists={taskLists}
             onRefresh={fetchAllAccountsData}
           />
         </SheetContent>
       </Sheet>
 
-      {/* Main content */}
-      <main className="flex-1 flex flex-col">
+      {/* Desktop layout with resizable panels */}
+      <div className="hidden md:flex flex-1 relative">
+        <ResizablePanelGroup direction="horizontal">
+          {/* Sidebar Panel */}
+          <ResizablePanel
+            ref={sidebarRef}
+            defaultSize={20}
+            minSize={15}
+            maxSize={30}
+            collapsible={true}
+            collapsedSize={0}
+            onCollapse={() => setIsSidebarCollapsed(true)}
+            onExpand={() => setIsSidebarCollapsed(false)}
+          >
+            <aside className="h-screen border-r flex flex-col">
+              <Sidebar
+                taskLists={taskLists}
+                onRefresh={fetchAllAccountsData}
+              />
+            </aside>
+          </ResizablePanel>
+
+          {/* Resize Handle */}
+          <ResizableHandle className="w-1 bg-border hover:bg-primary/20 active:bg-primary/30 transition-colors" />
+
+          {/* Main Content Panel */}
+          <ResizablePanel defaultSize={80}>
+            <main className="h-screen flex flex-col overflow-hidden relative">
+              {/* Sidebar Toggle Button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                className="absolute top-4 left-4 z-10 h-8 w-8 rounded-lg bg-background/80 backdrop-blur-sm border border-border/50 shadow-sm hover:bg-accent"
+                title={isSidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+              >
+                {isSidebarCollapsed ? (
+                  <PanelLeft className="h-4 w-4" />
+                ) : (
+                  <PanelLeftClose className="h-4 w-4" />
+                )}
+              </Button>
+              {children}
+            </main>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
+
+      {/* Mobile layout */}
+      <main className="flex-1 flex flex-col md:hidden">
         {/* Mobile header */}
-        <header className="md:hidden flex items-center gap-4 p-4 border-b">
+        <header className="flex items-center gap-4 p-4 border-b">
           <Button
             variant="ghost"
             size="icon"

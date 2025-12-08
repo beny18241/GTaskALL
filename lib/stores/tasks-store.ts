@@ -1,12 +1,30 @@
 import { create } from "zustand";
 import { Task, Priority } from "@/types";
 
+export type SortOption = "due-asc" | "due-desc" | "priority-high" | "priority-low" | "created-desc" | "title-asc" | "title-desc";
+export type GroupOption = "none" | "date" | "account" | "list" | "priority";
+export type DateFilterOption = "all" | "overdue" | "no-date" | "today" | "week" | "custom";
+
+export interface AllTasksFilters {
+  search: string;
+  accountIds: string[];
+  listIds: string[];
+  priorities: Priority[];
+  status: "all" | "active" | "completed";
+  dateFilter: DateFilterOption;
+  customDateRange?: { start: Date; end: Date };
+  sortBy: SortOption;
+  groupBy: GroupOption;
+}
+
 interface TasksState {
   tasks: Task[];
   selectedTaskId: string | null;
   showCompleted: boolean;
   isLoading: boolean;
   error: string | null;
+  allTasksFilters: AllTasksFilters;
+  kanbanAccountFilter: string | null; // null = all accounts
 
   // Actions
   setTasks: (tasks: Task[]) => void;
@@ -21,6 +39,9 @@ interface TasksState {
   clearTasks: () => void;
   clearTasksByAccount: (accountId: string) => void;
   clearTasksByList: (listId: string) => void;
+  setAllTasksFilters: (filters: Partial<AllTasksFilters>) => void;
+  resetAllTasksFilters: () => void;
+  setKanbanAccountFilter: (accountId: string | null) => void;
 
   // Getters
   getTaskById: (taskId: string) => Task | undefined;
@@ -29,7 +50,21 @@ interface TasksState {
   getTodayTasks: () => Task[];
   getUpcomingTasks: () => Task[];
   getSelectedTask: () => Task | undefined;
+  getAllTasks: () => Task[];
+  getFilteredTasks: () => Task[];
+  getKanbanTasks: () => Task[];
 }
+
+const defaultFilters: AllTasksFilters = {
+  search: "",
+  accountIds: [],
+  listIds: [],
+  priorities: [],
+  status: "all",
+  dateFilter: "all",
+  sortBy: "due-asc",
+  groupBy: "none",
+};
 
 export const useTasksStore = create<TasksState>()((set, get) => ({
   tasks: [],
@@ -37,6 +72,8 @@ export const useTasksStore = create<TasksState>()((set, get) => ({
   showCompleted: false,
   isLoading: false,
   error: null,
+  allTasksFilters: defaultFilters,
+  kanbanAccountFilter: null,
 
   setTasks: (tasks) => set({ tasks }),
 
@@ -87,6 +124,17 @@ export const useTasksStore = create<TasksState>()((set, get) => ({
     set((state) => ({
       tasks: state.tasks.filter((t) => t.listId !== listId),
     })),
+
+  setAllTasksFilters: (filters) =>
+    set((state) => ({
+      allTasksFilters: { ...state.allTasksFilters, ...filters },
+    })),
+
+  resetAllTasksFilters: () =>
+    set({ allTasksFilters: defaultFilters }),
+
+  setKanbanAccountFilter: (accountId) =>
+    set({ kanbanAccountFilter: accountId }),
 
   getTaskById: (taskId) => {
     return get().tasks.find((t) => t.id === taskId);
@@ -156,5 +204,132 @@ export const useTasksStore = create<TasksState>()((set, get) => ({
     const state = get();
     if (!state.selectedTaskId) return undefined;
     return state.tasks.find((t) => t.id === state.selectedTaskId);
+  },
+
+  getAllTasks: () => {
+    const state = get();
+    return state.tasks.filter((t) =>
+      state.showCompleted || t.status !== "completed"
+    );
+  },
+
+  getFilteredTasks: () => {
+    const state = get();
+    const filters = state.allTasksFilters;
+    let filtered = state.tasks;
+
+    // Search filter
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter(
+        (t) =>
+          t.title.toLowerCase().includes(searchLower) ||
+          (t.notes && t.notes.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Account filter
+    if (filters.accountIds.length > 0) {
+      filtered = filtered.filter((t) => filters.accountIds.includes(t.accountId));
+    }
+
+    // List filter
+    if (filters.listIds.length > 0) {
+      filtered = filtered.filter((t) => filters.listIds.includes(t.listId));
+    }
+
+    // Priority filter
+    if (filters.priorities.length > 0) {
+      filtered = filtered.filter((t) => filters.priorities.includes(t.priority));
+    }
+
+    // Status filter
+    if (filters.status === "active") {
+      filtered = filtered.filter((t) => t.status !== "completed");
+    } else if (filters.status === "completed") {
+      filtered = filtered.filter((t) => t.status === "completed");
+    }
+
+    // Date filter
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (filters.dateFilter === "overdue") {
+      filtered = filtered.filter((t) => {
+        if (!t.due) return false;
+        const dueDate = new Date(t.due);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate < today && t.status !== "completed";
+      });
+    } else if (filters.dateFilter === "no-date") {
+      filtered = filtered.filter((t) => !t.due);
+    } else if (filters.dateFilter === "today") {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      filtered = filtered.filter((t) => {
+        if (!t.due) return false;
+        const dueDate = new Date(t.due);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate >= today && dueDate < tomorrow;
+      });
+    } else if (filters.dateFilter === "week") {
+      const nextWeek = new Date(today);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      filtered = filtered.filter((t) => {
+        if (!t.due) return false;
+        const dueDate = new Date(t.due);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate >= today && dueDate < nextWeek;
+      });
+    } else if (filters.dateFilter === "custom" && filters.customDateRange) {
+      const { start, end } = filters.customDateRange;
+      filtered = filtered.filter((t) => {
+        if (!t.due) return false;
+        const dueDate = new Date(t.due);
+        return dueDate >= start && dueDate <= end;
+      });
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (filters.sortBy) {
+        case "due-asc":
+          if (!a.due && !b.due) return 0;
+          if (!a.due) return 1;
+          if (!b.due) return -1;
+          return new Date(a.due).getTime() - new Date(b.due).getTime();
+        case "due-desc":
+          if (!a.due && !b.due) return 0;
+          if (!a.due) return 1;
+          if (!b.due) return -1;
+          return new Date(b.due).getTime() - new Date(a.due).getTime();
+        case "priority-high":
+          return a.priority - b.priority;
+        case "priority-low":
+          return b.priority - a.priority;
+        case "created-desc":
+          return new Date(b.updated).getTime() - new Date(a.updated).getTime();
+        case "title-asc":
+          return a.title.localeCompare(b.title);
+        case "title-desc":
+          return b.title.localeCompare(a.title);
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  },
+
+  getKanbanTasks: () => {
+    const state = get();
+    let filtered = state.tasks;
+
+    // Apply account filter if set
+    if (state.kanbanAccountFilter) {
+      filtered = filtered.filter((t) => t.accountId === state.kanbanAccountFilter);
+    }
+
+    return filtered;
   },
 }));

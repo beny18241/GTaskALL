@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { Calendar, Flag, GripVertical, MoreHorizontal, Trash2 } from "lucide-react";
+import { motion } from "framer-motion";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,7 +42,13 @@ export function TaskItem({
   };
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      whileHover={{ scale: 1.01 }}
+      transition={{ duration: 0.2 }}
+      layout
       className={cn(
         "group flex items-start gap-3 px-3 py-2 rounded-lg hover:bg-accent/50 transition-colors cursor-pointer",
         isCompleted && "opacity-60"
@@ -126,6 +133,6 @@ export function TaskItem({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </div>
+    </motion.div>
   );
 }
