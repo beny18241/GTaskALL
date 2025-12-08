@@ -6,6 +6,7 @@ import { Calendar, Flag, GripVertical, MoreHorizontal, Trash2 } from "lucide-rea
 import { motion } from "framer-motion";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Task, PRIORITY_COLORS } from "@/types";
+import { Task, PRIORITY_COLORS, Account } from "@/types";
 import { cn } from "@/lib/utils";
 import { useTasksStore } from "@/lib/stores/tasks-store";
 
@@ -24,6 +25,8 @@ interface TaskItemProps {
   onClick: () => void;
   showList?: boolean;
   listTitle?: string;
+  showAccount?: boolean;
+  account?: Account | null;
 }
 
 export function TaskItem({
@@ -33,6 +36,8 @@ export function TaskItem({
   onClick,
   showList = false,
   listTitle,
+  showAccount = false,
+  account = null,
 }: TaskItemProps) {
   const [isHovered, setIsHovered] = useState(false);
   const isCompleted = task.status === "completed";
@@ -100,6 +105,14 @@ export function TaskItem({
             <span className="text-xs text-muted-foreground">
               {listTitle}
             </span>
+          )}
+          {showAccount && account && (
+            <Avatar className="h-4 w-4 border border-border" title={account.email}>
+              <AvatarImage src={account.image || undefined} alt={account.name || account.email} />
+              <AvatarFallback className="text-[8px]">
+                {(account.name || account.email).charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
           )}
         </div>
       </div>

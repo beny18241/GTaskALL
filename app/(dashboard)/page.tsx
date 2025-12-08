@@ -122,6 +122,7 @@ export default function TodayPage() {
   return (
     <PageTransition>
       <div className="h-full flex flex-col p-6">
+        <div className="max-w-4xl mx-auto w-full space-y-6">
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-1">
             <Sun className="h-6 w-6 text-yellow-500" />
@@ -149,6 +150,7 @@ export default function TodayPage() {
           getListTitle={getListTitle}
           emptyMessage="No tasks due today. Enjoy your day! 🎉"
         />
+        </div>
       </div>
     </PageTransition>
   );

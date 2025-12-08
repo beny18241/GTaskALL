@@ -151,7 +151,8 @@ export default function UpcomingPage() {
   return (
     <PageTransition>
       <div className="h-full flex flex-col p-6 overflow-auto">
-      <div className="mb-6">
+        <div className="max-w-4xl mx-auto w-full space-y-6">
+        <div className="mb-6">
         <div className="flex items-center gap-3 mb-1">
           <CalendarDays className="h-6 w-6 text-purple-500" />
           <h1 className="text-2xl font-bold">Upcoming</h1>
@@ -193,6 +194,7 @@ export default function UpcomingPage() {
           ))}
         </div>
       )}
+        </div>
       </div>
     </PageTransition>
   );

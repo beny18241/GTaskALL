@@ -12,10 +12,12 @@ import {
 } from "@/components/ui/resizable";
 import { Sidebar } from "@/components/sidebar";
 import { TaskDetail } from "@/components/task-detail";
+import { QuickAddTask } from "@/components/quick-add-task";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAccountsStore } from "@/lib/stores/accounts-store";
 import { useTasksStore } from "@/lib/stores/tasks-store";
+import { useSettingsStore } from "@/lib/stores/settings-store";
 import { Task, TaskListWithAccount, Account } from "@/types";
 
 export default function DashboardLayout({
@@ -27,15 +29,18 @@ export default function DashboardLayout({
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const sidebarRef = useRef<ImperativePanelHandle>(null);
   const hasInitialized = useRef(false);
-  
-  const { 
+
+  const { quickAddShortcut } = useSettingsStore();
+
+  const {
     accounts,
-    taskLists, 
+    taskLists,
     addAccount,
     addTaskLists,
-    setLoading: setAccountsLoading 
+    setLoading: setAccountsLoading
   } = useAccountsStore();
   
   const {
@@ -56,6 +61,26 @@ export default function DashboardLayout({
       router.push("/login");
     }
   }, [status, router]);
+
+  // Keyboard shortcut for quick add task
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Check if user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      const isTyping = target.tagName === "INPUT" ||
+                       target.tagName === "TEXTAREA" ||
+                       target.isContentEditable;
+
+      // If not typing and the shortcut key is pressed
+      if (!isTyping && e.key.toLowerCase() === quickAddShortcut.toLowerCase() && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        setIsQuickAddOpen(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [quickAddShortcut]);
 
   // Save current session as account and fetch all data
   useEffect(() => {
@@ -372,6 +397,12 @@ export default function DashboardLayout({
         onDelete={handleTaskDelete}
         onComplete={handleTaskComplete}
         taskLists={taskLists}
+      />
+
+      {/* Quick add task modal */}
+      <QuickAddTask
+        isOpen={isQuickAddOpen}
+        onClose={() => setIsQuickAddOpen(false)}
       />
     </div>
   );

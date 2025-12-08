@@ -1,9 +1,10 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Task } from "@/types";
+import { Task, Account } from "@/types";
 import { TaskItem } from "./task-item";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAccountsStore } from "@/lib/stores/accounts-store";
 
 interface TaskListProps {
   tasks: Task[];
@@ -24,6 +25,8 @@ export function TaskList({
   getListTitle,
   emptyMessage = "No tasks",
 }: TaskListProps) {
+  const { accounts } = useAccountsStore();
+  const showAccount = accounts.length > 1;
   if (tasks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -47,17 +50,22 @@ export function TaskList({
         }}
       >
         <AnimatePresence mode="popLayout">
-          {tasks.map((task, index) => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              onClick={() => onTaskClick(task)}
-              onComplete={onTaskComplete}
-              onDelete={onTaskDelete}
-              showList={showList}
-              listTitle={getListTitle?.(task.listId)}
-            />
-          ))}
+          {tasks.map((task, index) => {
+            const account = accounts.find(acc => acc.id === task.accountId);
+            return (
+              <TaskItem
+                key={task.id}
+                task={task}
+                onClick={() => onTaskClick(task)}
+                onComplete={onTaskComplete}
+                onDelete={onTaskDelete}
+                showList={showList}
+                listTitle={getListTitle?.(task.listId)}
+                showAccount={showAccount}
+                account={account || null}
+              />
+            );
+          })}
         </AnimatePresence>
       </motion.div>
     </ScrollArea>

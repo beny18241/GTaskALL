@@ -10,6 +10,8 @@ import {
   ChevronDown,
   ChevronRight,
   Columns3,
+  Eye,
+  EyeOff,
   ListChecks,
   ListTodo,
   LogOut,
@@ -46,6 +48,7 @@ import { TaskListWithAccount, Account } from "@/types";
 import { cn } from "@/lib/utils";
 import { useAccountsStore } from "@/lib/stores/accounts-store";
 import { useTasksStore } from "@/lib/stores/tasks-store";
+import { useSettingsStore } from "@/lib/stores/settings-store";
 import { useTheme } from "next-themes";
 import { ListColorPicker } from "@/components/list-color-picker";
 
@@ -64,6 +67,7 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
 
   const { accounts, removeAccount, updateTaskList, isLoading } = useAccountsStore();
   const { clearTasksByAccount } = useTasksStore();
+  const { showLists, setShowLists } = useSettingsStore();
   const { setTheme, resolvedTheme } = useTheme();
 
   const handleListColorChange = (listId: string, color: string) => {
@@ -154,9 +158,8 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
 
   return (
     <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
-      {/* Logo and User header */}
-      <div className="p-4 space-y-4">
-        {/* Logo at top */}
+      {/* Logo header */}
+      <div className="p-4">
         <div className="flex items-center gap-2 px-1">
           <Image
             src="/logo.svg"
@@ -167,57 +170,6 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
           />
           <span className="text-base font-semibold">GTaskALL</span>
         </div>
-
-        {/* User dropdown - smaller and more compact */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-2 h-auto py-1.5 px-2"
-            >
-              <Avatar className="h-7 w-7 ring-2 ring-border">
-                <AvatarImage src={session?.user?.image} />
-                <AvatarFallback className="text-xs">
-                  <User className="h-3 w-3" />
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-xs font-medium truncate">
-                  {session?.user?.name || "User"}
-                </p>
-              </div>
-              <ChevronDown className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <div className="px-2 py-1.5 text-xs text-muted-foreground truncate">
-              {session?.user?.email}
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={toggleTheme}>
-              {resolvedTheme === "dark" ? (
-                <>
-                  <Sun className="h-4 w-4 mr-2" />
-                  Light mode
-                </>
-              ) : (
-                <>
-                  <Moon className="h-4 w-4 mr-2" />
-                  Dark mode
-                </>
-              )}
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => signOut()}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
       <Separator />
@@ -246,77 +198,85 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
 
           <Separator className="my-4" />
 
-          {/* Connected Google Accounts - Modern compact design */}
-          <div className="space-y-2">
+          {/* Connected Google Accounts - Improved design */}
+          <div className="space-y-3">
             <div className="flex items-center justify-between px-3">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Accounts ({accounts.length})
+              <span className="text-xs font-semibold text-foreground">
+                Accounts
               </span>
-              <div className="flex gap-0.5">
+              <div className="flex gap-1">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-5 w-5"
+                  className="h-6 w-6"
                   onClick={handleRefresh}
                   disabled={isRefreshing || isLoading}
                   title="Refresh all accounts"
                 >
-                  <RefreshCw className={cn("h-3 w-3", (isRefreshing || isLoading) && "animate-spin")} />
+                  <RefreshCw className={cn("h-3.5 w-3.5", (isRefreshing || isLoading) && "animate-spin")} />
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-5 w-5"
+                  className="h-6 w-6"
                   onClick={handleAddAccount}
                   title="Add another Google account"
                 >
-                  <UserPlus className="h-3 w-3" />
+                  <UserPlus className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-1.5 px-3">
+            <div className="space-y-1 px-2">
               {accounts.map((account) => (
                 <div
                   key={account.id}
-                  className="group relative"
-                  title={account.email}
-                >
-                  <Avatar className={cn(
-                    "h-8 w-8 ring-2 cursor-pointer transition-all hover:ring-primary",
+                  className={cn(
+                    "group flex items-center gap-2 px-2 py-2 rounded-lg transition-colors",
                     account.email === session?.user?.email
-                      ? "ring-primary"
-                      : "ring-border"
-                  )}>
+                      ? "bg-primary/10 border border-primary/20"
+                      : "hover:bg-accent"
+                  )}
+                >
+                  <Avatar className="h-8 w-8 ring-2 ring-border">
                     <AvatarImage src={account.image} />
-                    <AvatarFallback className="text-xs">
+                    <AvatarFallback className="text-xs font-semibold">
                       {account.email.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  {account.email !== session?.user?.email && (
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">
+                      {account.name || account.email.split("@")[0]}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {account.email}
+                    </p>
+                  </div>
+                  {account.email === session?.user?.email ? (
+                    <div className="flex-shrink-0">
+                      <div className="h-2 w-2 rounded-full bg-green-500" title="Active account" />
+                    </div>
+                  ) : (
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive/90 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive p-0"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                       onClick={() => handleRemoveAccount(account)}
                       title="Disconnect account"
                     >
-                      <X className="h-2.5 w-2.5 text-destructive-foreground" />
+                      <X className="h-3.5 w-3.5" />
                     </Button>
-                  )}
-                  {account.email === session?.user?.email && (
-                    <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-sidebar" />
                   )}
                 </div>
               ))}
               <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full border-2 border-dashed border-muted-foreground/30 hover:border-primary hover:bg-accent"
+                variant="outline"
+                size="sm"
+                className="w-full h-9 border-dashed gap-2"
                 onClick={handleAddAccount}
-                title="Add Google account"
               >
-                <Plus className="h-4 w-4 text-muted-foreground" />
+                <Plus className="h-3.5 w-3.5" />
+                Add Account
               </Button>
             </div>
           </div>
@@ -324,24 +284,37 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
           <Separator className="my-4" />
 
           {/* Task lists by account */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between px-3">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Lists
-              </span>
-              {onAddList && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={onAddList}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
+          {showLists && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-3">
+                <span className="text-xs font-semibold text-foreground">
+                  Lists
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setShowLists(false)}
+                    title="Hide lists"
+                  >
+                    <EyeOff className="h-3.5 w-3.5" />
+                  </Button>
+                  {onAddList && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={onAddList}
+                      title="Add list"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
 
-            {Object.entries(groupedLists).map(([accountId, { email, lists }]) => (
+              {Object.entries(groupedLists).map(([accountId, { email, lists }]) => (
               <div key={accountId}>
                 <button
                   onClick={() => toggleAccount(accountId)}
@@ -392,25 +365,93 @@ export function Sidebar({ taskLists, onAddList, onRefresh }: SidebarProps) {
               </div>
             ))}
 
-            {Object.keys(groupedLists).length === 0 && !isLoading && (
-              <p className="px-3 py-2 text-sm text-muted-foreground">
-                No task lists yet
-              </p>
-            )}
+              {Object.keys(groupedLists).length === 0 && !isLoading && (
+                <p className="px-3 py-2 text-sm text-muted-foreground">
+                  No task lists yet
+                </p>
+              )}
 
-            {isLoading && (
-              <div className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
-                <RefreshCw className="h-3 w-3 animate-spin" />
-                Loading...
-              </div>
-            )}
-          </div>
+              {isLoading && (
+                <div className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  Loading...
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Show Lists button when hidden */}
+          {!showLists && (
+            <div className="px-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-2"
+                onClick={() => setShowLists(true)}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Show Lists
+              </Button>
+            </div>
+          )}
         </div>
       </ScrollArea>
 
-      {/* Footer - simplified */}
-      <div className="p-3 border-t">
-        <div className="flex items-center justify-center gap-3">
+      {/* Footer with user menu */}
+      <div className="border-t">
+        <div className="p-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-3 h-auto py-2.5 px-3"
+              >
+                <Avatar className="h-8 w-8 ring-2 ring-border">
+                  <AvatarImage src={session?.user?.image} />
+                  <AvatarFallback className="text-xs">
+                    <User className="h-4 w-4" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 text-left min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {session?.user?.name || "User"}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {session?.user?.email}
+                  </p>
+                </div>
+                <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={toggleTheme}>
+                {resolvedTheme === "dark" ? (
+                  <>
+                    <Sun className="h-4 w-4 mr-2" />
+                    Light mode
+                  </>
+                ) : (
+                  <>
+                    <Moon className="h-4 w-4 mr-2" />
+                    Dark mode
+                  </>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/settings">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Settings
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => signOut()}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <div className="px-3 pb-3 flex items-center justify-center gap-3">
           <Link
             href="/privacy"
             className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"

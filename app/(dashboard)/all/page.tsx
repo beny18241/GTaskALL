@@ -236,6 +236,7 @@ export default function AllTasksPage() {
   return (
     <PageTransition>
       <div className="h-full flex flex-col p-6">
+        <div className="max-w-4xl mx-auto w-full h-full flex flex-col">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-1">
@@ -500,6 +501,7 @@ export default function AllTasksPage() {
             </div>
           )}
         </ScrollArea>
+        </div>
       </div>
     </PageTransition>
   );
